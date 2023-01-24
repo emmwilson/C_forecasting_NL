@@ -1,0 +1,28 @@
+---
+title: "Outline of data analysis"
+author: "Emmerson Wilson"
+date: "2023-01-20"
+output:
+  html_document:
+    number_sections: yes
+  number_sections: default
+---
+
+# Bring in data
+
+## Bring in environmental data
+see "Next steps.docx" for process for each variable (depending on which chosen to include)
+
+
+## Bring in carbon data
+
+
+## Overlap C and En.v in space
+
+
+## Remove NAs
+
+
+# Extract data at each location
+use 'extract' from package 'raster'
+
