@@ -1,0 +1,30 @@
+---
+title: "Extracting cloud cover EVI"
+author: "Emmerson Wilson"
+date: "2023-01-31"
+output: html_document
+---
+
+```{r}
+library(writexl)
+
+wd <- "/Volumes/Emmerson's backup/C_forecasting_NL_env_data/ESPA_EVI_2022/MTL_cloudcover_txt"
+file_list <- list.files(path=wd, pattern="*.txt", full.names = TRUE) 
+
+txt_files_df <- lapply(file_list, function(x) {read.table(file = x, header = T, sep ="\t")})
+
+cloud_cover <- matrix(0,length(file_list),3)
+
+for(i in seq(1, length(file_list),1)) {
+ccl <- txt_files_df[[i]][["GROUP...LANDSAT_METADATA_FILE"]][64]
+cloud_cover[i,2] <- ccl
+cloud_cover[i,1] <- txt_files_df[[i]][["GROUP...LANDSAT_METADATA_FILE"]][4]
+cc <- txt_files_df[[i]][["GROUP...LANDSAT_METADATA_FILE"]][63]
+cloud_cover[i,3] <- cc
+}
+
+cloud_cover <- as.data.frame(cloud_cover)
+
+write_xlsx(cloud_cover,"/Volumes/Emmerson's backup/C_forecasting_NL_env_data/ESPA_EVI_2022/MTL_cloudcover_txt/cloud_cover.xlsx")
+```
+
