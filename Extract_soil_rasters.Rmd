@@ -1,0 +1,374 @@
+---
+title: "Extract soilgrids"
+author: "Emmerson Wilson"
+date: "2023-02-01"
+output: html_document
+---
+
+following https://rpubs.com/ials2un/soilgrids_webdav
+
+```{r}
+setwd("~/Documents/Master's/C_forecasting_NL")
+library(XML)
+library(gdalUtils)
+library(rgdal) ## confirm the GDAL version being used
+library(sp)
+library(raster)
+library(sf)
+```
+
+# set ROI
+```{r}
+deptos <- st_read("./Environmental_datasets/map.geojson")
+igh='+proj=igh +lat_0=0 +lon_0=0 +datum=WGS84 +units=m +no_defs'
+N_igh <- st_transform(deptos, igh)
+bbox <- st_bbox(N_igh)
+
+ulx = bbox$xmin
+uly = bbox$ymax
+lrx= bbox$xmax
+lry = bbox$ymin
+bb <- c(ulx, uly, lrx, lry)
+
+sg_url="/vsicurl/https://files.isric.org/soilgrids/latest/data/"
+```
+
+
+# Nitrogen
+## 0-5
+### mean
+```{r}
+voi_N_0_5_m = "nitrogen" # variable of interest
+depth_N_0_5_m = "0-5cm"
+quantile_N_0_5_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/nitrogen/" 
+
+variable_N_0_5_m = paste(url, voi_N_0_5_m, sep="")
+layer_N_0_5_m = paste(variable_N_0_5_m, depth_N_0_5_m, quantile_N_0_5_m, sep="_")
+vrt_layer_N_0_5_m = paste(layer_N_0_5_m, '.vrt', sep="")
+
+nitro_N_0_5_m = raster(vrt_layer_N_0_5_m)
+
+datos_N_0_5_m = 'nitrogen/nitrogen_0-5cm_mean.vrt'
+lfile_N_0_5_m = "./Environmental_datasets/Soilgrids/nitro_0-5cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_N_0_5_m), lfile_N_0_5_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+## 5-15
+### mean
+```{r}
+voi_N_5_15_m = "nitrogen" # variable of interest
+depth_N_5_15_m = "5-15cm"
+quantile_N_5_15_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/nitrogen/" 
+
+variable_N_5_15_m = paste(url, voi_N_5_15_m, sep="")
+layer_N_5_15_m = paste(variable_N_5_15_m, depth_N_5_15_m, quantile_N_5_15_m, sep="_")
+vrt_layer_N_5_15_m = paste(layer_N_5_15_m, '.vrt', sep="")
+
+nitro_N_5_15_m = raster(vrt_layer_N_5_15_m)
+
+datos_N_5_15_m = 'nitrogen/nitrogen_5-15cm_mean.vrt'
+lfile_N_5_15_m = "./Environmental_datasets/Soilgrids/nitro_5-15cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_N_5_15_m), lfile_N_5_15_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+
+## 15-30
+### mean
+```{r}
+voi_N_15_30_m = "nitrogen" # variable of interest
+depth_N_15_30_m = "15-30cm"
+quantile_N_15_30_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/nitrogen/" 
+
+variable_N_15_30_m = paste(url, voi_N_15_30_m, sep="")
+layer_N_15_30_m = paste(variable_N_15_30_m, depth_N_15_30_m, quantile_N_15_30_m, sep="_")
+vrt_layer_N_15_30_m = paste(layer_N_15_30_m, '.vrt', sep="")
+
+nitro_N_15_30_m = raster(vrt_layer_N_15_30_m)
+
+datos_N_15_30_m = 'nitrogen/nitrogen_15-30cm_mean.vrt'
+lfile_N_15_30_m = "./Environmental_datasets/Soilgrids/nitro_15-30cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_N_15_30_m), lfile_N_15_30_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+
+# Bulk soil density
+## 0-5
+### mean
+```{r}
+voi_B_0_5_m = "bdod" # variable of interest
+depth_B_0_5_m = "0-5cm"
+quantile_B_0_5_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/bdod/" 
+
+variable_B_0_5_m = paste(url, voi_B_0_5_m, sep="")
+layer_B_0_5_m = paste(variable_B_0_5_m, depth_B_0_5_m, quantile_B_0_5_m, sep="_")
+vrt_layer_B_0_5_m = paste(layer_B_0_5_m, '.vrt', sep="")
+
+B_0_5_m = raster(vrt_layer_B_0_5_m)
+
+datos_B_0_5_m = 'bdod/bdod_0-5cm_mean.vrt'
+lfile_B_0_5_m = "./Environmental_datasets/Soilgrids/bdod_0-5cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_B_0_5_m), lfile_B_0_5_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+## 5-15
+### mean
+```{r}
+voi_B_5_15_m = "bdod" # variable of interest
+depth_B_5_15_m = "5-15cm"
+quantile_B_5_15_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/bdod/" 
+
+variable_B_5_15_m = paste(url, voi_B_5_15_m, sep="")
+layer_B_5_15_m = paste(variable_B_5_15_m, depth_B_5_15_m, quantile_B_5_15_m, sep="_")
+vrt_layer_B_5_15_m = paste(layer_B_5_15_m, '.vrt', sep="")
+
+B_5_15_m = raster(vrt_layer_B_5_15_m)
+
+datos_B_5_15_m = 'bdod/bdod_5-15cm_mean.vrt'
+lfile_B_5_15_m = "./Environmental_datasets/Soilgrids/bdod_5-15cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_B_5_15_m), lfile_B_5_15_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+## 15-30
+### mean
+```{r}
+voi_B_15_30_m = "bdod" # variable of interest
+depth_B_15_30_m = "15-30cm"
+quantile_B_15_30_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/bdod/" 
+
+variable_B_15_30_m = paste(url, voi_B_15_30_m, sep="")
+layer_B_15_30_m = paste(variable_B_15_30_m, depth_B_15_30_m, quantile_B_15_30_m, sep="_")
+vrt_layer_B_15_30_m = paste(layer_B_15_30_m, '.vrt', sep="")
+
+B_15_30_m = raster(vrt_layer_B_15_30_m)
+
+datos_B_15_30_m = 'bdod/bdod_15-30cm_mean.vrt'
+lfile_B_15_30_m = "./Environmental_datasets/Soilgrids/bdod_15-30cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_B_15_30_m), lfile_B_15_30_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+
+# Soil orgainc carbon
+## 0-5
+### mean
+```{r}
+voi_SOC_0_5_m = "soc" # variable of interest
+depth_SOC_0_5_m = "0-5cm"
+quantile_SOC_0_5_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/soc/" 
+
+variable_SOC_0_5_m = paste(url, voi_SOC_0_5_m, sep="")
+layer_SOC_0_5_m = paste(variable_SOC_0_5_m, depth_SOC_0_5_m, quantile_SOC_0_5_m, sep="_")
+vrt_layer_SOC_0_5_m = paste(layer_SOC_0_5_m, '.vrt', sep="")
+
+SOC_0_5_m = raster(vrt_layer_SOC_0_5_m)
+
+datos_SOC_0_5_m = 'soc/soc_0-5cm_mean.vrt'
+lfile_SOC_0_5_m = "./Environmental_datasets/Soilgrids/soc_0-5cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_SOC_0_5_m), lfile_SOC_0_5_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+## 5-15
+### mean
+```{r}
+voi_SOC_5_15_m = "soc" # variable of interest
+depth_SOC_5_15_m = "5-15cm"
+quantile_SOC_5_15_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/soc/" 
+
+variable_SOC_5_15_m = paste(url, voi_SOC_5_15_m, sep="")
+layer_SOC_5_15_m = paste(variable_SOC_5_15_m, depth_SOC_5_15_m, quantile_SOC_5_15_m, sep="_")
+vrt_layer_SOC_5_15_m = paste(layer_SOC_5_15_m, '.vrt', sep="")
+
+SOC_5_15_m = raster(vrt_layer_SOC_5_15_m)
+
+datos_SOC_5_15_m = 'soc/soc_5-15cm_mean.vrt'
+lfile_SOC_5_15_m = "./Environmental_datasets/Soilgrids/soc_5-15cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_SOC_5_15_m), lfile_SOC_5_15_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+
+## 15-30
+### mean
+```{r}
+voi_SOC_15_30_m = "soc" # variable of interest
+depth_SOC_15_30_m = "15-30cm"
+quantile_SOC_15_30_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/soc/" 
+
+variable_SOC_15_30_m = paste(url, voi_SOC_15_30_m, sep="")
+layer_SOC_15_30_m = paste(variable_SOC_15_30_m, depth_SOC_15_30_m, quantile_SOC_15_30_m, sep="_")
+vrt_layer_SOC_15_30_m = paste(layer_SOC_15_30_m, '.vrt', sep="")
+
+SOC_15_30_m = raster(vrt_layer_SOC_15_30_m)
+
+datos_SOC_15_30_m = 'soc/soc_15-30cm_mean.vrt'
+lfile_SOC_15_30_m = "./Environmental_datasets/Soilgrids/soc_15-30cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_SOC_15_30_m), lfile_SOC_15_30_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+
+# Organic carbon stock
+## 0-30
+### mean
+```{r}
+voi_OCS_0_30_m = "ocs" # variable of interest
+depth_OCS_0_30_m = "0-30cm"
+quantile_OCS_0_30_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/ocs/" 
+
+variable_OCS_0_30_m = paste(url, voi_OCS_0_30_m, sep="")
+layer_OCS_0_30_m = paste(variable_OCS_0_30_m, depth_OCS_0_30_m, quantile_OCS_0_30_m, sep="_")
+vrt_layer_OCS_0_30_m = paste(layer_OCS_0_30_m, '.vrt', sep="")
+
+OCS_0_30_m = raster(vrt_layer_OCS_0_30_m)
+
+datos_OCS_0_30_m = 'ocs/ocs_0-30cm_mean.vrt'
+lfile_OCS_0_30_m = "./Environmental_datasets/Soilgrids/ocs_0-30cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_OCS_0_30_m), lfile_OCS_0_30_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+
+# organic carbon density
+## 0-5
+### mean
+```{r}
+voi_OCD_0_5_m = "ocd" # variable of interest
+depth_OCD_0_5_m = "0-5cm"
+quantile_OCD_0_5_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/ocd/" 
+
+variable_OCD_0_5_m = paste(url, voi_OCD_0_5_m, sep="")
+layer_OCD_0_5_m = paste(variable_OCD_0_5_m, depth_OCD_0_5_m, quantile_OCD_0_5_m, sep="_")
+vrt_layer_OCD_0_5_m = paste(layer_OCD_0_5_m, '.vrt', sep="")
+
+OCD_0_5_m = raster(vrt_layer_OCD_0_5_m)
+
+datos_OCD_0_5_m = 'ocd/ocd_0-5cm_mean.vrt'
+lfile_OCD_0_5_m = "./Environmental_datasets/Soilgrids/ocd_0-5cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_OCD_0_5_m), lfile_OCD_0_5_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+## 5-15
+### mean
+```{r}
+voi_OCD_5_15_m = "ocd" # variable of interest
+depth_OCD_5_15_m = "5-15cm"
+quantile_OCD_5_15_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/ocd/" 
+
+variable_OCD_5_15_m = paste(url, voi_OCD_5_15_m, sep="")
+layer_OCD_5_15_m = paste(variable_OCD_5_15_m, depth_OCD_5_15_m, quantile_OCD_5_15_m, sep="_")
+vrt_layer_OCD_5_15_m = paste(layer_OCD_5_15_m, '.vrt', sep="")
+
+OCD_5_15_m = raster(vrt_layer_OCD_5_15_m)
+
+datos_OCD_5_15_m = 'ocd/ocd_5-15cm_mean.vrt'
+lfile_OCD_5_15_m = "./Environmental_datasets/Soilgrids/ocd_5-15cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_OCD_5_15_m), lfile_OCD_5_15_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+
+## 15-30
+### mean
+```{r}
+voi_OCD_15_30_m = "ocd" # variable of interest
+depth_OCD_15_30_m = "15-30cm"
+quantile_OCD_15_30_m = "mean"
+
+url = "https://files.isric.org/soilgrids/latest/data/ocd/" 
+
+variable_OCD_15_30_m = paste(url, voi_OCD_15_30_m, sep="")
+layer_OCD_15_30_m = paste(variable_OCD_15_30_m, depth_OCD_15_30_m, quantile_OCD_15_30_m, sep="_")
+vrt_layer_OCD_15_30_m = paste(layer_OCD_15_30_m, '.vrt', sep="")
+
+OCD_15_30_m = raster(vrt_layer_OCD_15_30_m)
+
+datos_OCD_15_30_m = 'ocd/ocd_15-30cm_mean.vrt'
+lfile_OCD_15_30_m = "./Environmental_datasets/Soilgrids/_15-30cm_m.tif"
+
+gdal_translate(paste0(sg_url,datos_OCD_15_30_m), lfile_OCD_15_30_m ,
+               tr=c(250,250),
+               projwin=bb,
+               projwin_srs =igh,
+               verbose=TRUE)
+```
+
+
