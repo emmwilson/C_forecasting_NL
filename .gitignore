@@ -41,3 +41,6 @@ vignettes/*.pdf
 
 # Presentations folder
 Presentations/*
+
+#environmental variables
+Environmental_datasets/*
