@@ -1,0 +1,423 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+%
+\documentclass[
+  letterpaper,
+  DIV=11,
+  numbers=noendperiod]{scrartcl}
+
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else  
+    % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+% Make \paragraph and \subparagraph free-standing
+\ifx\paragraph\undefined\else
+  \let\oldparagraph\paragraph
+  \renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+  \let\oldsubparagraph\subparagraph
+  \renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+
+\KOMAoption{captions}{tableheading}
+\makeatletter
+\makeatother
+\makeatletter
+\makeatother
+\makeatletter
+\@ifpackageloaded{caption}{}{\usepackage{caption}}
+\AtBeginDocument{%
+\ifdefined\contentsname
+  \renewcommand*\contentsname{Table of contents}
+\else
+  \newcommand\contentsname{Table of contents}
+\fi
+\ifdefined\listfigurename
+  \renewcommand*\listfigurename{List of Figures}
+\else
+  \newcommand\listfigurename{List of Figures}
+\fi
+\ifdefined\listtablename
+  \renewcommand*\listtablename{List of Tables}
+\else
+  \newcommand\listtablename{List of Tables}
+\fi
+\ifdefined\figurename
+  \renewcommand*\figurename{Figure}
+\else
+  \newcommand\figurename{Figure}
+\fi
+\ifdefined\tablename
+  \renewcommand*\tablename{Table}
+\else
+  \newcommand\tablename{Table}
+\fi
+}
+\@ifpackageloaded{float}{}{\usepackage{float}}
+\floatstyle{ruled}
+\@ifundefined{c@chapter}{\newfloat{codelisting}{h}{lop}}{\newfloat{codelisting}{h}{lop}[chapter]}
+\floatname{codelisting}{Listing}
+\newcommand*\listoflistings{\listof{codelisting}{List of Listings}}
+\makeatother
+\makeatletter
+\@ifpackageloaded{caption}{}{\usepackage{caption}}
+\@ifpackageloaded{subcaption}{}{\usepackage{subcaption}}
+\makeatother
+\makeatletter
+\@ifpackageloaded{tcolorbox}{}{\usepackage[skins,breakable]{tcolorbox}}
+\makeatother
+\makeatletter
+\@ifundefined{shadecolor}{\definecolor{shadecolor}{rgb}{.97, .97, .97}}
+\makeatother
+\makeatletter
+\makeatother
+\makeatletter
+\makeatother
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same} % disable monospaced font for URLs
+\hypersetup{
+  pdftitle={overview of process so far},
+  colorlinks=true,
+  linkcolor={blue},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+\title{overview of process so far}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\ifdefined\Shaded\renewenvironment{Shaded}{\begin{tcolorbox}[frame hidden, breakable, borderline west={3pt}{0pt}{shadecolor}, boxrule=0pt, interior hidden, sharp corners, enhanced]}{\end{tcolorbox}}\fi
+
+\hypertarget{list-of-predictor-variables}{%
+\subsection{List of predictor
+variables}\label{list-of-predictor-variables}}
+
+\begin{itemize}
+\item
+  Forest height: FHT (m)
+
+  range: 0 - 20
+
+  year: 2019
+\item
+  Length of growing season: LGS (days)
+
+  calculated by subtracting date of onset of greenness increase (15\%
+  increase in greeness) from onset greenness decrease (10\% decrease in
+  greenness)
+
+  range: 28 - 244 days
+
+  year: 2020
+
+  *there are quite a few spots without data
+\item
+  Canopy cover: cc (\%)
+
+  range: 0 - 100
+
+  year:
+
+  Terra Nova: 2010 with gaps filled in with 2005 (2015 had most of the
+  park missing)
+
+  Gros Morne: 2015 with gaps filled in with 2010
+\item
+  Enhanced vegetation index: EVI (NA)
+
+  \begin{itemize}
+  \item
+    amplitude: EVIamp, maximum minus minimum EVI during that year
+    ``interpreted as indicating the degree to which the leaf life cycles
+    of individual plants and species are synchronized'' (Gerard et
+    al.~2020)
+  \item
+    median: EVImed, median EVI during that year
+  \end{itemize}
+
+  range: 16 - 9600
+
+  year: 2019
+\item
+  Aspect: ASP (degrees)
+
+  range: 0-360
+
+  year: 2011
+
+  *when slope is 0 there can be no aspect, in these instances I put
+  0.01˚as aspect
+\item
+  Slope: SLO (percent)
+
+  range: 0 - 260
+\item
+  Elevation: ELE (m)
+\item
+  Dominant species: SPC (categorical) * decided to switch from dominant
+  species to forest type because I didn't sample all dominant species
+
+  range: 8 categories (CS = coniferous shrub, DS = deciduous shrub, NS =
+  not sufficiently restocked, bf = balsam fir, bs = black spruce, tA =
+  trembling aspen, tL = tamarack, wB = white birch)
+
+  year: 2010
+\item
+  Land cover type: CEC\_LCT (categorical)
+
+  range: 5 categories (1 = temperate or sub-polar needle leaf forest, 6
+  = mixed forest, 8 = temperate or sub-polar shrubland, 14 = wetland, 16
+  = barrenland)
+
+  year: 2020
+\item
+  Age class: FAC (categorical)
+
+  range: 5 categories (1 = 0 - 20, 2 = 21 - 40, 3 = 41 - 60, 4 = 61 -
+  80, 5 = 81+)
+\end{itemize}
+
+\hypertarget{correlation-charts}{%
+\subsection{Correlation charts}\label{correlation-charts}}
+
+\hypertarget{at-sites}{%
+\subsubsection{at sites}\label{at-sites}}
+
+across both parks
+
+\includegraphics[width=4.16667in,height=\textheight]{correlation plots/chart_site_both.png}
+
+TN
+
+\includegraphics[width=4.16667in,height=\textheight]{correlation plots/chart_site_TN.png}
+
+GM
+
+\includegraphics[width=4.16667in,height=\textheight]{correlation plots/chart_site_GM.png}
+
+\hypertarget{for-subplots}{%
+\subsubsection{for subplots}\label{for-subplots}}
+
+across both parks
+
+\includegraphics[width=4.16667in,height=\textheight]{correlation plots/chart_subplot_both.png}
+
+TN
+
+\includegraphics[width=4.16667in,height=\textheight]{correlation plots/chart_subplot_TN.png}
+
+GM
+
+\includegraphics[width=4.16667in,height=\textheight]{correlation plots/chart_subplot_GM.png}
+
+\hypertarget{for-whole-parks}{%
+\subsubsection{for whole parks}\label{for-whole-parks}}
+
+across both parks
+
+\includegraphics[width=4.16667in,height=\textheight]{correlation plots/chart_raster_NL.png}
+
+TN
+
+\includegraphics[width=4.16667in,height=\textheight]{correlation plots/chart_raster_TN.png}
+
+GM
+
+\includegraphics[width=4.16667in,height=\textheight]{correlation plots/chart_raster_GM.png}
+
+\hypertarget{conclusions}{%
+\subsubsection{Conclusions}\label{conclusions}}
+
+The patterns are quite consistent across each subset of the data.
+
+My conclusions are predominantly based on the correlation charts, but I
+also am influenced a bit by the fact that none of the variance inflation
+factors are above 4.2, with most being below 2.
+
+\hypertarget{remove-cc}{%
+\paragraph{Remove CC}\label{remove-cc}}
+
+Canopy cover is very correlated with forest height. And although I have
+no biological reasoning for keeping forest height over canopy cover, the
+forest height data set is more complete and recent.
+
+\hypertarget{remove-fac}{%
+\paragraph{Remove FAC}\label{remove-fac}}
+
+The forest age is technically categorical, but the categories are ranges
+of a continuous variable. Is it ok to use it in a correlation chart?
+
+If it is ok to use I propose removing FAC. It is very correlated with
+height. And I would prefer to keep height because it is actually a
+continuous variable.
+
+\hypertarget{remove-lct}{%
+\paragraph{Remove LCT}\label{remove-lct}}
+
+Land cover type is also actually a categorical variable so it's
+interesting that it is so correlated. It is probably because the higher
+numbers describe less vegetated land cover types (eg; 1 is temperate
+needle forest, 8 is shrubland and 16 is barrenland).
+
+The only data we are really losing by removing it is whether the
+forested areas are needle leaf or mixed forest.
+
+\hypertarget{residual-distributions-from-gzlms}{%
+\subsection{Residual distributions from
+GzLMs}\label{residual-distributions-from-gzlms}}
+
+for full model in Gros Morne with C per m2 of each subplot used as
+response variable and a random effect of site. Predictor variables have
+been scaled.
+
+C \textasciitilde{} FHT + EVIamp + EVImed + ELE + SLO + ASP +
+(1\textbar site\_id)
+
+\hypertarget{gaussian}{%
+\subsubsection{Gaussian}\label{gaussian}}
+
+\hypertarget{log-link}{%
+\paragraph{Log link}\label{log-link}}
+
+\includegraphics[width=4.16667in,height=\textheight]{residual plots for gzlm/gaussian_log.png}
+
+\hypertarget{gamma}{%
+\subsubsection{Gamma}\label{gamma}}
+
+log link
+
+\includegraphics[width=4.16667in,height=\textheight]{residual plots for gzlm/gamma_log.png}
+
+Inverse and identity links don't converge
+
+\hypertarget{log-tranformed-linear-model}{%
+\subsubsection{log tranformed linear
+model}\label{log-tranformed-linear-model}}
+
+scaled predictors
+
+\includegraphics[width=4.16667in,height=\textheight]{residual plots for gzlm/log_transformed.png}
+
+not scaled predictors: give warning
+
+Warning: Some predictor variables are on very different scales: consider
+rescaling
+
+\includegraphics[width=4.16667in,height=\textheight]{residual plots for gzlm/normal_not_transformed.png}
+
+\hypertarget{linear-models}{%
+\subsection{Linear Models}\label{linear-models}}
+
+\hypertarget{subsetting-data}{%
+\subsubsection{subsetting data}\label{subsetting-data}}
+
+\hypertarget{park-level}{%
+\paragraph{park level}\label{park-level}}
+
+by park -\textgreater{} GM and TN get own models
+
+\hypertarget{subplot-or-site}{%
+\paragraph{subplot or site}\label{subplot-or-site}}
+
+sites -\textgreater{} average C per m2 across the 4 subplots at each
+site
+
+subplots -\textgreater{} use C per m2 of each subplot and have random
+effect of site to account for pseudoreplication
+
+\hypertarget{structure}{%
+\subsubsection{structure}\label{structure}}
+
+\begin{enumerate}
+\def\labelenumi{\roman{enumi}.}
+\item
+  log(C) \textasciitilde{} ε
+\item
+  log(C) \textasciitilde{} (1\textbar site) + ε
+\item
+  log(C) \textasciitilde{} all env. + ε
+\item
+  log(C) \textasciitilde{} all env. + (1\textbar site) + ε
+\item
+  log(C) \textasciitilde{} reduced env. + ε
+\item
+  log(C) \textasciitilde{} reduced env. + (1\textbar site) + ε
+\item
+  log(C) \textasciitilde{} univariate + ε
+\item
+  log(C) \textasciitilde{} univariate + (1\textbar site) + ε
+\end{enumerate}
+
+\hypertarget{section}{%
+\subsection{}\label{section}}
+
+
+
+\end{document}

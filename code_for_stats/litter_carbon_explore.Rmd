@@ -1,0 +1,106 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## data
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  readxl,
+  ggplot2)
+
+
+leaf_c <- read_xlsx("/Volumes/Emmerson's backup/Final_Carbon_Data_2022/litter_carbon.xlsx", sheet = "for violin plot")
+
+leaf_c_GM <- leaf_c %>%
+  filter(Park == "GM")
+
+leaf_c_TN <- leaf_c %>%
+  filter(Park == "TN")
+```
+
+## plots
+
+### violin plot of leaf carbon by disturbance and site for each park
+
+```{r}
+v_GM_site <- ggplot(leaf_c_GM, aes(x=Site, y=Total_Carbon)) + 
+  geom_violin()
+
+v_GM_dist <- ggplot(leaf_c_GM, aes(x=Type, y=Total_Carbon)) + 
+  geom_violin()
+
+v_TN_site <- ggplot(leaf_c_TN, aes(x=Site, y=Total_Carbon)) + 
+  geom_violin()
+
+v_TN_dist <- ggplot(leaf_c_TN, aes(x=Type, y=Total_Carbon)) + 
+  geom_violin()
+
+
+v_GM_site
+v_GM_dist
+v_TN_site
+v_TN_dist
+```
+
+### scatter plot of relationship between dry wt and total carbon
+
+```{r}
+w_c <- ggplot(leaf_c, aes(x=Dry_Wt, y=Total_Carbon)) + 
+  geom_point() +
+  geom_abline()
+
+w_c
+```
+
+### violin plot of leaf carbon by disturbance and site for each park without exclosure sites
+
+```{r}
+leaf_c_GM_na <- leaf_c_GM %>%
+  filter(Exl_not != "EX")
+
+leaf_c_TN_na <- leaf_c_TN %>%
+  filter(Exl_not != "EX")
+
+v_GM_site_na <- ggplot(leaf_c_GM_na, aes(x=Site, y=Total_Carbon, colour = Type)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+v_GM_dist_na <- ggplot(leaf_c_GM_na, aes(x=Type, y=Total_Carbon)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+v_TN_site_na <- ggplot(leaf_c_TN_na, aes(x=Site, y=Total_Carbon, colour = Type)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+v_TN_dist_na <- ggplot(leaf_c_TN_na, aes(x=Type, y=Total_Carbon)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+
+v_GM_site_na
+v_GM_dist_na
+v_TN_site_na
+v_TN_dist_na
+```
+
+## average carbon content for litter
+
+by park and disturbance
+
+```{r}
+avg_c_leaf_GM <- leaf_c_GM %>%
+  group_by(Type) %>%
+  summarise(mean_c = mean(Total_Carbon))
+
+avg_c_leaf_TN <- leaf_c_TN %>%
+  group_by(Type) %>%
+  summarise(mean_c = mean(Total_Carbon))
+```

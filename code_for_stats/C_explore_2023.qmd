@@ -1,0 +1,181 @@
+---
+title: "C_explore_2023"
+format: pdf
+editor: visual
+---
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  readxl,
+  ggplot2,
+  janitor,
+  vegan,
+  stringr)
+```
+
+```{r results='hide', message=FALSE}
+c_explore <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Overall C")
+
+site_data <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+
+c_explore_2 <- c_explore %>%
+  left_join(site_data) %>%
+  clean_names() %>%
+  mutate(gap = disturbance) %>%
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+    mutate(across('gap', str_replace, 'Wind', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Logging', 'Gap'))
+
+GM_explore <- c_explore_2 %>%
+  filter(park_id == "GM")
+
+TN_explore <- c_explore_2 %>%
+  filter(park_id == "TN")
+```
+
+## explore by park and disturbance
+
+### for both parks
+
+```{r}
+
+## by site, colour: disturbance type
+v_NL_site <-ggplot(c_explore_2, aes(x=factor(site_id), y=total_c_per_subplot)) +   geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = disturbance))
+
+## by site, colour: gap or mature
+v_NL_site_gap <-ggplot(c_explore_2, aes(x=factor(site_id), y=total_c_per_subplot)) +   geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = gap))
+
+## by disturbance type
+v_NL_dist <- ggplot(c_explore_2, aes(x=disturbance, y=total_c_per_subplot)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+## by gap or mature
+v_NL_gap <- ggplot(c_explore_2, aes(x=gap, y=total_c_per_subplot)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+v_NL_site
+v_NL_site_gap
+v_NL_dist
+v_NL_gap
+```
+
+### for GM
+
+```{r}
+## by site, colour: disturbance type
+v_GM_site <-ggplot(GM_explore, aes(x=factor(site_id), y=total_c_per_subplot)) +   geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = disturbance))
+
+## by site, colour: gap or mature
+v_GM_site_gap <-ggplot(GM_explore, aes(x=factor(site_id), y=total_c_per_subplot)) +   geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = gap))
+
+## by disturbance type
+v_GM_dist <- ggplot(GM_explore, aes(x=disturbance, y=total_c_per_subplot)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+## by gap or mature
+v_GM_gap <- ggplot(GM_explore, aes(x=gap, y=total_c_per_subplot)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+v_GM_site
+v_GM_site_gap
+v_GM_dist
+v_GM_gap
+```
+
+### for TN
+
+```{r}
+## by site, colour: disturbance type
+v_TN_site <-  TN_explore %>%
+  ggplot(aes(x=factor(site_id), y=total_c_per_subplot, colour = disturbance)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = disturbance))
+
+## by site, colour: gap or mature
+v_TN_site_gap <-ggplot(TN_explore, aes(x=factor(site_id), y=total_c_per_subplot)) +   geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = gap))
+
+## by disturbance type
+v_TN_dist <- ggplot(TN_explore, aes(x=disturbance, y=total_c_per_subplot)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+## by gap or mature
+v_TN_gap <- ggplot(TN_explore, aes(x=gap, y=total_c_per_subplot)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+v_TN_site
+v_TN_site_gap
+v_TN_dist
+v_TN_gap
+```
+
+## violin plot by disturbance, averaging subplots at each site
+
+```{r}
+GM_explore_avg <- GM_explore %>%
+  group_by(site_id, disturbance) %>%
+  summarise_at(vars(total_c_per_subplot), list(name = mean))
+
+GM_explore_avg_gap <- GM_explore %>%
+  group_by(site_id, gap) %>%
+  summarise_at(vars(total_c_per_subplot), list(name = mean))
+
+v_GM_dist_avg <- ggplot(GM_explore_avg, aes(x=disturbance, y=name)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+v_GM_dist_avg_gap <- ggplot(GM_explore_avg_gap, aes(x=gap, y=name)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+TN_explore_avg <- TN_explore %>%
+  group_by(site_id, disturbance) %>%
+  summarise_at(vars(total_c_per_subplot), list(name = mean))
+
+TN_explore_avg_gap <- TN_explore %>%
+  group_by(site_id, gap) %>%
+  summarise_at(vars(total_c_per_subplot), list(name = mean))
+
+v_TN_dist_avg <- ggplot(TN_explore_avg, aes(x=disturbance, y=name)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+v_TN_dist_avg_gap <- ggplot(TN_explore_avg_gap, aes(x=gap, y=name)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+v_GM_dist_avg
+v_GM_dist_avg_gap
+v_TN_dist_avg
+v_TN_dist_avg_gap
+
+```
+
+## 

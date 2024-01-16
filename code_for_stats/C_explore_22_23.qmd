@@ -1,0 +1,450 @@
+---
+title: "C_explore_22_23"
+format: html
+editor: visual
+---
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  readxl,
+  ggplot2,
+  janitor,
+  vegan,
+  stringr,
+  reshape2)
+```
+
+## prep c data sets for combining
+
+### 2022 data
+
+```{r}
+#combine individual excel files fror carbon in each pool
+c_2022_dw <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Deadwood_Field_Data NEW.xlsm", sheet = "DW carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, dw_carbon_9m2))
+c_2022_te <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, te_carbon_9m2))
+c_2022_gc <- read_xlsx("final carbon data/Final_Carbon_Data_R/ground_cover_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, gc_carbon_9m2))
+c_2022_hb <- read_xlsx("final carbon data/Final_Carbon_Data_R/herbaceous_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, hb_carbon_9m2))
+c_2022_ll <- read_xlsx("final carbon data/Final_Carbon_Data_R/litter_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Park_ID, Site_ID, Ex_Ctrl, Subplot_ID, Site_Subplot_ID, ll_carbon_9m2))
+c_2022_sp <- read_xlsx("final carbon data/Final_Carbon_Data_R/sapling_carbon.xlsx", sheet = "Sheet 1") %>% dplyr::select(c(Site_Subplot_ID, sp_carbon_9m2))
+#c_2022_sr <- read_xlsx("Final_Carbon_Data_R/shrub_root_carbon.xlsx", sheet = "Sheet 1") because this data came before R fixed the under 30 units I need to calculate on my own
+c_2022_sl <- read_xlsx("final carbon data/Final_Carbon_Data_R/soil_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, sl_carbon_9m2))
+
+c_2022_tr <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree root carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, tr_carbon_9m2))
+c_2022_u3 <- read_xlsx("final carbon data/Final_Carbon_Data_R/under_30_carbon.xlsx", sheet = "Sheet 1") %>%
+  mutate(u3_carbon_9m2 = u3_carbon_9m2/1000000) %>% # convert units
+  dplyr::select(c(Site_Subplot_ID, u3_carbon_9m2))
+c_2022_ws <- read_xlsx("final carbon data/Final_Carbon_Data_R/woody_shrubs_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, ws_carbon_9m2))
+site_data_2022 <- read_xlsx("final carbon data/Final_Carbon_Data_R/subplot_disturbacne.xlsx")
+
+c_2022_sr_list <- list(c_2022_u3, c_2022_ws, c_2022_sp)
+c_2022_sr <- c_2022_sr_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
+  replace(is.na(.), 0)
+c_2022_sr$sr_carbon_9m2 <- rowSums(c_2022_sr[, c(2:4)])
+c_2022_sr <- c_2022_sr %>% dplyr::select(c(1,5)) %>%
+  mutate(sr_carbon_9m2 = sr_carbon_9m2*0.25)
+  
+
+c_2022_list <- list(c_2022_dw, c_2022_te, c_2022_gc, c_2022_hb, c_2022_ll, c_2022_sp, c_2022_sr, c_2022_sl, c_2022_tr, c_2022_u3, c_2022_ws)
+
+c_2022 <- c_2022_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
+  dplyr::select(c(1,6:9,2:5,10:16)) %>%
+  replace(is.na(.), 0)
+c_2022$total_c_per_subplot <- rowSums(c_2022[, c(6:16)])
+
+c_2022_mess <- c_2022 %>%
+  left_join(site_data_2022) %>% # add subplot info
+  clean_names() %>%
+  mutate(gap = disturbance) %>% 
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(ss_carbon_9m2 = rowSums(c_2022[, c("sp_carbon_9m2", "ws_carbon_9m2")])) %>% # recategorize pools to match 2023
+  mutate(rt_carbon_9m2 = rowSums(c_2022[, c("tr_carbon_9m2","sr_carbon_9m2")])) %>%
+  mutate(gv_carbon_9m2 = rowSums(c_2022[, c("gc_carbon_9m2", "hb_carbon_9m2", "u3_carbon_9m2")])) %>%
+  mutate(year = 2022) %>% # add year
+  mutate(site_number = as.numeric(site_id))
+c_2022_mess$site_number <- sprintf("%02.f", c_2022_mess$site_number)
+c_2022_mess <- c_2022_mess %>%
+  mutate(site_id = paste0(site_number, "_", "2022")) %>% # distinguish overlapping site numbers by year
+  mutate(subplot_id = substr(subplot_id,2,2)) %>% # remove letter from subplot
+  filter(ex_ctrl != "EX")
+
+c_2022_compat <- c_2022_mess %>%
+  select(c(2:5,18,19,23,6,7,10,13,20:22,17))
+```
+
+![](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAaCAYAAADFTB7LAAAAcElEQVR4Xu3OwQmAQAxE0bClWYCW5N06tM6V2YPg5CjoF/JhLoHAi6iqn9eOefUbqrYvHY0cQDLyAlKRNyARmYA0ZMLRkAlGQyaU72tkAtlim7r/vJqDUDjlKBROOQyFU2icQuMUGqfQuBEaV1XPOwEx96nYACK8+wAAAABJRU5ErkJggg== "Run Current Chunk")
+
+### 2023 data
+
+```{r results='hide', message=FALSE}
+c_2023 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
+  replace(is.na(.), 0) 
+
+site_data <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+site_data$Site_ID <- sprintf("%02.f", site_data$Site_ID)
+
+c_2023_mess <- c_2023 %>%
+  left_join(site_data)%>%
+  clean_names() %>%
+  mutate(gap = disturbance) %>%
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Wind', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Logging', 'Gap')) %>%
+  mutate(year = 2023) %>% # add year
+  mutate(site_id = paste0(site_id, "_", "2023")) %>% # distinguish overlapping site numbers by year
+  filter(ex_ctrl != "EX") 
+  
+
+c_2023_compat <- c_2023_mess %>%
+  select(c(22,23,25,2,27,38,39,5,7,10,11,13,16,18,21)) %>%
+  replace(is.na(.), 0)
+```
+
+### combine 2022&2023
+
+```{r}
+c_22_23 <- rbind(c_2022_compat, c_2023_compat) %>%
+  mutate(unique_id = paste0(park_id, "_", site_id, "_", subplot_id))
+
+# compare total C bw years
+summary(c_2022_compat$total_c_per_subplot)[[4]]
+summary(c_2023_compat$total_c_per_subplot)[[4]]
+sum(c_2022_compat$total_c_per_subplot)
+sum(c_2023_compat$total_c_per_subplot)
+
+ggplot(c_22_23, aes(x=factor(year), y=total_c_per_subplot, fill = park_id)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = park_id))
+
+
+ggplot(c_22_23, aes(x=factor(year), y=total_c_per_subplot, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = interaction(gap, park_id, sep=':'))) + theme(legend.title = element_blank())
+
+
+ggplot(c_22_23, aes(x=factor(year), y=total_c_per_subplot)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+
+ggplot(c_22_23, aes(x=factor(gap), y=total_c_per_subplot)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+
+ggplot(c_22_23, aes(x=factor(park_id), y=total_c_per_subplot, colour = gap)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = gap))
+
+```
+
+```{r}
+# compare tree C bw years
+summary(c_2022_compat$te_carbon_9m2)
+summary(c_2023_compat$te_carbon_9m2)
+
+v_NL_te <- ggplot(c_22_23, aes(x= factor(year), y=te_carbon_9m2)) + 
+  geom_violin()
+v_NL_te
+
+v_NL_te_yr_gap <- ggplot(c_22_23, aes(x=factor(year), y=te_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+v_NL_te_yr_gap
+
+# compare shrub and sapling C bw years
+summary(c_2022_compat$ss_carbon_9m2)
+summary(c_2023_compat$ss_carbon_9m2)
+
+v_NL_ss <- ggplot(c_22_23, aes(x=factor(year), y=ss_carbon_9m2)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+v_NL_ss
+
+v_NL_ss_yr_gap <- ggplot(c_22_23, aes(x=factor(year), y=ss_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+v_NL_ss_yr_gap
+
+# compare root C bw years
+summary(c_2022_compat$rt_carbon_9m2)
+summary(c_2023_compat$rt_carbon_9m2)
+
+v_NL_rt <- ggplot(c_22_23, aes(x=factor(year), y=rt_carbon_9m2)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+v_NL_rt
+
+v_NL_rt_yr_gap <- ggplot(c_22_23, aes(x=factor(year), y=rt_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+v_NL_rt_yr_gap
+
+# compare deadwood C bw years
+summary(c_2022_compat$dw_carbon_9m2)
+summary(c_2023_compat$dw_carbon_9m2)
+
+v_NL_dw <- ggplot(c_22_23, aes(x=factor(year), y=dw_carbon_9m2)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+v_NL_dw
+
+v_NL_dw_yr_gap <- ggplot(c_22_23, aes(x=factor(year), y=dw_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+v_NL_dw_yr_gap
+
+# compare ground veg C bw years
+summary(c_2022_compat$gv_carbon_9m2)
+summary(c_2023_compat$gv_carbon_9m2)
+
+v_NL_gv <- ggplot(c_22_23, aes(x=factor(year), y=gv_carbon_9m2)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+v_NL_gv
+
+v_NL_gv_yr_gap <- ggplot(c_22_23, aes(x=factor(year), y=gv_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+v_NL_gv_yr_gap
+
+# compare leaf litter C bw years
+summary(c_2022_compat$ll_carbon_9m2)
+summary(c_2023_compat$ll_carbon_9m2)
+
+ggplot(c_22_23, aes(x=factor(year), y=ll_carbon_9m2, colour = park_id)) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+
+ggplot(c_22_23, aes(x=factor(year), y=ll_carbon_9m2, colour = gap)) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+
+ggplot(c_22_23, aes(x=factor(year), y=ll_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+
+# compare soil C bw years
+summary(c_2022_compat$sl_carbon_9m2)[[4]]
+summary(c_2023_compat$sl_carbon_9m2)[[4]]
+
+sum(c_2022_compat$sl_carbon_9m2)
+sum(c_2023_compat$sl_carbon_9m2)
+
+summary(subset(c_2023_compat$sl_carbon_9m2, c_2023_compat$park_id == "GM"))[[4]]
+summary(subset(c_2023_compat$sl_carbon_9m2, c_2023_compat$park_id == "TN"))[[4]]
+
+ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2)) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+
+summary(lm(c_22_23$sl_carbon_9m2 ~ as.factor(c_22_23$year)+c_22_23$park_id))
+
+ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = park_id)) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+
+ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = gap)) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+
+ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+
+ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = gap)) + 
+  geom_violin() + theme(legend.title = element_blank())
+ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = park_id)) + 
+  geom_violin() + theme(legend.title = element_blank())
+
+ggplot(subset(c_22_23,c_22_23$year == 2022), aes(sl_carbon_9m2)) +
+         geom_histogram() +
+  xlim(0, 250000)
+ggplot(subset(c_22_23,c_22_23$year == 2023), aes(sl_carbon_9m2)) +
+         geom_histogram()+
+  xlim(0, 250000)
+```
+
+```{r}
+# linear model
+summary(lm(c_22_23$te_carbon_9m2 ~ as.factor(c_22_23$year)))
+summary(lm(c_22_23$ss_carbon_9m2 ~ as.factor(c_22_23$year)))
+summary(lm(c_22_23$dw_carbon_9m2 ~ as.factor(c_22_23$year)))
+summary(lm(c_22_23$rt_carbon_9m2 ~ as.factor(c_22_23$year)))
+summary(lm(c_22_23$gv_carbon_9m2 ~ as.factor(c_22_23$year)))
+summary(lm(c_22_23$ll_carbon_9m2 ~ as.factor(c_22_23$year)))
+summary(lm(c_22_23$sl_carbon_9m2 ~ as.factor(c_22_23$year)))
+```
+
+#### compare pools
+
+```{r}
+
+# for seperate years
+l_c_22_23 <- pivot_longer(c_22_23, cols = 8:14, names_to = "c_pool", values_to = "c") %>%
+  filter(c_pool != "sl_carbon_9m2") %>%
+  filter(c_pool != "ll_carbon_9m2")
+
+v_NL_all_pools <- ggplot(l_c_22_23, aes(x = gap, y = c, colour = c_pool)) + 
+  geom_boxplot()
+  
+v_NL_all_pools
+
+b_NL_all_pools <- ggplot(l_c_22_23, aes(x = gap, y = c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(c(0,30000000))
+b_NL_all_pools
+
+b_all_pools <- ggplot(l_c_22_23, aes(x = interaction(gap, park_id, sep=':'), y = c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(c(0,15000000))
+b_all_pools
+
+
+
+# for 2022
+l_c_22 <- l_c_22_23 %>% 
+  filter(year == 2022)
+
+v_NL_22_pools <- ggplot(l_c_22, aes(x = gap, y = c, colour = c_pool)) + 
+  geom_boxplot()
+  
+v_NL_22_pools
+
+b_NL_22_pools <- ggplot(l_c_22, aes(x = gap, y = c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(c(0,15000000))
+b_NL_22_pools
+
+b_22_pools <- ggplot(l_c_22, aes(x = interaction(gap, park_id, sep=':'), y = c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(c(0,7500000))
+b_22_pools
+
+# for 2023
+l_c_23 <- l_c_22_23 %>% 
+  filter(year == 2023)
+
+v_NL_23_pools <- ggplot(l_c_23, aes(x = gap, y = c, colour = c_pool)) + 
+  geom_boxplot()
+  
+v_NL_23_pools
+
+b_NL_23_pools <- ggplot(l_c_23, aes(x = gap, y = c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(c(0,15000000))
+b_NL_23_pools
+
+b_23_pools <- ggplot(l_c_23, aes(x = interaction(gap, park_id, sep=':'), y = c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(c(0,7500000))
+b_23_pools
+```
+
+#### average of pools
+
+```{r}
+l_c_22_23_avg <- l_c_22_23 %>%
+  group_by(park_id, year, gap, c_pool) %>%
+  summarise(mean_c = mean(c))
+l_c_22_avg <- l_c_22_23_avg %>%
+  filter(year == 2022)
+l_c_23_avg <- l_c_22_23_avg %>%
+  filter(year == 2023)
+
+b_all_pools_avg <- ggplot(l_c_22_23_avg, aes(x = gap, y = mean_c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(0,1000000)
+b_all_pools_avg
+
+b_all_pools_avg2 <- ggplot(l_c_22_23_avg, aes(x = interaction(gap, park_id, sep=':'), y = mean_c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(0,500000)
+b_all_pools_avg2
+
+b_22_pools_avg <- ggplot(l_c_22_avg, aes(x = gap, y = mean_c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(0,600000)
+b_22_pools_avg
+
+b_22_pools_avg2 <- ggplot(l_c_22_avg, aes(x = interaction(gap, park_id, sep=':'), y = mean_c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(0,400000)
+b_22_pools_avg2
+
+b_23_pools_avg <- ggplot(l_c_23_avg, aes(x = gap, y = mean_c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(0,600000)
+b_23_pools_avg
+
+b_23_pools_avg2 <- ggplot(l_c_23_avg, aes(x = interaction(gap, park_id, sep=':'), y = mean_c, colour = c_pool, fill = c_pool)) +
+  geom_bar(stat = "identity") +
+  ylim(0,400000)
+b_23_pools_avg2
+
+l_te_22_23_avg <- l_c_22_23 %>%
+  group_by(park_id, year, gap, c_pool, site_id) %>%
+  summarise(mean_c = mean(c)) %>%
+  filter(c_pool == "te_carbon_9m2")
+
+te_avg_NL_te <- ggplot(l_te_22_23_avg, aes(x= factor(year), y=mean_c)) + 
+  geom_violin()
+te_avg_NL_te
+
+
+te_avg_te_yr_gap <- ggplot(l_te_22_23_avg, aes(x=factor(year), y=mean_c, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_boxplot() + theme(legend.title = element_blank())
+te_avg_te_yr_gap
+```
+
+#### play around with shrubs and saplings
+
+```{r}
+# compare shrub and sapling C bw years
+summary(c_2022_compat$ss_carbon_9m2)
+summary(c_2023_compat$ss_carbon_9m2)
+
+v_NL_ss <- ggplot(c_22_23, aes(x=factor(year), y=ss_carbon_9m2)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+v_NL_ss
+
+v_NL_ss_yr_gap <- ggplot(c_22_23, aes(x=factor(year), y=ss_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange", position = "jitter",
+               aes(colour = interaction(gap, park_id, sep=':'))) + theme(legend.title = element_blank())
+v_NL_ss_yr_gap
+
+ss_c_22_23 <- c_22_23 %>%
+  filter(ss_carbon_9m2 <= 50000)
+ss_c_2022_compat <- c_2022_compat %>%
+  filter(ss_carbon_9m2 <= 50000)
+ss_c_2023_compat <- c_2023_compat %>%
+  filter(ss_carbon_9m2 <= 50000)
+
+summary(ss_c_2022_compat$ss_carbon_9m2)
+summary(ss_c_2023_compat$ss_carbon_9m2)
+
+v_NL_ss2 <- ggplot(ss_c_22_23, aes(x=factor(year), y=ss_carbon_9m2)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+v_NL_ss2
+
+v_NL_ss_yr_gap2 <- ggplot(ss_c_22_23, aes(x=factor(year), y=ss_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange", position = "jitter",
+               aes(colour = interaction(gap, park_id, sep=':'))) + theme(legend.title = element_blank())
+v_NL_ss_yr_gap2
+
+# conclusion: it is the 3 really large values in 2023 driving the difference bewteen 2022 and 2023 *the large values are caused by big but short trees so they are considered saplings even if they are very wide
+
+```

@@ -1,0 +1,65 @@
+---
+title: "Outline of data analysis"
+author: "Emmerson Wilson"
+date: "2023-01-20"
+output:
+  html_document:
+    number_sections: yes
+  number_sections: default
+---
+
+# Bring in data
+
+## Bring in environmental data
+
+### for each subplot
+
+### for entire park
+
+## Bring in carbon data
+
+make 2022 data and 2023 data compatable
+
+# overlap C and env dataframes by subplot name?
+
+# correlation analysis
+
+## correlation factor
+
+## dendrogram
+
+## VIF
+
+# SDM
+
+## which structure?
+
+poisson?
+
+## which link?
+
+depends om structure
+
+## list of models
+
+what we can do will depend highly on degrees of freedom
+
+# AIC
+
+## remove uninformative parameters
+
+## average coefficients
+
+# predict across space
+
+will need to make a map that only includes areas we are predicting for (aka only includes forest)
+
+## predict() but spatially
+
+# compare predictions to carbon/biomass estimates from Soto-Navarro et al. 2020, Spawn et al. 2020, Sothe et al. 2022
+
+## and to SOC from soil.org
+
+# create predictions with different disturbance histories
+
+will have to think carefully about which variables are correlated to disturbance and therefore which we should change in the predictions

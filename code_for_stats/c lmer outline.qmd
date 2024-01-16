@@ -1,0 +1,468 @@
+---
+title: "C lmer"
+format: html
+editor: visual
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  ggplot2,
+  vegan,
+  terra,
+  corrplot,
+  PerformanceAnalytics,
+  usdm,
+  janitor,
+  openxlsx,
+  lme4,
+  DHARMa,
+  boot)
+```
+
+## data
+
+### c per m2
+
+```{r}
+c_per_m2 <- read.xlsx("final carbon data/c_m2_site.xlsx") %>% 
+  rename(unique_id = "id")
+c_per_m2_sub <- read.xlsx("final carbon data/c_m2_subplot.xlsx")
+```
+
+### environmental variables at each site
+
+```{r}
+env_site_final <- read.xlsx("final carbon data/env_site_final.xlsx")
+
+dplyr::setdiff(c_per_m2$unique_id, env_site_final$unique_id)
+
+c_env_sites <- full_join(c_per_m2, env_site_final) %>%
+  select(!c(FAC, LGS))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
+  
+c_env_sites$dominant <- as.character(c_env_sites$dominant)
+  
+#subset by park
+c_env_sites_GM <- c_env_sites %>% 
+  filter(park == "GM")
+
+c_env_sites_TN <- c_env_sites %>% 
+  filter(park == "TN")
+
+```
+
+### environmental variables at each subplot
+
+```{r}
+env_subplots_final <- read.xlsx("final carbon data/env_subplots_final.xlsx")
+
+dplyr::setdiff(c_per_m2_sub$unique_id, env_subplots_final$unique_id)
+
+c_env_subplots <- full_join(c_per_m2_sub, env_subplots_final) %>%
+  select(!c(FAC, LGS))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
+  
+#subset by park
+c_env_subplots_GM <- c_env_subplots %>% 
+  filter(park_id == "GM")
+
+c_env_subplots_TN <- c_env_subplots %>% 
+  filter(park_id == "TN")
+
+```
+
+## scale continuous predictor variables?
+
+```{r}
+c_env_sites_scale <- c_env_sites
+
+c_env_sites_scale[c(11:18)] <- scale(c_env_sites_scale[c(11:18)])
+
+c_env_sites_scale_GM <- c_env_sites_scale %>% 
+  filter(park == "GM")
+
+c_env_sites_scale_TN <- c_env_sites_scale %>% 
+  filter(park == "TN")
+```
+
+#### for subplots
+
+```{r}
+c_env_sub_scale <- c_env_subplots
+
+c_env_sub_scale[c(21,23:29)] <- scale(c_env_sub_scale[c(21,23:29)])
+
+c_env_sub_scale_GM <- c_env_sub_scale %>% 
+  filter(park_id == "GM")
+
+c_env_sub_scale_TN <- c_env_sub_scale %>% 
+  filter(park_id == "TN")
+```
+
+# cross validation
+
+#### Shawn's code
+
+```{r}
+# ###################################################
+# #k-fold cross validation for qty models - TRUE models
+# 
+# cv.glm(data=Qty_wB, glmfit=wB_Qty_Cmodel, K=10)
+# cv.glm(data=Qty_wB, glmfit=wB_Qty_Nmodel, K=10)
+# cv.glm(data=Qty_wB, glmfit=wB_Qty_Pmodel, K=10)
+# 
+# ##################################################################
+# #Cross-validation error is a relative measure therefore we need to generate random QtyC, QtyN, QtyP models so that we can compare cross validation of the "TRUE" model to the "random" models
+# #k-fold cross validation for concentration models - random models
+# #Need to re-shuffle Qty data, fit models, calculate cv.glm
+# 
+# ###############
+# #Qty C per plot
+# #Put results of null Qty C LMs here
+# QtyC_LM_Output <- NULL
+# 
+# #Do it 100 times
+# for(x in seq(1,100,1)){
+# 
+# #Step 1 - Re-shuffle the response
+# #Reshuffle stoich data and place in new file
+# QtyCStoich_Shuf <- Qty_wB
+# #We are shuffling the 14th column as this is the Qty C column
+# QtyCStoich_Shuf[,14] <-sample(QtyCStoich_Shuf[,14])
+# 
+# #Step 2
+# #Run the model
+# #Need to do glm because boot works on glm.
+# wB_QtyC_Rand <- glm(log(Qty_C) ~ SpCode + Height + LandCover + scale(Elevation) + scale(Slope) + scale(AspectNormalized), data=QtyCStoich_Shuf)
+# 
+# #Step 3
+# #Run cross validation
+# cv <-cv.glm(data=QtyCStoich_Shuf, glmfit=wB_QtyC_Rand, K=10)
+# 
+# #Step 4
+# #Collect the cv values for each model. For each iteration x save the cv.
+# QtyC_LM_Output <- rbind(QtyC_LM_Output, data.frame(Iteration = x, CV = cv$delta[2]))
+# 
+# print (x)
+# }
+# 
+# 
+# #Step 5
+# #Sort random set to calculate 90% CI for cv$delta[2]
+# QtyC_LM_Output_Sort <- QtyC_LM_Output[order(QtyC_LM_Output$CV),]
+
+```
+
+#### own version
+
+steps to do for each model
+
+```{r}
+cv_modeln <- NULL
+QtyC_LM_Output_Sort <- NULL #need own names for each model
+
+function(df, model) {
+cv_modeln <- cv.glm(data=df, glmfit=model, K=10)
+
+#random values
+#Put results of null Qty C LMs here
+QtyC_LM_Output <- NULL
+
+#Do it 100 times
+for(x in seq(1,100,1)){
+
+#Step 1 - Re-shuffle the response
+#Reshuffle stoich data and place in new file
+QtyC_Shuf <- df
+#We are shuffling the 14th column as this is the Qty C column
+QtyC_Shuf[,14] <-sample(QtyC_Shuf[,14]) #which column for us?
+
+#Step 2
+#Run the model
+#Need to do glm because boot works on glm.
+wB_QtyC_Rand <- update(model, data=QtyC_Shuf) 
+
+#Step 3
+#Run cross validation
+cv <-cv.glm(data=QtyC_Shuf, glmfit=wB_QtyC_Rand, K=10)
+
+#Step 4
+#Collect the cv values for each model. For each iteration x save the cv
+QtyC_LM_Output <- rbind(QtyC_LM_Output, data.frame(Iteration = x, CV = cv$delta[2]))
+print (x)
+}
+
+#Step 5
+#Sort random set to calculate 90% CI for cv$delta[2]
+QtyC_LM_Output_Sort <- QtyC_LM_Output[order(QtyC_LM_Output$CV),]
+}
+```
+
+should model based on C averaged at site have a random K-fold cross validation and models based on C at each subplot with random effect of site have a blocked or stratified k fold cross validation
+
+### estimation method:
+
+biased (k\>10) biased-corrected (k\<10): for log-density regressions or blocked
+
+stratified: to balance groups
+
+# structure
+
+response variable: carbon per meter squared
+
+models fit to each park individually
+
+lm: for models without random effects
+
+lmer: for models with random effects
+
+log-transform response log(c)
+
+# fixed and random effect options
+
+## fixed effects
+
+### options
+
+forest height: FHT (m)
+
+length of growing season: LGS (days)
+
+canopy cover: cc (%)
+
+enhanced vegetation index: EVI (?)
+
+amplitude: EVIamp
+
+median: EVImed
+
+aspect: ASP (degrees)
+
+slope: SLO (degrees)
+
+elevation: ELE (m)
+
+dominant species: SPC (categorical)
+
+### full models
+
+two options: one with forest height and one with canopy cover. don't include both in full model because extremely correlated but unsure which will be more important.
+
+::: panel-tabset
+## FHT
+
+log(C) \~ FHT + EVIamp + EVImed + LGS + ELE + SLO + ASP + SPC + **ε**
+
+## CC
+
+log(C) \~ CC + EVIamp + EVImed + LGS + ELE + SLO + ASP + SPC + **ε**
+:::
+
+## random effects
+
+### options
+
+by year: 2022 & 2023 (1\|year)
+
+by site: 86 total sites \*is randomly varying by site accounting for year (1\|site) year is inherent in the site name
+
+# Model options:
+
+code these as functions in their own script and source("") them in the full document
+
+i.  log(C) \~ **ε**
+
+ii. log(C) \~ (1\|year) + **ε**
+
+iii. log(C) \~ (1\|site) + **ε**
+
+iv. log(C) \~ (1\|year/site) + **ε**
+
+v.  log(C) \~ all env.FHT + **ε**
+
+vi. log(C) \~ all env.FHT + (1\|year) + **ε**
+
+vii. log(C) \~ all env.FHT + (1\|site) + **ε**
+
+viii. log(C) \~ all env.FHT + (1\|year/site) + **ε**
+
+ix. log(C) \~ all env.CC + **ε**
+
+x.  log(C) \~ all env.CC + (1\|year) + **ε**
+
+xi. log(C) \~ all env.CC + (1\|site) + **ε**
+
+xii. log(C) \~ all env.CC + (1\|year/site) + **ε**
+
+xiii. log(C) \~ reduced env. + **ε**
+
+xiv. log(C) \~ reduced env. + (1\|year) + **ε**
+
+xv. log(C) \~ reduced env. + (1\|site) + **ε**
+
+xvi. log(C) \~ reduced env. + (1\|year/site) + **ε**
+
+# GM
+
+# *with C averaged at each site*
+
+## both years
+
+### i. null
+
+### v. full with FHT
+
+### ix. full with CC
+
+### xiii. reduced
+
+### ii. null with random effect of year
+
+### vi. full FHT with random effect of year
+
+### x. full CC with random effect of year
+
+### xiv. reduced with random effect of year
+
+## 2022
+
+### i. null
+
+### v. full with FHT
+
+### ix. full with CC
+
+### xiii. reduced
+
+## 2023
+
+### i. null
+
+### v. full with FHT
+
+### ix. full with CC
+
+### xiii. reduced
+
+# *with C from each subplot*
+
+## both years
+
+### iii. null with random effect of sites
+
+### vii. full FHT with random effect of site
+
+### xi. full CC with random effect of site
+
+### xvi. reduced with random effect of site
+
+### iv. null with random effect of sites
+
+### viii. full FHT with random effect of site
+
+### xii. full CC with random effect of site
+
+### xvi. reduced with random effect of site
+
+## 2022
+
+### iii. null with random effect of sites
+
+### vii. full FHT with random effect of site
+
+### xi. full CC with random effect of site
+
+### xvi. reduced with random effect of site
+
+## 2023
+
+### iii. null with random effect of sites
+
+### vii. full FHT with random effect of site
+
+### xi. full CC with random effect of site
+
+### xvi. reduced with random effect of site
+
+# TN
+
+# *with C averaged at each site*
+
+## both years
+
+### i. null
+
+### v. full with FHT
+
+### ix. full with CC
+
+### xiii. reduced
+
+### ii. null with random effect of year
+
+### vi. full FHT with random effect of year
+
+### x. full CC with random effect of year
+
+### xiv. reduced with random effect of year
+
+## 2022
+
+### i. null
+
+### v. full with FHT
+
+### ix. full with CC
+
+### xiii. reduced
+
+## 2023
+
+### i. null
+
+### v. full with FHT
+
+### ix. full with CC
+
+### xiii. reduced
+
+# *with C from each subplot*
+
+## both years
+
+### iii. null with random effect of sites
+
+### vii. full FHT with random effect of site
+
+### xi. full CC with random effect of site
+
+### xvi. reduced with random effect of site
+
+### iv. null with random effect of sites
+
+### viii. full FHT with random effect of site
+
+### xii. full CC with random effect of site
+
+### xvi. reduced with random effect of site
+
+## 2022
+
+### iii. null with random effect of sites
+
+### vii. full FHT with random effect of site
+
+### xi. full CC with random effect of site
+
+### xvi. reduced with random effect of site
+
+## 2023
+
+### iii. null with random effect of sites
+
+### vii. full FHT with random effect of site
+
+### xi. full CC with random effect of site
+
+### xvi. reduced with random effect of site

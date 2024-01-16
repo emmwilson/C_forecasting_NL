@@ -1,0 +1,67 @@
+---
+title: "fill in missing soil"
+format: html
+editor: visual
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx)
+```
+
+## bring in data
+
+### 2023
+
+```{r}
+c_2023 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
+  replace(is.na(.), 0) 
+
+site_data <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+site_data$Site_ID <- sprintf("%02.f", site_data$Site_ID)
+
+c_2023_mess <- c_2023 %>%
+  left_join(site_data)%>%
+  clean_names() %>%
+  mutate(gap = disturbance) %>%
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Wind', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Logging', 'Gap')) %>%
+  mutate(year = 2023) %>% # add year
+  mutate(site_id = paste0(site_id, "_", "2023")) %>% # distinguish overlapping site numbers by year
+  filter(ex_ctrl != "EX") 
+  
+
+c_2023_compat <- c_2023_mess %>%
+  dplyr::select(c(22,23,25,2,27,38,39,5,7,10,11,13,16,18,21)) %>%
+  replace(is.na(.), 0) %>%
+  mutate(unique_id = paste0(park_id, "_", site_id, "_", subplot_id))
+```
+
+## fix samples
+
+#### GM_35_2023 and GM_41_2023
+
+all soil sample burned up for 35, one for 41
+
+mature plot in GM
+
+```{r}
+c_23_matGM <- subset(c_2023_compat, park_id == "GM" & disturbance == "Mature")
+
+c_23_matGM_avg <- mean(c_23_matGM$sl_carbon_9m2)
+c_23_matGM_sd <- sd(c_23_matGM$sl_carbon_9m2)/sqrt(length(c_23_matGM$unique_id))
+c_23_matGM_med <- median(c_23_matGM$sl_carbon_9m2)
+
+c_2023_compat$sl_carbon_9m2[c_2023_compat$sl_carbon_9m2 == 0] <- c_23_matGM_med
+```
+
+### export
+
+```{r}
+#just write in values in excel
+```

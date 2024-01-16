@@ -1,0 +1,1343 @@
+---
+title: "Explore_trees"
+format: html
+editor: visual
+---
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  readxl,
+  writexl,
+  ggplot2,
+  janitor,
+  vegan,
+  stringr,
+  reshape2,
+  ggpubr,
+  lme4)
+```
+
+## import 2022 and 2023 tree data
+
+```{r}
+tree_2022 <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "DBH height biomass") %>%
+  clean_names() %>%
+  filter(excl_ctrl != "EX") #remove exclosures
+tree_2022 <- tree_2022 %>%
+  dplyr::select(-c(3,5)) %>%
+  filter(if_all(!site, ~ !grepl("NA", .)))
+tree_2022$height <- tree_2022$height %>% as.numeric()
+tree_2022$dbh <- tree_2022$dbh %>% as.numeric()
+
+
+site_data <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info") #import so I can add exclosure info to 2023 data
+
+site_data$SubplotID <- site_data$SubplotID %>% as.character()
+tree_2023 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Tree shrub and sapling") %>%
+  clean_names() %>%
+  left_join(site_data, by = c("park_site", "subplot_id" = "SubplotID")) %>% #add site data
+  filter(height_class == "Tree") %>%
+  filter(ex_ctrl != "EX") %>% #remove exclosures
+  dplyr::select(c(1:3,6,9:12,15:17,22,25,26))
+
+tree_2023 <- tree_2023[rep(row.names(tree_2023), tree_2023$number_of_individuals), c(1:11,13)]
+```
+
+## stat summary of characteristics
+
+```{r}
+# total
+nrow(tree_2022)
+nrow(tree_2023)/2 #divide by two because I surveyed twice the area (two transects)
+
+# number of sites where we found trees
+n_distinct(tree_2022$site_id) # out of 35 non exclosure sites visited
+n_distinct(tree_2023$site_id) # out of 50 non exclosure sites visited
+
+#proportion sites with trees
+n_distinct(tree_2022$site_id)/35
+n_distinct(tree_2023$site_id)/50
+
+# at each site
+tree_2022 %>%
+  group_by(site_id) %>%
+  summarise(count=n())
+tree_2023 %>%
+  group_by(park_site) %>%
+  summarise(count=n()/2)
+
+
+# by each team
+ntree_team22 <- tree_2022 %>%
+  group_by(team) %>%
+  summarise(count=n())
+
+summary(tree_2022 %>%
+  group_by(site_id) %>%
+  summarise(count=n()))
+summary(tree_2023 %>%
+  group_by(park_site) %>%
+  summarise(count=n()/2))
+
+
+#DBH
+summary(tree_2022$dbh)[[4]]
+summary(tree_2023$dbh_cm)[[4]]
+
+summary(subset(tree_2022$dbh, tree_2022$team == 1))[[4]]
+summary(subset(tree_2022$dbh, tree_2022$team == 2))[[4]]
+
+summary(subset(tree_2022$dbh, tree_2022$team == 2 & tree_2022$dbh <40))
+summary(subset(tree_2022$dbh, tree_2022$team == 1 & tree_2022$dbh <40))
+
+
+#height
+summary(tree_2022$height)
+summary(tree_2023$height_m)[[4]]
+
+summary(subset(tree_2022$height, tree_2022$team == 1))[[4]]
+summary(subset(tree_2022$height, tree_2022$team == 2))[[4]]
+
+# biomass 
+summary(tree_2022$biomass)[4]
+summary(tree_2023$biomass_ind)[4]
+
+#by each team
+summary(subset(tree_2022$biomass, tree_2022$team == 1))[4]
+summary(subset(tree_2022$biomass, tree_2022$team == 2))[4]
+
+#total biomass
+sum(tree_2022$biomass)
+sum(tree_2023$biomass_ind)/2
+
+sum(subset(tree_2022$biomass, tree_2022$team == 1))
+sum(subset(tree_2022$biomass, tree_2022$team == 2))
+```
+
+## compare to 2022 tree biomass calculated myself
+
+its not this. the carbon calculated with my workflow is the same as Rachael's
+
+### bring in new 2022 tree biomass data
+
+```{r}
+tree_2022_new <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "transect biomass non pivot") %>%
+  clean_names() %>%
+  filter(excl_ctrl != "EX") %>%
+  mutate(tree_c_9m2 = (total/2)*9/5)#convert to C
+
+```
+
+### bring in tree C from 2023
+
+```{r}
+c_20232 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
+  replace(is.na(.), 0) 
+
+site_data2 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+site_data2$Site_ID <- sprintf("%02.f", site_data2$Site_ID)
+
+c_2023_mess2 <- c_20232 %>%
+  left_join(site_data2)%>%
+  clean_names() %>%
+  mutate(gap = disturbance) %>%
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Wind', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Logging', 'Gap')) %>%
+  mutate(year = 2023) %>% # add year
+  mutate(site_id = paste0(site_id, "_", "2023")) %>% # distinguish overlapping site numbers by year
+  filter(ex_ctrl != "EX")
+  
+c_2023_compat2 <- c_2023_mess2 %>%
+  dplyr::select(c(1,2,13,17,18,28,29,3)) %>%
+  replace(is.na(.), 0)
+```
+
+### compare to biomass of 2023
+
+```{r}
+#carbon *this includes all the zeros so is just average carbon in trees over all sites
+summary(tree_2022_new$tree_c_9m2)
+summary(c_2023_compat2$transect_c_tree)
+
+sum(tree_2022_new$tree_c_9m2)
+sum(c_2023_compat2$transect_c_tree)
+
+#not including the zeros *so is average carbon in site where trees were recorded
+summary(subset(tree_2022_new$tree_c_9m2, tree_2022_new$tree_c_9m2 != 0))
+summary(subset(c_2023_compat2$transect_c_tree, c_2023_compat2$transect_c_tree != 0))
+
+#compare trees between teams
+summary(subset(tree_2022_new$tree_c_9m2, tree_2022_new$team == 1 & tree_2022_new$tree_c_9m2 != 0.00))
+summary(subset(tree_2022_new$tree_c_9m2, tree_2022_new$team == 2 & tree_2022_new$tree_c_9m2 != 0))
+
+ggplot(subset(tree_2022_new, tree_2022_new$tree_c_9m2 != 0), aes(tree_c_9m2, fill = as.factor(team)))   + 
+  geom_density(alpha = 0.5)
+
+ggplot(tree_2022, aes(x= site_id, y = biomass)) +
+  geom_bar(stat = "identity")
+
+ggplot(tree_2023, aes(x= site_id, y = biomass_ind)) +
+  geom_bar(stat = "identity")
+
+#summary(c_2022_compat$te_carbon_9m2)
+
+summary(tree_2022$biomass)[[4]]
+summary(tree_2023$biomass_ind)[[4]]
+sum(tree_2022$biomass)
+sum(tree_2023$biomass_ind)/2
+sum(tree_2022$biomass)/n_distinct(tree_2022$site_id)
+sum(tree_2023$biomass_ind)/(2*n_distinct(tree_2023$site_id))
+
+#compare biomass if remove large dbh
+
+length((subset(tree_2022$biomass, tree_2022$dbh < 35 )))
+length((subset(tree_2023$biomass_ind, tree_2023$dbh_cm < 35 )))/2  
+
+summary(subset(tree_2022$biomass, tree_2022$dbh < 30 ))[[4]]
+summary(subset(tree_2023$biomass_ind, tree_2023$dbh_cm < 30 ))[[4]]
+
+sum(subset(tree_2022$biomass, tree_2022$dbh < 30 ))
+sum(subset(tree_2023$biomass_ind, tree_2023$dbh_cm < 30 ))/2
+
+#average biomass per site
+sum(subset(tree_2022$biomass, tree_2022$dbh < 30 ))/n_distinct(subset(tree_2022$site_id, tree_2022$dbh < 30))
+sum(subset(tree_2023$biomass_ind, tree_2023$dbh_cm < 30 ))/(2*n_distinct(subset(tree_2023$site_id, tree_2023$dbh_cm<30)))
+
+
+#compare if take away sites w trees w dbh over 35
+
+```
+
+#### look at summary for trees
+
+not by site
+
+```{r}
+nrow(subset(tree_2022, team == 1))
+nrow(subset(tree_2022, team == 2))
+
+summary(subset(tree_2022$biomass, tree_2022$team == 1))
+summary(subset(tree_2022$biomass, tree_2022$team == 2))
+
+summary(tree_2022$biomass)
+summary(tree_2023$biomass_ind)
+
+sum(subset(tree_2022$biomass, tree_2022$team == 1))
+sum(subset(tree_2022$biomass, tree_2022$team == 2))
+```
+
+### compensate for extreme values
+
+#### remove trees with extreme dbhs
+
+```{r}
+tree_2022_remove <- tree_2022 %>%
+  filter(dbh < 40) %>%
+  mutate(year = 2022)
+tree_2023_remove <- tree_2023 %>%
+    filter(dbh_cm < 40) %>%
+  mutate(year = 2023)
+
+tree_remove <- tree_2022_remove[,c(1,2,11,15)] %>%
+  rbind(tree_2023_remove[,c(1,2,12,13)])
+
+summary(tree_2022_remove$biomass_ind)
+summary(tree_2023_remove$biomass_ind)
+
+v_tree_2022_remove <- ggplot(tree_2022_remove, aes( y = biomass_ind)) +
+  geom_boxplot() 
+v_tree_2022_remove
+v_tree_2023_remove <- ggplot(tree_2023_remove, aes( y = biomass_ind)) +
+  geom_boxplot() 
+v_tree_2023_remove
+
+v_tree_remove <- ggplot(tree_remove, aes(x = as.factor(year), y = biomass_ind)) +
+  geom_violin() +
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red", size = 0.1)
+  
+v_tree_remove
+```
+
+#### average by site
+
+```{r}
+tree_2022_site <- tree_2022 %>%
+  rename(biomass = "biomass") %>%
+  mutate(year = 2022) %>%
+  group_by(park_id, site_id, year) %>%
+  summarise(mean_dbh = mean(dbh), mean_h = mean(height), mean = mean(biomass_ind))
+tree_2023_site <- tree_2023 %>%
+  rename(biomass = "biomass_ind") %>%
+  mutate(year = 2023)%>%
+  group_by(park_id, site_id, year) %>%
+  summarise(mean_dbh = mean(dbh_cm), mean_h = mean(height_m), mean = mean(biomass))
+
+tree_avg_site <- tree_2022_site[,c(1,2,3,6)] %>%
+  rbind(tree_2023_site[,c(1,2,3,6)])
+
+summary(tree_2022_site$biomass)
+summary(tree_2023_site$biomass)
+
+b_tree_2022_remove <- ggplot(tree_2022_site, aes( y = mean)) +
+  geom_boxplot() 
+b_tree_2022_remove
+b_tree_2023_remove <- ggplot(tree_avg_site, aes( y = mean)) +
+  geom_boxplot() 
+b_tree_2023_remove
+
+v_tree_site <- ggplot(tree_avg_site, aes(x = as.factor(year), y = mean)) +
+  geom_violin() +
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red", size = 0.1)
+  
+v_tree_site
+
+b_tree_site <- ggplot(tree_avg_site, aes(x = as.factor(year), y = mean)) +
+  geom_boxplot()
+  
+b_tree_site
+
+bar_tree_site <- ggplot(tree_avg_site, aes(x = as.factor(year), y = mean)) +
+  geom_bar(stat = "summary", fun = "mean")
+  
+bar_tree_site
+```
+
+##### median
+
+```{r}
+tree_2022_sitem <- tree_2022 %>%
+  rename(biomass = "biomass") %>%
+  mutate(year = 2022) %>%
+  group_by(park_id, site_id, year) %>%
+  summarise(med_dbh = median(dbh), med_h = median(height), med = median(biomass_ind))
+tree_2023_sitem <- tree_2023 %>%
+  rename(biomass = "biomass_ind") %>%
+  mutate(year = 2023)%>%
+  group_by(park_id, site_id, year) %>%
+  summarise(med_dbh = median(dbh_cm), med_h = median(height_m), med = median(biomass))
+
+tree_avg_sitem <- tree_2022_sitem[,c(1,2,3,6)] %>%
+  rbind(tree_2023_sitem[,c(1,2,3,6)])
+
+summary(tree_2022_sitem$biomass)
+summary(tree_2023_sitem$biomass)
+
+b_tree_2022_removem <- ggplot(tree_2022_sitem, aes( y = med)) +
+  geom_boxplot() 
+b_tree_2022_removem
+b_tree_2023_removem <- ggplot(tree_avg_sitem, aes( y = med)) +
+  geom_boxplot() 
+b_tree_2023_removem
+
+v_tree_sitem <- ggplot(tree_avg_sitem, aes(x = as.factor(year), y = med)) +
+  geom_violin() +
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red", size = 0.1)
+  
+v_tree_sitem
+
+b_tree_sitem <- ggplot(tree_avg_sitem, aes(x = as.factor(year), y = med)) +
+  geom_boxplot()
+  
+b_tree_sitem
+
+bar_tree_sitem <- ggplot(tree_avg_sitem, aes(x = as.factor(year), y = med)) +
+  geom_bar(stat = "summary", fun = "median")
+  
+bar_tree_sitem
+```
+
+#### by subplot
+
+```{r}
+tree_2022_sub <- tree_2022 %>%
+  rename(biomass = "biomass") %>%
+  mutate(year = 2022) %>%
+  group_by(park_id, site_id, subplot_id, year) %>%
+  summarise(mean_dbh = mean(dbh), mean_h = mean(height), mean = mean(biomass_ind))
+tree_2023_sub <- tree_2023 %>%
+  rename(biomass = "biomass_ind") %>%
+  mutate(year = 2023)%>%
+  group_by(park_id, site_id,  subplot_id, year) %>%
+  summarise(mean_dbh = mean(dbh_cm), mean_h = mean(height_m), mean = mean(biomass))
+
+tree_avg_sub <- tree_2022_sub[,c(1:4,7)] %>%
+  rbind(tree_2023_sub[,c(1:4,7)])
+
+summary(tree_2022_sub$mean)
+summary(tree_2023_sub$mean)
+
+b_tree_2022_remove <- ggplot(tree_2022_sub, aes( y = mean)) +
+  geom_boxplot() 
+b_tree_2022_remove
+b_tree_2023_remove <- ggplot(tree_avg_sub, aes( y = mean)) +
+  geom_boxplot() 
+b_tree_2023_remove
+
+v_tree_sub <- ggplot(tree_avg_sub, aes(x = as.factor(year), y = mean)) +
+  geom_violin() +
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red", size = 0.1)
+  
+v_tree_sub
+
+b_tree_sub <- ggplot(tree_avg_sub, aes(x = as.factor(year), y = mean)) +
+  geom_boxplot()
+  
+b_tree_sub
+
+bar_tree_sub <- ggplot(tree_avg_sub, aes(x = as.factor(year), y = mean)) +
+  geom_bar(stat = "summary", fun = "mean")
+  
+bar_tree_sub
+```
+
+### scale team 2 dbh
+
+scale down the dbh measurements of team to based on the height dbh relationship (ie make the height - dbh relationship similar to team 1 and 2023)
+
+```{r}
+# using regression line: tree_2022_t1_lm <- lm(dbh ~ 0+height, data = tree_2022[tree_2022$team == 1,]) and tree_2022_t2_lm <- lm(dbh ~ 0+height, data = tree_2022[tree_2022$team == 2,])
+
+tree_2022_t1_lm <- lm(dbh ~ 0+height, data = tree_2022[tree_2022$team == 1,])
+summary(tree_2022_t1_lm)
+tree_2022_t2_lm <- lm(dbh ~ 0+height, data = tree_2022[tree_2022$team == 2,])
+summary(tree_2022_t2_lm)
+tree_2023_lm <- lm(dbh_cm ~ 0+height_m, data = tree_2023)
+summary(tree_2023_lm)
+
+tree_2022_t2_dbh2 <- tree_2022 %>%
+  filter(team == 2) %>%
+  mutate(dbh = dbh * ((tree_2022_t1_lm[[1]]*height)/(tree_2022_t2_lm[[1]]*height)))
+
+tree_2022_t2_lm_dbh2 <- lm(dbh ~ 0+height, data = tree_2022_t2_dbh2)
+summary(tree_2022_t2_lm_dbh2)
+
+tree_2022_scaledt2 <- tree_2022 %>%
+  filter(team == 1) %>%
+  rbind(tree_2022_t2_dbh2)
+
+ggplot(tree_2022_scaledt2, aes(height, dbh)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(team), shape = as.factor(team))) +
+  geom_abline(intercept=0, slope=tree_2022_t1_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=tree_2022_t2_lm_dbh2$coefficients[1], colour = "#00BFC4") +
+  geom_abline(intercept=0, slope=tree_2023_lm$coefficients[1], colour = "black") +
+  xlim(0,15) +
+  ylim(0,55) 
+
+ggplot(tree_2022_scaledt2, aes(dbh, fill = as.factor(team))) +
+  geom_density(alpha = 0.5)
+
+
+# what are the new stats
+#DBH
+summary(tree_2022_scaledt2$dbh)[[4]]
+summary(tree_2023$dbh_cm)[[4]]
+
+summary(subset(tree_2022_scaledt2$dbh, tree_2022_scaledt2$team == 1))[[4]]
+summary(subset(tree_2022_scaledt2$dbh, tree_2022_scaledt2$team == 2))[[4]]
+
+ggplot(tree_2022_scaledt2, aes(dbh, fill = as.factor(team)))  + 
+  geom_density(alpha = 0.5) +
+  geom_density(data = tree_2023, aes(dbh_cm), fill = "green", alpha = 0.5)
+
+tree_dbh_site <- tree_2022_scaledt2 %>%
+  dplyr::select(-c(9:12))
+
+# biomass by each team *this will need to be calculated
+write_xlsx(tree_dbh_site, path = "final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/scaled_team2_dbh.xlsx")
+
+scaled_biomass <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "scaled dbh t2") %>%
+  clean_names()
+
+summary(scaled_biomass$new_biomass)[[4]]
+summary(tree_2023$biomass_ind)[[4]]
+
+summary(subset(scaled_biomass$new_biomass, tree_2022_scaledt2$team == 1))[[4]]
+summary(subset(scaled_biomass$new_biomass, tree_2022_scaledt2$team == 2))[[4]]
+
+sum(scaled_biomass$new_biomass)
+sum(tree_2023$biomass_ind)/2
+
+sum(subset(scaled_biomass$new_biomass, tree_2022_scaledt2$team == 1))
+sum(subset(scaled_biomass$new_biomass, tree_2022_scaledt2$team == 2))
+```
+
+## compare measurements
+
+### dbh vs height
+
+```{r}
+ggplot(tree_2022, aes(height, dbh)) +
+    geom_point() +
+    geom_smooth(method="lm") +
+    stat_cor(label.y = 40)+ 
+    stat_regline_equation(label.y = 45) +
+    xlim(c(3,15)) +
+    ylim(c(0,55))
+ggplot(tree_2023, aes(height_m, dbh_cm)) +
+    geom_point() +
+    geom_smooth(method=lm) +
+    stat_cor(label.y = 40)+ 
+    stat_regline_equation(label.y = 45)  +
+    xlim(c(3,15)) +
+    ylim(c(0,55))
+
+# fit through 0,0
+tree_2022_lm <- lm(dbh ~ 0+height, data = tree_2022)
+summary(tree_2022_lm)
+tree_2023_lm <- lm(dbh_cm ~ 0+height_m, data = tree_2023)
+summary(tree_2023_lm)
+
+#colour by park
+ggplot(tree_2022, aes(height, dbh, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2022_lm$coefficients[1]) +
+  xlim(0,15) +
+  ylim(0,55)
+ggplot(tree_2023, aes(height_m, dbh_cm, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2023_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,55)
+
+#colour by year
+tree_2022$year <- 2022
+tree_2023$year <- 2023
+
+tree_22_comp <- tree_2022[,c(1:3,5:8,14,15)] %>%
+  rename(disturbance = dist_type) %>%
+  rename(height_m = height) %>%
+  rename(dbh_cm = dbh) %>%
+  mutate(subplot_id = substr(subplot_id,2,2))
+tree_23_comp <- tree_2023[,c(1,2,4,7,8,10:11,13)] %>%
+  mutate(species = sub(" ","_",tolower(species))) %>%
+  mutate(team = 1)
+
+tree_22_23 <- tree_22_comp %>%
+  rbind(tree_23_comp)
+
+
+
+```
+
+#### distribution
+
+```{r}
+ggplot(tree_22_23, aes(height_m, fill = as.factor(year)))  + 
+  geom_density(alpha = 0.5)
+
+ggplot(tree_22_23, aes(dbh_cm, fill = as.factor(year)))   + 
+  geom_density(alpha = 0.5)
+
+#subset mature sites
+
+tree_mat_22_23 <- tree_22_23 %>%
+  filter(disturbance == c("Mature","mature_forest"))
+
+ggplot(tree_mat_22_23, aes(height_m, fill = as.factor(year)))  + 
+  geom_density(alpha = 0.5)
+
+ggplot(tree_mat_22_23, aes(dbh_cm, fill = as.factor(year)))   + 
+  geom_density(alpha = 0.5)
+
+# subset gaps
+tree_gap_22_23 <- tree_22_23 %>%
+  filter(disturbance != c("Mature","mature_forest"))
+
+ggplot(tree_gap_22_23, aes(height_m, fill = as.factor(year)))  + 
+  geom_density(alpha = 0.5)
+
+ggplot(tree_gap_22_23, aes(dbh_cm, fill = as.factor(year)))   + 
+  geom_density(alpha = 0.5)
+
+
+```
+
+#### remove extreme trees
+
+```{r}
+tree_22_compr <- tree_22_comp %>%
+  filter(dbh_cm < 40)
+tree_23_compr <- tree_23_comp %>%
+  filter(dbh_cm < 40)
+tree_22_23_r <- tree_22_compr %>%
+  rbind(tree_23_compr)
+
+#DBH
+summary(tree_22_compr$dbh_cm)
+summary(tree_23_compr$dbh_cm)
+
+#height
+summary(tree_22_compr$height_m)
+summary(tree_23_compr$height_m)
+
+# fit through 0,0
+tree_2022rem_lm <- lm(dbh_cm ~ 0+height_m, data = tree_22_compr)
+summary(tree_2022rem_lm)
+tree_2023rem_lm <- lm(dbh_cm ~ 0+height_m, data = tree_23_compr)
+summary(tree_2023rem_lm)
+
+#colour by park
+ggplot(tree_2022_remove, aes(height, dbh, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2022rem_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,55)
+ggplot(tree_2023_remove, aes(height_m, dbh_cm, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2023rem_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,55)
+
+ggplot(tree_22_23_r, aes(height_m, dbh_cm, colour = as.factor(year))) + 
+  geom_point(position=position_jitterdodge()) +
+  geom_abline(intercept=0, slope=tree_2022rem_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=tree_2023rem_lm$coefficients[1], colour = "#00BFC4") +
+  xlim(0,13) +
+  ylim(0,55) 
+
+ggplot(tree_22_23_r, aes(as.factor(year), height_m)) +
+    geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+ggplot(tree_22_23_r, aes(as.factor(year), dbh_cm)) +
+    geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+```
+
+#### average by site
+
+```{r}
+tree_2022_avg <- tree_2022 %>%
+  group_by(park_id, site_id) %>%
+  summarise(mean_dbh = mean(dbh), mean_h = mean(height))
+tree_2023_avg <- tree_2023 %>%
+  group_by(park_id, site_id) %>%
+  summarise(mean_dbh = mean(dbh_cm), mean_h = mean(height_m))
+
+# fit through 0,0
+tree_2022avg_lm <- lm(mean_dbh ~ 0+mean_h, data = tree_2022_avg)
+summary(tree_2022avg_lm)
+tree_2023avg_lm <- lm(mean_dbh ~ 0+mean_h, data = tree_2023_avg)
+summary(tree_2023avg_lm)
+
+#colour by park
+ggplot(tree_2022_avg, aes(mean_h, mean_dbh, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2022avg_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,55)
+ggplot(tree_2023_avg, aes(mean_h, mean_dbh, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2023avg_lm$coefficients[1]) +
+  xlim(0,13) 
+
+  
+#colour by year
+tree_2022_avg$year <- 2022
+tree_2023_avg$year <- 2023
+
+tree_22_23_avg <- tree_2022_avg %>%
+  rbind(tree_2023_avg)
+
+ggplot(tree_22_23_avg, aes(mean_h, mean_dbh, colour = as.factor(year))) + 
+  geom_point(position=position_jitterdodge()) +
+  geom_abline(intercept=0, slope=tree_2022avg_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=tree_2023avg_lm$coefficients[1], colour = "#00BFC4") +
+  xlim(0,13) +
+  ylim(0,55) 
+
+ggplot(tree_22_23_avg, aes(mean_h, fill = as.factor(year)))  + 
+  geom_density(alpha = 0.5)
+
+ggplot(tree_22_23_avg, aes(mean_dbh, fill = as.factor(year)))   + 
+  geom_density(alpha = 0.5)
+```
+
+##### median
+
+```{r}
+tree_2022_m <- tree_2022 %>%
+  group_by(park_id, site_id) %>%
+  summarise(median_dbh = median(dbh), median_h = median(height))
+tree_2023_m <- tree_2023 %>%
+  group_by(park_id, site_id) %>%
+  summarise(median_dbh = median(dbh_cm), median_h = median(height_m))
+
+# fit through 0,0
+tree_2022m_lm <- lm(median_dbh ~ 0+median_h, data = tree_2022_m)
+summary(tree_2022m_lm)
+tree_2023m_lm <- lm(median_dbh ~ 0+median_h, data = tree_2023_m)
+summary(tree_2023m_lm)
+
+#colour by park
+ggplot(tree_2022_m, aes(median_h, median_dbh, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2022m_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,55)
+ggplot(tree_2023_m, aes(median_h, median_dbh, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2023m_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,55)
+
+
+```
+
+#### by subplot
+
+```{r}
+tree_2022_avgs <- tree_2022 %>%
+  group_by(park_id, site_id, subplot_id) %>%
+  summarise(mean_dbh = mean(dbh), mean_h = mean(height))
+tree_2023_avgs <- tree_2023 %>%
+  group_by(park_id, site_id, subplot_id) %>%
+  summarise(mean_dbh = mean(dbh_cm), mean_h = mean(height_m))
+
+# fit through 0,0
+tree_2022avgs_lm <- lm(mean_dbh ~ 0+mean_h, data = tree_2022_avgs)
+summary(tree_2022avgs_lm)
+tree_2023avgs_lm <- lm(mean_dbh ~ 0+mean_h, data = tree_2023_avgs)
+summary(tree_2023avgs_lm)
+
+#colour by park
+ggplot(tree_2022_avgs, aes(mean_h, mean_dbh, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2022avgs_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,55)
+ggplot(tree_2023_avgs, aes(mean_h, mean_dbh, colour = park_id)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=tree_2023avgs_lm$coefficients[1]) +
+  xlim(0,13) 
+
+  
+#colour by year
+tree_2022_avgs$year <- 2022
+tree_2023_avgs$year <- 2023
+
+tree_22_23_avgs <- tree_2022_avgs %>%
+  rbind(tree_2023_avgs)
+
+ggplot(tree_22_23_avgs, aes(mean_h, mean_dbh, colour = as.factor(year))) + 
+  geom_point(position=position_jitterdodge()) +
+  geom_abline(intercept=0, slope=tree_2022avgs_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=tree_2023avgs_lm$coefficients[1], colour = "#00BFC4") +
+  xlim(0,13) +
+  ylim(0,55) 
+
+```
+
+#### teams
+
+##### by dbh
+
+```{r}
+ggplot(tree_22_23, aes(height_m, dbh_cm, colour = as.factor(year))) + 
+  geom_point(position=position_jitterdodge(), aes(shape = as.factor(team))) +
+  geom_abline(intercept=0, slope=tree_2022_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=tree_2023_lm$coefficients[1], colour = "#00BFC4") +
+  xlim(0,15) +
+  ylim(0,55) 
+
+ggplot(tree_22_comp, aes(height_m, dbh_cm)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(team), shape = as.factor(team))) +
+  geom_abline(intercept=0, slope=tree_2022_lm$coefficients[1]) +
+  xlim(0,15) +
+  ylim(0,55) 
+
+# lines through teams
+tree_2022_t1_lm <- lm(dbh ~ 0+height, data = tree_2022[tree_2022$team == 1,])
+summary(tree_2022_t1_lm)
+tree_2022_t2_lm <- lm(dbh ~ 0+height, data = tree_2022[tree_2022$team == 2,])
+summary(tree_2022_t2_lm)
+
+
+ggplot(tree_22_comp, aes(height_m, dbh_cm)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(team), shape = as.factor(team))) +
+  geom_abline(intercept=0, slope=tree_2022_t1_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=tree_2022_t2_lm$coefficients[1], colour = "#00BFC4") +
+  geom_abline(intercept=0, slope=tree_2023_lm$coefficients[1], colour = "black") +
+  xlim(0,15) +
+  ylim(0,55) 
+
+ggplot(tree_22_comp, aes(dbh_cm, fill = as.factor(team)))   + 
+  geom_density(alpha = 0.5)
+
+tree_22_23$team_yr <- paste(tree_22_23$team, "_", tree_22_23$year)
+
+ggplot(tree_22_23, aes(dbh_cm, fill = team_yr)) + 
+  geom_density(alpha = 0.5)
+
+# dbh vs biomass
+tree_2022_dbh1_lm <- lm(biomass ~ 0+dbh, data = tree_2022[tree_2022$team == 1,])
+summary(tree_2022_dbh1_lm)
+tree_2022_dbh2_lm <- lm(biomass ~ 0+dbh, data = tree_2022[tree_2022$team == 2,])
+summary(tree_2022_dbh2_lm)
+tree_2022_dbh_lm <- lm(biomass ~ 0+exp(dbh), data = tree_2022)
+summary(tree_2022_dbh_lm)
+
+fm0 <- nls(log(tree_2022$biomass) ~ log(a*exp(b*tree_2022$dbh)), tree_2022, start = c(a = 1, b = 1))
+
+summary(fm0)
+
+ggplot(tree_2022, aes(dbh, biomass)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(team))) +
+  stat_smooth(method = 'nls', formula = y ~ a*exp(b*x), se = FALSE, method.args = list(start=coef(fm0)))
+  geom_abline(intercept=0, slope=tree_2022_dbh_lm$coefficients[1], colour = "black") 
+  
+
+lm_dbh_exp <- lm(log(biomass)~dbh, tree_2022)
+df_dbh_exp <- data.frame(dbh = tree_2022$dbh,
+                           biomass = exp(fitted(lm_dbh_exp)))
+summary(lm_dbh_exp)
+   
+ggplot(tree_2022, aes(dbh, biomass)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(team))) +
+  geom_line(data = df_dbh_exp) +
+  ylim(0,1500000)
+
+#try decreasing the height of team 1 by 25%
+tree_22_comp$height_m <- ifelse(tree_22_comp$team == 1, tree_22_comp$height_m-tree_22_comp$height_m*0.25, tree_22_comp$height_m)
+
+ggplot(tree_22_comp, aes(height_m, dbh_cm)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(team), shape = as.factor(team))) +
+  geom_abline(intercept=0, slope=tree_2022_t1_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=tree_2022_t2_lm$coefficients[1], colour = "#00BFC4") +
+  geom_abline(intercept=0, slope=tree_2023_lm$coefficients[1], colour = "black") +
+  xlim(0,15) +
+  ylim(0,55) 
+```
+
+##### by height
+
+```{r}
+ggplot(tree_22_comp, aes(height_m, fill = as.factor(team)))   +
+  geom_density(alpha = 0.5)
+
+ggplot(tree_22_23, aes(height_m, fill = team_yr)) + 
+  geom_density(alpha = 0.5)
+
+# height vs biomass
+tree_2022_ht1_lm <- lm(biomass ~ 0+height, data = tree_2022[tree_2022$team == 1,])
+summary(tree_2022_ht1_lm)
+tree_2022_ht2_lm <- lm(biomass ~ 0+height, data = tree_2022[tree_2022$team == 2,])
+summary(tree_2022_ht2_lm)
+tree_2022_ht_lm <- lm(biomass ~ 0+height, data = tree_2022[tree_2022$team == 2,])
+summary(tree_2022_ht_lm)
+
+ggplot(tree_2022, aes(height, biomass)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(team))) +
+  geom_abline(intercept=0, slope=tree_2022_ht_lm$coefficients[1], colour = "black")
+
+```
+
+##### by date
+
+```{r}
+# get date back into dataframe
+tree_2022_date <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "DBH height biomass") %>%
+  clean_names() %>%
+  filter(excl_ctrl != "EX") #remove exclosures
+tree_2022_date <- tree_2022_date %>%
+  dplyr::select(-c(3)) %>%
+  filter(if_all(!site, ~ !grepl("NA", .)))
+tree_2022_date$height <- tree_2022_date$height %>% as.numeric()
+tree_2022_date$dbh <- tree_2022_date$dbh %>% as.numeric()
+
+tree_2022_date$year <- 2022
+
+tree_2022_d1 <- filter(tree_2022_date, team == 1)
+tree_2022_d2 <- filter(tree_2022_date, team == 2)
+
+
+tree_2022_d1_lm <- lm(dbh ~ date_sampled, data = tree_2022_d1)
+summary(tree_2022_d1_lm)
+tree_2022_d2_lm <- lm(dbh ~ date_sampled, data = tree_2022_d2)
+summary(tree_2022_d2_lm)
+
+
+ggplot(tree_2022_date, aes(date_sampled, dbh, colour = as.factor(team))) + 
+  geom_point() +
+  geom_abline(intercept = tree_2022_d1_lm$coefficients[1], slope=tree_2022_d1_lm$coefficients[2], colour = "#F8766D") +
+  geom_abline(intercept = tree_2022_d2_lm$coefficients[1], slope=tree_2022_d2_lm$coefficients[2], colour = "#00BFC4")
+
+ggplot(tree_2022_d2, aes(height, dbh)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(date_sampled))) +
+  geom_abline(intercept=0, slope=tree_2022_t2_lm$coefficients[1], colour = "#00BFC4") +
+  xlim(0,15) +
+  ylim(0,55) 
+
+ggplot(tree_2022_d1, aes(height, dbh)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(date_sampled))) +
+  geom_abline(intercept=0, slope=tree_2022_t1_lm$coefficients[1], colour = "#00BFC4") +
+  xlim(0,15) +
+  ylim(0,55)
+
+#try converting anything with crazy high dbh to "diameter"
+
+tree_high_dbh <- tree_2022_date %>%
+  mutate(converted = ifelse(dbh>35, "y", "n")) %>%
+  mutate(dbh = ifelse(dbh > 35, dbh/pi, dbh))
+
+tree_2022_h1_lm <- lm(dbh ~ 0+height, data = subset(tree_high_dbh, team == 1))
+summary(tree_2022_h1_lm)
+tree_2022_h2_lm <- lm(dbh ~ 0+height, data = subset(tree_high_dbh, team == 2))
+summary(tree_2022_h2_lm)
+
+
+ggplot(tree_high_dbh, aes(height, dbh, colour = as.factor(team), shape = converted)) + 
+  geom_point() +
+  geom_abline(intercept = 0, slope=tree_2022_t1_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept = 0, slope=tree_2022_t2_lm$coefficients[1], colour = "#00BFC4")
+
+#taking away extreem dbh trees
+tree_2022_t2sm_lm <- lm(dbh ~ 0+height, data = subset(tree_2022, team == 2 & dbh<35))
+summary(tree_2022_t2sm_lm)
+summary(tree_2022_t1_lm)
+
+ggplot(subset(tree_2022_d2, dbh<35), aes(height, dbh)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(date_sampled))) +
+  geom_abline(intercept=0, slope=tree_2022_t1_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=tree_2022_t2sm_lm$coefficients[1], colour = "#00BFC4") +
+  xlim(0,15) +
+  ylim(0,55) 
+
+
+```
+
+##### by site
+
+```{r}
+tree_2022_d2 <- tree_2022_d2 %>%
+  mutate(date_site = paste(date_sampled, "_", park_id, "_", site_id))
+
+ggplot(tree_2022_d2, aes(height, dbh)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(date_site))) +
+  geom_abline(intercept=0, slope=tree_2022_t1_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=tree_2022_t2_lm$coefficients[1], colour = "#00BFC4") +
+  xlim(0,15) +
+  ylim(0,55) 
+
+tree_2022_d1 <- tree_2022_d1 %>%
+  mutate(date_site = paste(date_sampled, "_", park_id, "_", site_id))
+
+ggplot(tree_2022_d1, aes(height, dbh)) + 
+  geom_point(position=position_jitterdodge(), aes(colour = as.factor(date_site))) +
+  geom_abline(intercept=0, slope=tree_2022_t1_lm$coefficients[1], colour = "#F8766D") +
+  xlim(0,15) +
+  ylim(0,55) 
+```
+
+### by species
+
+```{r}
+sp_2022_height <- tree_2022 %>% 
+  group_by(species) %>% 
+  summarize(mean = mean(height), max = max(height), min = min(height), q1 = quantile(height, 0.25), q3 = quantile(height, 0.75), n = n())
+
+sp_2022_dbh <- tree_2022 %>% 
+  group_by(species) %>% 
+  summarize(mean = mean(dbh), max = max(dbh), min = min(dbh), q1 = quantile(dbh, 0.25), q3 = quantile(dbh, 0.75), n = n())
+
+sp_2023_height <- tree_2023 %>% 
+  group_by(species) %>% 
+  summarize(mean = mean(height_m), max = max(height_m), min = min(height_m), q1 = quantile(height_m, 0.25), q3 = quantile(height_m, 0.75), n = n())
+sp_2023_dbh <- tree_2023 %>% 
+  group_by(species) %>% 
+  summarize(mean = mean(dbh_cm), max = max(dbh_cm), min = min(dbh_cm), q1 = quantile(dbh_cm, 0.25), q3 = quantile(dbh_cm, 0.75), n = n())
+
+sp_2022_height
+sp_2022_dbh
+sp_2023_height
+sp_2023_dbh
+```
+
+### compare to remotely heights
+
+bring in height data for sites
+
+```{r}
+env_sub_GM <- read.csv("Environmental_datasets/temp_env_data_correlation exploration/subplots_GM_env.csv")
+
+env_sub_GM$ex_ctrl <- replace_na(env_sub_GM$ex_ctrl, 'none')
+env_sub_TN <- read.csv("Environmental_datasets/temp_env_data_correlation exploration/subplots_TN_env.csv")
+env_sub_TN$ex_ctrl <- replace_na(env_sub_TN$ex_ctrl, 'none')
+
+```
+
+separate by site and put together by year
+
+```{r}
+env_sub <- dplyr::bind_rows(env_sub_TN, env_sub_GM) %>% 
+  filter(ex_ctrl != "EX")
+
+height_2022 <- env_sub %>%
+  filter(year == 2022)
+height_2022$site <- substr(height_2022$unique_id, 1,5)
+
+height_2023 <- env_sub %>%
+  filter(year == 2023)
+height_2023$site <- substr(height_2023$unique_id, 1,5)
+```
+
+average height measured at each site
+
+```{r}
+m_2022_height <- tree_2022 %>% 
+  group_by(site_id, park_id, team) %>% 
+  summarize(mean = mean(height), dbh = mean(dbh))
+m_2022_height$site_id <- sprintf("%002d", m_2022_height$site_id)
+m_2022_height$site <- paste0(m_2022_height$park_id,"_", m_2022_height$site_id)
+m_2023_height <- tree_2023 %>% 
+  group_by(site_id, park_id) %>% 
+  summarize(mean = mean(height_m), dbh = mean(dbh_cm)) %>%
+  mutate(team = 1)
+m_2023_height$site_id <- sprintf("%002d", m_2023_height$site_id)
+m_2023_height$site <- paste0(m_2023_height$park_id,"_", m_2023_height$site_id)
+
+hgt_2023_site <- height_2023 %>% 
+  group_by(site) %>% 
+  summarize(FHT = mean(FHT))
+hgt_2022_site <- height_2022 %>% 
+  group_by(site) %>% 
+  summarize(FHT = mean(FHT))
+```
+
+put together data
+
+```{r}
+hgt_2022_comp <- m_2022_height %>%
+  left_join(hgt_2022_site)
+hgt_2023_comp <- m_2023_height %>%
+  left_join(hgt_2023_site)
+
+```
+
+compare between remote sense and measured
+
+```{r}
+ggplot(hgt_2022_comp, aes(mean, FHT)) +
+    geom_point() +
+    geom_smooth(method=lm) +
+    stat_cor(label.y = 11)+ 
+    stat_regline_equation(label.y = 12) +
+  xlim(0,13) +
+  ylim(0,13)
+
+ggplot(hgt_2023_comp, aes(mean, FHT)) +
+    geom_point() +
+    geom_smooth(method=lm) +
+    stat_cor(label.y = 11)+ 
+    stat_regline_equation(label.y = 12) +
+  xlim(0,13) +
+  ylim(0,13)
+
+# fit through 0,0
+hgt_2022_lm <- lm(FHT ~ 0+mean, data = hgt_2022_comp)
+summary(hgt_2022_lm)
+hgt_2023_lm <- lm(FHT ~ 0+mean, data = hgt_2023_comp)
+summary(hgt_2023_lm)
+
+ggplot(hgt_2022_comp, aes(mean, FHT)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=hgt_2022_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,13)
+ggplot(hgt_2023_comp, aes(mean, FHT)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=hgt_2023_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,13)
+
+#compare density graphs:
+
+hgt_2023_compl <- hgt_2023_comp %>%
+  rename(mean_23 = "mean") %>%
+  pivot_longer(cols = c(mean_23, FHT), names_to = "method", values_to = "height") %>%
+  mutate(year = "2023")
+hgt_2022_compl <- hgt_2022_comp %>%
+  pivot_longer(cols = c(mean, FHT), names_to = "method", values_to = "height") %>%
+  mutate(year = "2022")
+
+hgt_22_23_l <- hgt_2023_compl %>%
+  rbind(hgt_2022_compl)
+
+
+dummy <- hgt_22_23_l %>%
+  na.omit()  %>%
+  group_by(method)%>%
+  summarize(mean = mean(height)) 
+
+ggplot(hgt_22_23_l, aes(height, fill = method))  + 
+  geom_density(alpha = 0.5) +
+  geom_vline(data=dummy, aes(xintercept=mean, color=method),
+             linetype="dashed")
+```
+
+##### by team
+
+```{r}
+m_2022_height_t <- tree_2022 %>% 
+  group_by(site_id, park_id, team) %>% 
+  summarize(mean = mean(height), dbh = mean(dbh))
+m_2022_height_t$site_id <- sprintf("%002d", m_2022_height_t$site_id)
+m_2022_height_t$site <- paste0(m_2022_height_t$park_id,"_", m_2022_height_t$site_id)
+
+hgt_2022_comp_t <- m_2022_height_t %>%
+  left_join(hgt_2022_site)
+
+hgt_2022_compl_t <- hgt_2022_comp_t %>%
+  pivot_longer(cols = c(mean, FHT), names_to = "method", values_to = "height") %>%
+  mutate(year = "2022")
+hgt_2023_compl$team <- 1
+
+
+hgt_22_23_l_t <- hgt_2023_compl %>%
+  rbind(hgt_2022_compl_t) %>%
+  mutate(team_method = paste0(team, "_", method))
+
+
+ggplot(hgt_22_23_l_t, aes(height, fill = method))  + 
+  geom_density(alpha = 0.5) +
+  facet_wrap(~team)
+
+# fit through 0,0
+hgt_2022_t1_lm <- lm(FHT ~ 0+mean, data = subset(hgt_2022_comp, team == 1))
+summary(hgt_2022_t1_lm)
+hgt_2022_t2_lm <- lm(FHT ~ 0+mean, data = subset(hgt_2022_comp, team == 2))
+summary(hgt_2022_t2_lm)
+
+ggplot(hgt_2022_comp, aes(mean, FHT, colour = as.factor(team))) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=hgt_2022_t1_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0,  slope=hgt_2022_t2_lm$coefficients[1], colour = "#00BFC4") + 
+  geom_abline(intercept=0, slope=hgt_2023_lm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,13)
+
+# compare FHT to dbh at sites
+hgt_2022_t1_dbhlm <- lm(dbh ~ 0+FHT, data = subset(hgt_2022_comp, team == 1))
+summary(hgt_2022_t1_dbhlm)
+hgt_2022_t2_dbhlm <- lm(dbh ~ 0+FHT, data = subset(hgt_2022_comp, team == 2))
+summary(hgt_2022_t2_dbhlm)
+hgt_2023_dbhlm <- lm(dbh ~ 0+FHT, data = hgt_2023_comp)
+summary(hgt_2023_dbhlm)
+
+ggplot(hgt_2022_comp, aes(FHT, dbh, colour = as.factor(team))) +
+  geom_point() + 
+  geom_abline(intercept=0, slope=hgt_2022_t1_dbhlm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0,  slope=hgt_2022_t2_dbhlm$coefficients[1], colour = "#00BFC4") + 
+  geom_abline(intercept=0, slope=hgt_2023_dbhlm$coefficients[1]) +
+  xlim(0,13) +
+  ylim(0,13)
+```
+
+#### compare to EVI
+
+```{r}
+EVI_2023_site <- height_2023 %>% 
+  group_by(site) %>% 
+  summarize(EVI = mean(EVImedG))
+EVI_2022_site <- height_2022 %>% 
+  group_by(site) %>% 
+  summarize(EVI = mean(EVImedG))
+
+EVI_2022_comp <- m_2022_height %>%
+  left_join(EVI_2022_site)
+EVI_2023_comp <- m_2023_height %>%
+  left_join(EVI_2023_site)
+
+# height fit through 0,0
+EVI_2022_lm <- lm(EVI ~ 0+mean, data = EVI_2022_comp)
+summary(EVI_2022_lm)
+EVI_2023_lm <- lm(EVI ~ 0+mean, data = EVI_2023_comp)
+summary(EVI_2023_lm)
+
+ggplot(EVI_2022_comp, aes(mean, EVI)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=EVI_2022_lm$coefficients[1]) 
+ggplot(EVI_2023_comp, aes(mean, EVI)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=EVI_2023_lm$coefficients[1]) 
+
+# dbh fit through 0,0
+EVIdbh_2022_lm <- lm(EVI ~ 0+dbh, data = EVI_2022_comp)
+summary(EVIdbh_2022_lm)
+EVIdbh_2023_lm <- lm(EVI ~ 0+dbh, data = EVI_2023_comp)
+summary(EVIdbh_2022_lm)
+
+ggplot(EVI_2022_comp, aes(dbh, EVI)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=EVIdbh_2022_lm$coefficients[1]) 
+ggplot(EVI_2023_comp, aes(dbh, EVI)) +
+    geom_point() + 
+  geom_abline(intercept=0, slope=EVIdbh_2023_lm$coefficients[1]) 
+
+#with non 0 intercept - has horrible R2 values
+EVI2_2022_lm <- lm(EVI ~mean, data = EVI_2022_comp)
+summary(EVI2_2022_lm)
+EVI2_2023_lm <- lm(EVI ~ mean, data = EVI_2023_comp)
+summary(EVI2_2022_lm)
+ggplot(EVI_2022_comp, aes(mean, EVI)) +
+    geom_point() + 
+  geom_abline(intercept=EVI2_2022_lm$coefficients[1], slope=EVI2_2022_lm$coefficients[2]) 
+ggplot(EVI_2023_comp, aes(mean, EVI)) +
+    geom_point() + 
+  geom_abline(intercept=EVI2_2022_lm$coefficients[1], slope=EVI2_2023_lm$coefficients[2]) 
+
+EVIdbh2_2022_lm <- lm(EVI ~dbh, data = EVI_2022_comp)
+summary(EVIdbh2_2022_lm)
+EVIdbh2_2023_lm <- lm(EVI ~ dbh, data = EVI_2023_comp)
+summary(EVIdbh2_2022_lm)
+ggplot(EVI_2022_comp, aes(dbh, EVI)) +
+    geom_point() + 
+  geom_abline(intercept=EVIdbh2_2022_lm$coefficients[1], slope=EVIdbh2_2022_lm$coefficients[2]) 
+ggplot(EVI_2023_comp, aes(dbh, EVI)) +
+    geom_point() + 
+  geom_abline(intercept=EVIdbh2_2022_lm$coefficients[1], slope=EVIdbh2_2023_lm$coefficients[2]) 
+```
+
+### black spruce measurements from literature
+
+```{r}
+other_dbhheight <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "pare measurements") %>%
+  clean_names()
+
+rossi <- other_dbhheight %>%
+  filter(author == "rossi")
+peng <- other_dbhheight %>%
+  filter(author == "peng")
+
+
+tree_bs <- tree_22_23 %>%
+  filter(species == "black_spruce")
+tree_bs_22 <- tree_bs %>%
+  filter(year == "2022")
+tree_bs_23 <- tree_bs %>%
+  filter(year == "2023")
+
+bs22_lm <- lm(dbh_cm ~0+height_m, data = tree_bs_22)
+summary(bs22_lm)
+bs23_lm <- lm(dbh_cm ~0+height_m, data = tree_bs_23)
+summary(bs23_lm)
+rossi_lm <- lm(dominant_mean_dbh_cm ~0+height_m, data = rossi)
+summary(rossi_lm)
+peng_lm <- lm( dominant_mean_dbh_cm~0+height_m, data = peng)
+summary(peng_lm)
+
+
+ggplot(tree_bs, aes(height_m, dbh_cm, colour = as.factor(year))) + 
+  geom_point(position=position_jitterdodge()) +
+  geom_abline(intercept=0, slope=bs22_lm$coefficients[1], colour = "#F8766D") +
+  geom_abline(intercept=0, slope=bs23_lm$coefficients[1], colour = "#00BFC4") +
+  geom_abline(intercept=0, slope=rossi_lm$coefficients[1], colour = "green") +
+  stat_function(fun=function(dbh_cm) (1.3+22.2124*(1-exp(-0.0729*dbh_cm))^1.9923), colour = "orange")+
+  stat_function(fun=function(dbh_cm) (1.3+24.5403*(1-exp(-0.0727*dbh_cm))^1.482), colour = "purple") +
+  stat_function(fun=function(dbh_cm) (1.3+17.6022*(1-exp(-0.0457*dbh_cm))^1.2197), colour = "blue")
+
+
+```
+
+## DBH only models
+
+### import new data
+
+```{r}
+treed_2022 <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "DBH only") %>%
+  clean_names() %>%
+  filter(excl_ctrl != "EX")  %>% #remove exclosures
+  dplyr::select(-c(3,5)) %>%
+  filter(if_all(!site, ~ !grepl("NA", .)))
+treed_2022$height <- treed_2022$height %>% as.numeric()
+treed_2022$dbh <- treed_2022$dbh %>% as.numeric()
+
+treed_2023 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Tree dbh biomass") %>%
+  clean_names() %>%
+  left_join(site_data, by = c("park_site", "subplot_id" = "SubplotID")) %>% #add site data
+  filter(height_class == "Tree") %>%
+  filter(ex_ctrl != "EX") %>% #remove exclosures
+  dplyr::select(c(1:3,6,8,13:15,18))
+
+treed_2023 <- treed_2023[rep(row.names(treed_2023), treed_2023$number_of_individuals), c(1:7,9)]
+```
+
+### compare to dbh-height biomass
+
+#### 2022
+
+```{r}
+# average biomass of a tree
+summary(tree_2022$biomass)[4]
+summary(treed_2022$biomass)[4]
+
+# average biomass of a tree by each team
+summary(subset(tree_2022$biomass, tree_2022$team == 1))[4]
+summary(subset(tree_2022$biomass, tree_2022$team == 2))[4]
+summary(subset(treed_2022$biomass, treed_2022$team == 1))[4]
+summary(subset(treed_2022$biomass, treed_2022$team == 2))[4]
+
+# total biomass in trees
+sum(tree_2022$biomass)
+sum(treed_2022$biomass)/2
+
+# total biomass in trees by each team
+sum(subset(tree_2022$biomass, tree_2022$team == 1))
+sum(subset(tree_2022$biomass, tree_2022$team == 2))
+sum(subset(treed_2022$biomass, treed_2022$team == 1))
+sum(subset(treed_2022$biomass, treed_2022$team == 2))
+```
+
+#### 2023
+
+```{r}
+# average biomass of a tree
+summary(tree_2023$biomass_ind)[4]
+summary(treed_2023$biomass_ind)[4]
+
+# total biomass in trees
+sum(tree_2023$biomass_ind)/2
+sum(treed_2023$biomass_ind)/2
+```
+
+### compare dbh biomass bw years
+
+```{r}
+# average biomass of a tree
+summary(treed_2022$biomass)[4]
+summary(treed_2023$biomass_ind)[4]
+
+# total biomass in trees
+sum(treed_2022$biomass)
+sum(treed_2023$biomass_ind)/2
+
+# avg biomass per site
+
+sum(treed_2022$biomass)/(n_distinct(treed_2022$site_id))
+sum(treed_2023$biomass_ind)/(2*n_distinct(treed_2023$site_id))
+```
+
+### no \>30 dbh
+
+```{r}
+# average biomass of a tree
+summary(subset(treed_2022$biomass, treed_2022$dbh < 30))[4]
+summary(subset(treed_2023$biomass_ind, treed_2023$dbh_cm < 30))[4]
+
+# total biomass in trees
+sum(subset(treed_2022$biomass, treed_2022$dbh < 30))
+sum(subset(treed_2023$biomass_ind, treed_2023$dbh_cm < 30))/2
+
+# avg biomass per site
+sum(subset(treed_2022$biomass, tree_2022$dbh < 30 ))/(n_distinct(subset(treed_2022$site_id, treed_2022$dbh<30)))
+sum(subset(treed_2023$biomass_ind, treed_2023$dbh_cm < 30 ))/(2*n_distinct(subset(treed_2023$site_id, treed_2023$dbh_cm<30)))
+```

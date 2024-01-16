@@ -1,0 +1,181 @@
+---
+title: "run lmer"
+format: html
+editor: visual
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  ggplot2,
+  vegan,
+  terra,
+  corrplot,
+  PerformanceAnalytics,
+  usdm,
+  janitor,
+  openxlsx,
+  lme4,
+  DHARMa)
+```
+
+## data
+
+### c per m2
+
+```{r}
+c_per_m2 <- read.xlsx("final carbon data/c_m2_site.xlsx") %>% 
+  rename(unique_id = "id")
+c_per_m2_sub <- read.xlsx("final carbon data/c_m2_subplot.xlsx")
+```
+
+### environmental variables at each site
+
+```{r}
+env_site_final <- read.xlsx("final carbon data/env_site_final.xlsx")
+
+dplyr::setdiff(c_per_m2$unique_id, env_site_final$unique_id)
+
+c_env_sites <- full_join(c_per_m2, env_site_final) %>%
+  select(!c(FAC, LGS))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
+  
+c_env_sites$dominant <- as.character(c_env_sites$dominant)
+  
+#subset by park
+c_env_sites_GM <- c_env_sites %>% 
+  filter(park == "GM")
+
+c_env_sites_TN <- c_env_sites %>% 
+  filter(park == "TN")
+
+```
+
+### environmental variables at each subplot
+
+```{r}
+env_subplots_final <- read.xlsx("final carbon data/env_subplots_final.xlsx")
+
+dplyr::setdiff(c_per_m2_sub$unique_id, env_subplots_final$unique_id)
+
+c_env_subplots <- full_join(c_per_m2_sub, env_subplots_final) %>%
+  select(!c(FAC, LGS))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
+  
+#subset by park
+c_env_subplots_GM <- c_env_subplots %>% 
+  filter(park_id == "GM")
+
+c_env_subplots_TN <- c_env_subplots %>% 
+  filter(park_id == "TN")
+
+```
+
+## scale continuous predictor variables?
+
+```{r}
+c_env_sites_scale <- c_env_sites
+
+c_env_sites_scale[c(11:18)] <- scale(c_env_sites_scale[c(11:18)])
+
+c_env_sites_scale_GM <- c_env_sites_scale %>% 
+  filter(park == "GM")
+
+c_env_sites_scale_TN <- c_env_sites_scale %>% 
+  filter(park == "TN")
+```
+
+#### for subplots
+
+```{r}
+c_env_sub_scale <- c_env_subplots
+
+c_env_sub_scale[c(21,23:29)] <- scale(c_env_sub_scale[c(21,23:29)])
+
+c_env_sub_scale_GM <- c_env_sub_scale %>% 
+  filter(park_id == "GM")
+
+c_env_sub_scale_TN <- c_env_sub_scale %>% 
+  filter(park_id == "TN")
+```
+
+## cross validation
+
+#### own version
+
+steps to do for each model
+
+```{r}
+cv_modeln <- NULL
+QtyC_LM_Output_Sort <- NULL #need own names for each model
+
+function(df, model) {
+cv.glm(data=df, glmfit=model, K=10)
+
+#random values
+#Put results of null Qty C LMs here
+QtyC_LM_Output <- NULL
+
+#Do it 100 times
+for(x in seq(1,100,1)){
+
+#Step 1 - Re-shuffle the response
+#Reshuffle stoich data and place in new file
+QtyC_Shuf <- df
+#We are shuffling the 14th column as this is the Qty C column
+QtyC_Shuf[,14] <-sample(QtyC_Shuf[,14]) #which column for us?
+
+#Step 2
+#Run the model
+#Need to do glm because boot works on glm.
+wB_QtyC_Rand <- update(model, data=QtyC_Shuf) 
+
+#Step 3
+#Run cross validation
+cv <-cv.glm(data=QtyC_Shuf, glmfit=wB_QtyC_Rand, K=10)
+
+#Step 4
+#Collect the cv values for each model. For each iteration x save the cv
+QtyC_LM_Output <- rbind(QtyC_LM_Output, data.frame(Iteration = x, CV = cv$delta[2]))
+print (x)
+}
+
+#Step 5
+#Sort random set to calculate 90% CI for cv$delta[2]
+QtyC_LM_Output_Sort <- QtyC_LM_Output[order(QtyC_LM_Output$CV),]
+}
+```
+
+# Model options:
+
+code these as functions in their own script and source("") them in the full document
+
+i\. log(C) \~ **ε**
+
+ii\. log(C) \~ (1\|year) + **ε**
+
+ii\. log(C) \~ (1\|site) + **ε**
+
+iv\. log(C) \~ all env.FHT + **ε**
+
+v\. log(C) \~ all env.FHT + (1\|year) + **ε**
+
+vi\. log(C) \~ all env.FHT + (1\|site) + **ε**
+
+vii\. log(C) \~ all env.CC + **ε**
+
+viii\. log(C) \~ all env.CC + (1\|year) + **ε**
+
+ix\. log(C) \~ all env.CC + (1\|site) + **ε**
+
+x\. log(C) \~ reduced env. + **ε**
+
+xi\. log(C) \~ reduced env. + (1\|year) + **ε**
+
+xii\. log(C) \~ reduced env. + (1\|site) + **ε**
+
+## source models
+
+```{r}
+source("lmer model functions.R")
+```

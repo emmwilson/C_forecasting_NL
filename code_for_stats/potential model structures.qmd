@@ -1,0 +1,133 @@
+---
+title: "potential model structures"
+format: html
+editor: visual
+---
+
+response variable: carbon per meter squared
+
+models fit to each park individually
+
+## fixed effects
+
+### options
+
+forest height: FHT (m)
+
+length of growing season: LGS (days)
+
+canopy cover: cc (%)
+
+enhanced vegetation index: EVI (?)
+
+amplitude: EVIamp
+
+median: EVImed
+
+aspect: ASP (degrees)
+
+slope: SLO (degrees)
+
+elevation: ELE (m)
+
+dominant species: SPC (categorical)
+
+### full models
+
+two options: one with forest height and one with canopy cover. don't include both in full model because extremely correlated but unsure which will be more important.
+
+::: panel-tabset
+## FHT
+
+C \~ FHT + EVIamp + EVImed + LGS + ELE + SLO + ASP + SPC + **ε**
+
+## CC
+
+C \~ CC + EVIamp + EVImed + LGS + ELE + SLO + ASP + SPC + **ε**
+:::
+
+### null model
+
+C \~ **ε**
+
+## random effects
+
+### options
+
+by year: 2022 & 2023
+
+by site: 86 total sites \*is randomly varying by site accounting for year
+
+### full model:
+
+C \~ 1\|year/sites
+
+### subplots as random effects
+
+C \~ 1\|year/subplot
+
+## structure
+
+### distribution
+
+#### gamma:
+
+bound to (0, ∞)
+
+C \~ gamma(μ, v)
+
+##### link
+
+###### inverse
+
+often difficult to interpret
+
+η = 1/μ
+
+###### log
+
+used more often
+
+η = e\^μ
+
+#### log transformed normal
+
+normal distribution with no link
+
+## written out
+
+### submodels
+
+separated by park
+
+both years together
+
+years as own models
+
+### c at each site
+
+#### null
+
+lm(log(c) \~ 1)
+
+#### with random effects
+
+lmer(log(c) \~ random)
+
+#### full
+
+lmer(log(c) \~ env variables + (1\|site))
+
+### c at each subplot
+
+#### null
+
+lm(log(c) \~ 1)
+
+#### with random effects
+
+lmer(log(c) \~ (1\|site))
+
+#### full
+
+lmer(log(c) \~ env variables + (1\|site))

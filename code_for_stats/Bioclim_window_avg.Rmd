@@ -1,0 +1,43 @@
+---
+title: "Bioclim_window_avg"
+author: "Emmerson Wilson"
+date: "2023-03-08"
+output: html_document
+---
+
+```{r}
+library(raster)
+library(sp)
+library(rgdal)
+
+setwd("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/climate variables/BIOCLIM")
+```
+
+```{r}
+bio_o1_lis <- list.files("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/climate variables/BIOCLIM/GM_BIO_01/", pattern="*.tif$", full.names=TRUE)
+bio_01 <- stack(bio_o1_lis)
+
+bio_01_50_60 <- subset(bio_01, c(1,2, 11,14:21))
+bio_01_50_60_m <- calc(bio_01_50_60, mean)
+
+bio_01_50_58 <- subset(bio_01, c(11, 14:21))
+bio_01_50_58_m <- calc(bio_01_50_58, mean)
+
+bio_01_50_56 <- subset(bio_01, c(11, 16:21))
+bio_01_50_56_m <- calc(bio_01_50_56, mean)
+
+bio_01_50_54 <- subset(bio_01, c(11, 18:21))
+bio_01_50_54_m <- calc(bio_01_50_54, mean)
+
+bio_01_50_52 <- subset(bio_01, c(11, 20:21))
+bio_01_50_52_m <- calc(bio_01_50_52, mean)
+
+plot(bio_01_50_60)
+plot(bio_01_50_60_m)
+plot(bio_01_50_58_m)
+plot(bio_01_50_56_m)
+plot(bio_01_50_54_m)
+plot(bio_01_50_52_m)
+```
+
+

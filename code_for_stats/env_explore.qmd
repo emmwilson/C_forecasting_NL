@@ -1,0 +1,287 @@
+---
+title: "env_explore"
+format: html
+editor: visual
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  ggplot2,
+  vegan,
+  raster,
+  corrplot,
+  PerformanceAnalytics,
+  usdm,
+  janitor)
+```
+
+## bring in data
+
+### env data from sites and subplots
+
+```{r}
+
+env_sites_GM <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/env_sites_GM.xlsx") 
+
+env_sites_TN <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/env_sites_TN.xlsx")
+
+#env_subplots_GM <- read.csv("Environmental_datasets/temp_env_data_correlation exploration/subplots_GM_env.csv")
+#env_subplots_GM$ex_ctrl <- replace_na(env_subplots_GM$ex_ctrl, 'none')
+#env_subplots_TN <- read.csv("Environmental_datasets/temp_env_data_correlation exploration/subplots_TN_env.csv")
+#env_subplots_TN$ex_ctrl <- replace_na(env_subplots_TN$ex_ctrl, 'none')
+
+env_sites <- dplyr::bind_rows(env_sites_TN, env_sites_GM)
+env_sites$ex_ctrl <- env_sites$ex_ctrl %>% 
+  replace_na("pair")
+env_sites <- env_sites %>% 
+  filter(ex_ctrl != "EX") %>%
+  dplyr::select(!ex_ctrl)
+
+#env_subplots <-  dplyr::bind_rows(env_subplots_TN, env_subplots_GM) %>% 
+  #filter(ex_ctrl != "EX")
+
+# gap or mature for 2023
+gap_data23 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info") %>% #import so I can add exclosure info to 2023 data
+  mutate(unique_id = paste0(park_site,'_2023')) %>%
+  clean_names() %>% 
+  filter(ex_ctrl != "EX") %>%
+  mutate(gap = disturbance) %>%
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Wind', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Logging', 'Gap')) %>%
+  dplyr::select(c(19,20)) %>%
+  distinct()
+
+gap_data22 <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "DBH only")  %>% 
+  filter(Excl_Ctrl != "EX") %>%
+  dplyr::select(c(1,2,4)) %>% 
+  clean_names() %>%
+  rename(gap = dist_type)%>%
+  mutate(across('gap', str_replace, 'insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'fire', 'Gap'))%>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'mature_forest', 'Mature'))
+gap_data22$site_id<- sprintf("%02.f", gap_data22$site_id)
+gap_data22 <- gap_data22 %>%
+  mutate(unique_id = paste0(park_id,"_",site_id,"_2022")) %>%
+  dplyr::select(c(4,3)) %>% 
+  distinct()
+
+gap_data <- gap_data22 %>%
+  rbind(gap_data23) %>%
+  distinct()
+
+subset(gap_data, !(unique_id %in% env_sites$unique_id))
+
+# average subplots to get unique_id **temporary solutin need to get site info from gis later
+#env_list <- colnames(env_subplots[,c(8:20)])
+
+#avg_subplots <- env_subplots %>%
+  #group_by(park_id, site_id) %>%
+  #summarise_at(c(env_list), mean) %>%
+  #mutate(unique_id = paste0(park_id,"_", site_id)) %>%
+  #ungroup() %>%
+  #dplyr::select(-c(1,2,5,13))
+
+#env_vs_gap <- avg_subplots %>% inner_join(gap_data, by = "unique_id")
+```
+
+### from rasters of entire parks
+
+```{r}
+SPC_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_SPC_TN.tif")
+FAC_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_FAC_TN.tif")
+EVIamp_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GLANCE30_EVI_2019/GLANCE30_EVIamp_TN.tif")
+EVImed_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GLANCE30_EVI_2019/GLANCE30_EVImed_TN.tif")
+LCT_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GLANCE30_LCT_2019/GLANCE30_LCT_TN.tif")
+FHT_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GFCH_FHT_2019/GFCH_FHT_TN.tif")
+CC10fill_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GFCC_CC_2005_2010/GFCC_CC_TN_10_filled.tif")
+SLO_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_SLO_TN.tif")
+ELE_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_ELE_TN.tif")
+ASP_TN <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_ASP_TN.tif")
+
+SPC_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_SPC_GM.tif")
+FAC_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_FAC_GM.tif")
+EVIamp_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GLANCE30_EVI_2019/GLANCE30_EVIamp_GM.tif")
+EVImed_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GLANCE30_EVI_2019/GLANCE30_EVImed_GM.tif")
+LCT_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GLANCE30_LCT_2019/GLANCE30_LCT_GM.tif")
+FHT_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GFCH_FHT_2019/GFCH_FHT_GM.tif")
+CC15fill_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GFCC_CC_2005_2010/GFCC_CC_GM_15_filled.tif")
+SLO_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_SLO_GM.tif")
+ELE_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_ELE_GM.tif")
+ASP_GM <- raster("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_ASP_GM.tif")
+
+TN_env_list <- list(SPC_TN, FAC_TN, LCT_TN, EVIamp_TN, EVImed_TN, FHT_TN, CC10fill_TN, SLO_TN, ELE_TN, ASP_TN)
+TN_lis_crop <- vector("list", length(TN_env_list))
+
+TN_env_raster <- stack(TN_env_list)
+
+GM_env_list <- list(SPC_GM, FAC_GM, LCT_GM, EVIamp_GM, EVImed_GM, FHT_GM, CC10fill_GM, SLO_GM, ELE_GM, ASP_GM)
+GM_lis_crop <- vector("list", length(GM_env_list))
+
+GM_env_raster <- stack(GM_env_list)
+```
+
+## correlation
+
+### sites
+
+```{r}
+predictors_site_env <- env_sites[, -c(1:7)]
+# correlation structure
+varCor <- cor(predictors_site_env, use="pairwise.complete.obs")
+corrplot(varCor,  tl.col='black')
+
+chart.Correlation(varCor, histogram=F, pch=19)
+
+allDistNew <- abs(as.dist(cor(predictors_site_env, use="pairwise.complete.obs")))
+allClusNew <- hclust(1 - allDistNew)
+plot(allClusNew, hang=-1)
+
+usdm::vif(as.data.frame(predictors_site_env))
+usdm::vifstep(as.data.frame(predictors_site_env)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
+usdm::vifcor(as.data.frame(predictors_site_env), th=0.8) 
+```
+
+### subplots
+
+```{r}
+predictors_subplots_env <- env_subplots[, -c(1:9)]
+# correlation structure
+varCor_sub <- cor(predictors_subplots_env, use="pairwise.complete.obs")
+corrplot(varCor_sub,  tl.col='black')
+
+chart.Correlation(varCor_sub, histogram=F, pch=19)
+
+allDistNew_sub <- abs(as.dist(cor(predictors_subplots_env, use="pairwise.complete.obs")))
+allClusNew_sub <- hclust(1 - allDistNew_sub)
+plot(allClusNew_sub, hang=-1)
+
+usdm::vif(as.data.frame(predictors_subplots_env))
+usdm::vifstep(as.data.frame(predictors_subplots_env)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
+usdm::vifcor(as.data.frame(predictors_subplots_env), th=0.8) 
+```
+
+### 
+
+### per park
+
+#### gros morne
+
+sites
+
+```{r}
+predictors_site_env_GM <- env_sites_GM[, -c(1:8)]
+# correlation structure
+varCor_GM <- cor(predictors_site_env_GM, use="pairwise.complete.obs")
+corrplot(varCor_GM,  tl.col='black')
+
+chart.Correlation(varCor_GM, histogram=F, pch=19)
+
+allDistNew_GM <- abs(as.dist(cor(predictors_site_env_GM, use="pairwise.complete.obs")))
+allClusNew_GM <- hclust(1 - allDistNew_GM)
+plot(allClusNew_GM, hang=-1)
+
+usdm::vif(as.data.frame(predictors_site_env_GM))
+usdm::vifstep(as.data.frame(predictors_site_env_GM)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
+usdm::vifcor(as.data.frame(predictors_site_env_GM), th=0.8) 
+```
+
+subplots
+
+```{r}
+predictors_sub_env_GM <- env_subplots_GM[, -c(1:8)]
+# correlation structure
+varCor_GM_sub <- cor(predictors_sub_env_GM, use="pairwise.complete.obs")
+corrplot(varCor_GM,  tl.col='black')
+
+chart.Correlation(varCor_GM_sub, histogram=F, pch=19)
+
+allDistNew_GM_sub <- abs(as.dist(cor(predictors_sub_env_GM, use="pairwise.complete.obs")))
+allClusNew_GM_sub <- hclust(1 - allDistNew_GM_sub)
+plot(allClusNew_GM_sub, hang=-1)
+
+usdm::vif(as.data.frame(predictors_sub_env_GM))
+usdm::vifstep(as.data.frame(predictors_sub_env_GM)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
+usdm::vifcor(as.data.frame(predictors_sub_env_GM), th=0.8) 
+```
+
+#### terra nova
+
+sites
+
+```{r}
+predictors_site_env_TN <- env_sites_TN[, -c(1:8)]
+# correlation structure
+varCor_TN <- cor(predictors_site_env_TN, use="pairwise.complete.obs")
+corrplot(varCor_TN,  tl.col='black')
+
+chart.Correlation(varCor_TN, histogram=F, pch=19)
+
+allDistNew_TN <- abs(as.dist(cor(predictors_site_env_TN, use="pairwise.complete.obs")))
+allClusNew_TN <- hclust(1 - allDistNew_TN)
+plot(allClusNew_TN, hang=-1)
+
+usdm::vif(as.data.frame(predictors_site_env_TN))
+usdm::vifstep(as.data.frame(predictors_site_env_TN)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
+usdm::vifcor(as.data.frame(predictors_site_env_TN), th=0.8) 
+
+```
+
+subplots
+
+```{r}
+predictors_sub_env_TN <- env_subplots_TN[, -c(1:8)]
+# correlation structure
+varCor_TN_sub <- cor(predictors_sub_env_TN, use="pairwise.complete.obs")
+corrplot(varCor_TN_sub,  tl.col='black')
+
+chart.Correlation(varCor_TN_sub, histogram=F, pch=19)
+
+allDistNew_TN_sub <- abs(as.dist(cor(predictors_sub_env_TN, use="pairwise.complete.obs")))
+allClusNew_TN_sub <- hclust(1 - allDistNew_TN_sub)
+plot(allClusNew_TN_sub, hang=-1)
+
+usdm::vif(as.data.frame(predictors_sub_env_TN))
+usdm::vifstep(as.data.frame(predictors_sub_env_TN)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
+usdm::vifcor(as.data.frame(predictors_sub_env_TN), th=0.8) 
+```
+
+## what correlates with gaps?
+
+```{r}
+ggplot(env_vs_gap) +
+  geom_boxplot(aes(y =SPC, colour = gap))
+ggplot(env_vs_gap) +
+  geom_boxplot(aes(y =FAC, colour = gap))
+ggplot(env_vs_gap) +
+  geom_boxplot(aes(y =FHT, colour = gap))
+ggplot(env_vs_gap) +
+  geom_boxplot(aes(y =SLO, colour = gap))
+ggplot(env_vs_gap) +
+  geom_boxplot(aes(y =ELE, colour = gap))
+ggplot(env_vs_gap) +
+  geom_boxplot(aes(y =ASP, colour = gap))
+ggplot(env_vs_gap) +
+  geom_boxplot(aes(y =EVImedG, colour = gap))
+ggplot(env_vs_gap) +
+  geom_boxplot(aes(y =EVIampG, colour = gap))
+ggplot(env_vs_gap) +
+  geom_boxplot(aes(y =CC10, colour = gap))
+
+summary(aov(SPC ~ gap, data = env_vs_gap)) 
+summary(aov(FAC ~ gap, data = env_vs_gap)) #sig p = 1.95e-6 but categorical in reality so pob dont want to use
+summary(aov(FHT ~ gap, data = env_vs_gap)) # sig p = 1.95e-09
+summary(aov(SLO ~ gap, data = env_vs_gap))
+summary(aov(ELE ~ gap, data = env_vs_gap))
+summary(aov(ASP ~ gap, data = env_vs_gap))
+summary(aov(EVImedG ~ gap, data = env_vs_gap)) # sig p = 0.0254
+summary(aov(EVIampG ~ gap, data = env_vs_gap)) # sig p = 0.000175
+summary(aov(CC10 ~ gap, data = env_vs_gap)) # sig p = 2.16e-9
+
+
+summary(lm(CC10 ~ FHT, data = env_vs_gap))
+```
