@@ -1,0 +1,198 @@
+---
+title: "Problem with cv"
+author: "Emmerson Wilson"
+date: "2024-01-18"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  cv,
+  lme4,
+  boot)
+  
+```
+
+## data
+
+### c at sites
+
+```{r}
+library(httr)
+
+github_link1 <- "https://github.com/emmwilson/C_forecasting_NL/blob/dc0596af7d8cd033715d1ac28e40cdb422389857/final%20carbon%20data/c_m2_site.xlsx?raw=true"
+
+temp_file1 <- tempfile(tmpdir = getwd(), fileext = ".xlsx")
+req1 <- GET(github_link1, 
+           # authenticate using GITHUB_PAT
+           authenticate(Sys.getenv("GITHUB_PAT"), ""),
+           # write result to disk
+           write_disk(path = temp_file1))
+c_m2_sites <- read_xlsx(temp_file1)%>% 
+  rename(unique_id = "id")
+c_m2_sites
+```
+
+### c at subplots
+
+```{r}
+github_link2 <- "https://github.com/emmwilson/C_forecasting_NL/blob/dc0596af7d8cd033715d1ac28e40cdb422389857/final%20carbon%20data/c_m2_subplot.xlsx?raw=true"
+
+temp_file2 <- tempfile(tmpdir = getwd(), fileext = ".xlsx")
+req2 <- GET(github_link2, 
+           # authenticate using GITHUB_PAT
+           authenticate(Sys.getenv("GITHUB_PAT"), ""),
+           # write result to disk
+           write_disk(path = temp_file2))
+c_m2_subplots <- read_xlsx(temp_file2)  
+c_m2_subplots
+
+# scale predictor variables
+
+c_env_sites_scale <- c_env_sites
+
+c_env_sites_scale[c(11:17)] <- scale(c_env_sites_scale[c(11:17)])
+
+c_env_sites_scale_GM <- c_env_sites_scale %>% 
+  filter(park == "GM")
+
+c_env_sites_scale_TN <- c_env_sites_scale %>% 
+  filter(park == "TN")
+```
+
+### environmental variables at sites
+
+```{r}
+github_link3 <- "https://github.com/emmwilson/C_forecasting_NL/blob/dc0596af7d8cd033715d1ac28e40cdb422389857/final%20carbon%20data/env_site_final.xlsx?raw=true"
+
+temp_file3 <- tempfile(tmpdir = getwd(), fileext = ".xlsx")
+req3 <- GET(github_link3, 
+           # authenticate using GITHUB_PAT
+           authenticate(Sys.getenv("GITHUB_PAT"), ""),
+           # write result to disk
+           write_disk(path = temp_file3))
+env_site_final <- read_xlsx(temp_file3)
+env_site_final
+
+c_env_sites <- full_join(c_m2_sites, env_site_final) %>%
+  select(!c(FAC, CC, CEC_LCT, dominant)) 
+  
+#subset by park
+c_env_sites_GM <- c_env_sites %>% 
+  filter(park == "GM")
+
+c_env_sites_TN <- c_env_sites %>% 
+  filter(park == "TN")
+
+#scale predictor variables
+c_env_sites_scale <- c_env_sites
+
+c_env_sites_scale[c(11:17)] <- scale(c_env_sites_scale[c(11:17)])
+
+c_env_sites_scale_GM <- c_env_sites_scale %>% 
+  filter(park == "GM")
+
+c_env_sites_scale_TN <- c_env_sites_scale %>% 
+  filter(park == "TN")
+```
+
+### environmental variables at each subplot
+
+```{r}
+github_link4 <- "https://github.com/emmwilson/C_forecasting_NL/blob/dc0596af7d8cd033715d1ac28e40cdb422389857/final%20carbon%20data/env_subplots_final.xlsx?raw=true"
+
+temp_file4 <- tempfile(tmpdir = getwd(), fileext = ".xlsx")
+req4 <- GET(github_link4, 
+           # authenticate using GITHUB_PAT
+           authenticate(Sys.getenv("GITHUB_PAT"), ""),
+           # write result to disk
+           write_disk(path = temp_file4))
+env_subplot_final <- read_xlsx(temp_file4)
+env_subplot_final
+
+c_env_subplots <- full_join(c_m2_subplots, env_subplot_final) %>%
+  select(!c(FAC, CC, CEC_LCT, SPC))
+  
+#subset by park
+c_env_subplots_GM <- c_env_subplots %>% 
+  filter(park_id == "GM")
+
+c_env_subplots_TN <- c_env_subplots %>% 
+  filter(park_id == "TN")
+
+# scale environmental variables
+# currently creates negative values because it centers everything around 0, which is not biologically meaningful
+
+c_env_sub_scale <- c_env_subplots
+
+c_env_sub_scale[c(21:27)] <- scale(c_env_sub_scale[c(21:27)])
+
+c_env_sub_scale_GM <- c_env_sub_scale %>% 
+  filter(park_id == "GM")
+
+c_env_sub_scale_TN <- c_env_sub_scale %>% 
+  filter(park_id == "TN")
+```
+
+## model functions
+
+```{r}
+source("https://github.com/emmwilson/C_forecasting_NL/blob/4efd7686402caa9f4cce3829ec8aaccabdedb7b0/code_for_stats/lmer%20model%20functions.R?raw=true")
+```
+
+## cross validation functions
+
+```{r}
+source("https://github.com/emmwilson/C_forecasting_NL/blob/71701dc6236c7b0e82fe7fb36f7849b2b52a29aa/code_for_stats/cross%20validation%20functions.R?raw=true")
+```
+
+# run examples
+
+## cv::cv for glm
+
+```{r}
+# run model
+# univariate model with FHT for gros morne at site level
+
+# remove NAs first - will fill in those gaps in LGS later
+c_env_sites_scale_GM_rem <- c_env_sites_scale_GM[complete.cases(c_env_sites_scale_GM),]
+
+GM_lm_site_FHT <- lm_glm(c_env_sites_scale_GM_rem, "c_m2_site", "FHT")
+
+# run cv::cv
+
+cv_GM_lm_site_FHT <- cv::cv(model = GM_lm_site_FHT, data = c_env_sites_scale_GM_rem, k = 10)
+
+
+# run cv for randomized data
+cv_GM_lm_site_FHT_rand <- cv.cv_glm(c_env_sites_scale_GM_rem, "c_m2_site", lm_glm, "FHT")
+
+cv_GM_lm_site_FHT
+cv_GM_lm_site_FHT_rand
+```
+
+## cv::cv for lmer
+
+```{r}
+# run model
+# univariate model with FHT for gros morne at site level
+
+# remove NAs first - will fill in those gaps in LGS later
+c_env_sub_scale_GM_rem <- c_env_sub_scale_GM[complete.cases(c_env_sub_scale_GM),]
+
+GM_lm_sub_FHT <- lm_lmer(c_env_sub_scale_GM_rem, "c_m2_subplot", "FHT")
+
+# run cv::cv
+
+cv_GM_lm_sub_FHT <- cv::cv(model = GM_lm_sub_FHT, data = c_env_sub_scale_GM_rem, k = 10)
+
+
+# run cv for randomized data
+cv_GM_lm_sub_FHT_rand <- cv.cv_lmer(c_env_sub_scale_GM_rem, "c_m2_subplot", lm_lmer, "FHT")
+
+cv_GM_lm_sub_FHT
+cv_GM_lm_sub_FHT_rand
+```
