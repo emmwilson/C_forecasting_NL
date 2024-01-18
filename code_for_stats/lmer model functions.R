@@ -8,75 +8,46 @@
 
 # i. log(C) ~ ε
 # 
-# ii. log(C) ~ (1|year) + ε
-# 
 # ii. log(C) ~ (1|site) + ε
 # 
-# iv. log(C) ~ all env. + ε
+# iii. log(C) ~ all env. + ε
 # 
-# v. log(C) ~ all env. + (1|year) + ε
+# iv. log(C) ~ all env. + (1|site) + ε
 # 
-# vi. log(C) ~ all env. + (1|site) + ε
+# v. log(C) ~ reduced env. + ε
 # 
-# vii. log(C) ~ reduced env. + ε
+# vi. log(C) ~ reduced env. + (1|site) + ε
 # 
-# viii. log(C) ~ reduced env. + (1|year) + ε
+# vii. log(C) ~ univariate + ε
 # 
-# ix. log(C) ~ reduced env. + (1|site) + ε
+# viii. log(C) ~ univariate + (1|site) + ε
 
-# xi. univariate model
 
-null_year <- function(df) {
-  null <- glm(log(c_m2_subplot) ~ (1|year), data = df)
-  print(summary(null))
-}
-
-null_site <- function(df) {
-  null_site <- glm(log(c_m2_subplot) ~ (1|site_id), data = df)
-  print(summary(null_site))
-}
-
-null_yearsite <- function(df) {
-  null_site <- glm(log(c_m2_subplot) ~ (1|year/site_id), data = df)
-  print(summary(null_site))
+lm_null_site <- function(df, c) {
+  lm_null_site <- lmer(formula(paste0("log(",quo_name(c),") ~ (1|site_id)")), data = df) #idk if the cross vaidatio will work, maybe use package "cv"
 }
   
-full_FHT <- function(df) {
-  full_FHT <- glm(log(c_m2_subplot) ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + CEC_LCT, data = df)
-  print(summary(full_FHT))
+lm_full <- function(df, c, variables) {
+  lm_full <- glm(formula(paste0("log(",quo_name(c),") ~", paste0(variables, collapse="+"))), data = df)
+
 }
 
-full_CC <- function(df) {
-  full_CC <- glm(log(c_m2_subplot) ~ CC + EVIamp + EVImed + ELE + SLO + ASP + CEC_LCT, data = df)
-  print(summary(full_CC))
+lm_full_site <- function(df, c, variables) {
+  lm_full_site <- lmer(formula(paste0("log(",quo_name(c),") ~", paste0(variables, collapse="+"), "+ (1|site_id)")), data = df)
 }
 
-full_FHT_year <- function(df) {
-  full_FHT_year <- glm(log(c_m2_subplot) ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + CEC_LCT + (1|year), data = df)
-  print(summary(full_FHT_year))
+lm_uni <- function(df, c, variables) {
+  lm_uni <- glm(formula(paste0("log(",quo_name(c),") ~", quo_name(variables))), data = df)
 }
 
-full_FHT_site <- function(df) {
-  full_FHT_site <- glm(log(c_m2_subplot) ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + CEC_LCT + (1|site), data = df)
-  print(summary(full_FHT_site))
+lm_uni_site <- function(df, c, variables) {
+  lm_uni_site <- lmer(formula(paste0("log(",quo_name(c),") ~", quo_name(variables), "+ (1|site_id)")), data = df)
 }
 
-full_FHT_yearsite <- function(df) {
-  full_FHT_site <- glm(log(c_m2_subplot) ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + CEC_LCT + (1|year/site), data = df)
-  print(summary(full_FHT_site))
+lm_red <- function(df, c, variables) {
+  lm_red <- glm(formula(paste0("log(",quo_name(c),") ~", paste0(variables, collapse="+"))), data = df)
 }
 
-full_CC_year <- function(df) {
-  full_CC_year <- glm(log(c_m2_subplot) ~ CC + EVIamp + EVImed + ELE + SLO + ASP + CEC_LCT + (1|year), data = df)
-  print(summary(full_CC_year))
-}
-
-full_CC_site <- function(df) {
-  full_CC_site <- glm(log(c_m2_subplot) ~ CC + EVIamp + EVImed + ELE + SLO + ASP + CEC_LCT + (1|site), data = df)
-  print(summary(full_CC_site))
-}
-
-full_CC_yearsite <- function(df) {
-  full_CC_site <- glm(log(c_m2_subplot) ~ CC + EVIamp + EVImed + ELE + SLO + ASP + CEC_LCT + (1|year/site), data = df)
-  print(summary(full_CC_site))
+lm_red_site <- function(df, c, variables) {
+  lm_red <- lmer(formula(paste0("log(",quo_name(c),") ~", paste0(variables, collapse="+"), "+ (1|site_id)")), data = df)
 }

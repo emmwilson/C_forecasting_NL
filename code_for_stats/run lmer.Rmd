@@ -1,0 +1,452 @@
+---
+title: "run lmer"
+author: "Emmerson Wilson"
+date: "2024-01-16"
+output:
+  word_document:
+    toc: true
+    toc_depth: '5'
+  html_document:
+    toc: true
+    toc_depth: 5
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  ggplot2,
+  vegan,
+  terra,
+  corrplot,
+  PerformanceAnalytics,
+  usdm,
+  janitor,
+  openxlsx,
+  lme4,
+  DHARMa,
+  AICcmodavg,
+  boot,
+  cv,
+  cvms)
+```
+
+## data
+
+### c per m2
+
+```{r}
+c_per_m2 <- read.xlsx("../final carbon data/c_m2_site.xlsx") %>% 
+  rename(unique_id = "id")
+c_per_m2_sub <- read.xlsx("../final carbon data/c_m2_subplot.xlsx")
+```
+
+### environmental variables at each site
+
+```{r}
+env_site_final <- read.xlsx("../final carbon data/env_site_final.xlsx")
+
+dplyr::setdiff(c_per_m2$unique_id, env_site_final$unique_id)
+
+c_env_sites <- full_join(c_per_m2, env_site_final) %>%
+  select(!c(FAC, CC, CEC_LCT, dominant))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
+  
+#subset by park
+c_env_sites_GM <- c_env_sites %>% 
+  filter(park == "GM")
+
+c_env_sites_TN <- c_env_sites %>% 
+  filter(park == "TN")
+
+```
+
+### environmental variables at each subplot
+
+```{r}
+env_subplots_final <- read.xlsx("../final carbon data/env_subplots_final.xlsx")
+
+dplyr::setdiff(c_per_m2_sub$unique_id, env_subplots_final$unique_id)
+
+c_env_subplots <- full_join(c_per_m2_sub, env_subplots_final) %>%
+  select(!c(FAC, CC, CEC_LCT, SPC))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
+
+#subset by park
+c_env_subplots_GM <- c_env_subplots %>% 
+  filter(park_id == "GM")
+
+c_env_subplots_TN <- c_env_subplots %>% 
+  filter(park_id == "TN")
+
+```
+
+## scale continuous predictor variables
+
+```{r}
+c_env_sites_scale <- c_env_sites
+
+c_env_sites_scale[c(11:17)] <- scale(c_env_sites_scale[c(11:17)])
+
+c_env_sites_scale_GM <- c_env_sites_scale %>% 
+  filter(park == "GM")
+
+c_env_sites_scale_TN <- c_env_sites_scale %>% 
+  filter(park == "TN")
+```
+
+#### for subplots
+
+```{r}
+c_env_sub_scale <- c_env_subplots
+
+c_env_sub_scale[c(21:27)] <- scale(c_env_sub_scale[c(21:27)])
+
+c_env_sub_scale_GM <- c_env_sub_scale %>% 
+  filter(park_id == "GM")
+
+c_env_sub_scale_TN <- c_env_sub_scale %>% 
+  filter(park_id == "TN")
+```
+
+## cross validation
+
+```{r}
+source("")
+
+```
+
+# Model options:
+
+code these as functions in their own script and source("") them in the full document
+
+i\. log(C) \~ **ε**
+
+ii\. log(C) \~ (1\|site) + **ε**
+
+iii\. log(C) \~ all env **ε**
+
+iv\. log(C) \~ all env + (1\|site) + **ε**
+
+v\. log(C) \~ reduced env. + **ε**
+
+vi\. log(C) \~ reduced env. + (1\|site) + **ε**
+
+vii\. log(C) \~ univariate + **ε**
+
+viii\. log(C) \~ univariate + (1\|site) + **ε**
+
+## source models
+
+```{r}
+source("lmer model functions.R")
+```
+
+## GM
+
+#### by site
+
+##### null
+
+don't actually run code for this - based on significance of other models
+
+##### full
+
+```{r}
+full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS")
+
+GM_lm_full <- lm_full(c_env_sites_scale_GM, "c_m2_site", full_var)
+```
+
+##### univariate
+
+```{r}
+GM_lm_uni <- lapply(full_var, lm_uni, df = c_env_sites_scale_GM, c = "c_m2_site")
+
+
+names(GM_lm_uni) <- full_var
+
+
+```
+
+#### compare
+
+```{r}
+GM_models_r <- list()
+
+
+GM_models_r[["GM_lm_full"]] <- GM_lm_full
+GM_models_r[[names(GM_lm_uni)[1]]] <- GM_lm_uni[[1]]
+GM_models_r[[names(GM_lm_uni)[2]]] <- GM_lm_uni[[2]]
+GM_models_r[[names(GM_lm_uni)[3]]] <- GM_lm_uni[[3]]
+GM_models_r[[names(GM_lm_uni)[4]]] <- GM_lm_uni[[4]]
+GM_models_r[[names(GM_lm_uni)[5]]] <- GM_lm_uni[[5]]
+GM_models_r[[names(GM_lm_uni)[6]]] <- GM_lm_uni[[6]]
+GM_models_r[[names(GM_lm_uni)[7]]] <- GM_lm_uni[[7]]
+
+Modnames_GM_r <- paste(names(GM_models_r))
+
+# get table
+aictab(cand.set = GM_models_r, modnames = Modnames_GM_r, sort = TRUE)
+
+```
+
+##### reduced
+
+different predictor variables are significant in univariate vs full
+
+at no point are topographic variables important
+
+```{r eval=FALSE, include=FALSE}
+GM_red_list <- list("FHT", "EVIamp")
+
+GM_lm_red1 <- lm_red(c_env_sites_scale_GM, "c_m2_site", GM_red_list)
+
+```
+
+#### by subplot
+
+##### null
+
+```{r}
+# fixed effects
+## doesn't get run as model
+
+# mixed effects
+GM_lm_null_site_sub <- lm_null_site(c_env_sub_scale_GM, "c_m2_subplot")
+```
+
+##### full
+
+```{r}
+# fixed effects
+
+GM_lm_full_sub <- lm_full(c_env_sub_scale_GM, "c_m2_subplot", full_var)
+
+# mixed effects
+GM_lm_full_site_sub <- lm_full_site(c_env_sub_scale_GM, "c_m2_subplot", full_var)
+```
+
+##### univariate
+
+```{r}
+# fixed effects
+
+GM_lm_uni_sub <- lapply(full_var, lm_uni, df = c_env_sub_scale_GM, c = "c_m2_subplot")
+
+names(GM_lm_uni_sub) <- full_var
+
+GM_lm_uni_sub
+
+# mixed effects
+
+GM_lm_uni_site_sub <- lapply(full_var, lm_uni_site, df = c_env_sub_scale_GM, c = "c_m2_subplot")
+
+names(GM_lm_uni_site_sub) <- full_var
+
+GM_lm_uni_site_sub
+```
+
+#### compare
+
+```{r}
+GM_models_sub_r <- list()
+
+GM_models_sub_r[["GM_lm_full_sub"]] <- GM_lm_full_sub
+GM_models_sub_r[[names(GM_lm_uni_sub)[1]]] <- GM_lm_uni_sub[[1]]
+GM_models_sub_r[[names(GM_lm_uni_sub)[2]]] <- GM_lm_uni_sub[[2]]
+GM_models_sub_r[[names(GM_lm_uni_sub)[3]]] <- GM_lm_uni_sub[[3]]
+GM_models_sub_r[[names(GM_lm_uni_sub)[4]]] <- GM_lm_uni_sub[[4]]
+GM_models_sub_r[[names(GM_lm_uni_sub)[5]]] <- GM_lm_uni_sub[[5]]
+GM_models_sub_r[[names(GM_lm_uni_sub)[6]]] <- GM_lm_uni_sub[[6]]
+GM_models_sub_r[[names(GM_lm_uni_sub)[7]]] <- GM_lm_uni_sub[[7]]
+
+Modnames_GM_sub_r <- paste(names(GM_models_sub_r))
+
+# get table
+aictab(cand.set = GM_models_sub_r, modnames = Modnames_GM_sub_r, sort = TRUE)
+
+GM_models_site_sub_r <- list()
+
+GM_models_site_sub_r[["GM_lm_null_site_sub"]] <- GM_lm_null_site_sub
+GM_models_site_sub_r[["GM_lm_full_site_sub"]] <- GM_lm_full_site_sub
+GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[1]]] <- GM_lm_uni_site_sub[[1]]
+GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[2]]] <- GM_lm_uni_site_sub[[2]]
+GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[3]]] <- GM_lm_uni_site_sub[[3]]
+GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[4]]] <- GM_lm_uni_site_sub[[4]]
+GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[5]]] <- GM_lm_uni_site_sub[[5]]
+GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[6]]] <- GM_lm_uni_site_sub[[6]]
+GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[7]]] <- GM_lm_uni_site_sub[[7]]
+
+Modnames_GM_site_sub_r <- paste(names(GM_models_site_sub_r))
+
+# get table
+aictab(cand.set = GM_models_site_sub_r, modnames = Modnames_GM_site_sub_r, sort = TRUE)
+
+```
+
+##### reduced
+
+```{r eval=FALSE, include=FALSE}
+# fixed effects
+GM_red_list_sub <- list("FHT", "LGS")
+
+
+GM_lm_red1_site <- lm_red(c_env_sub_scale_GM, "c_m2_subplot", GM_red_list_sub)
+
+# mixed effects
+
+GM_lm_red1_site_sub <- lm_red_site(c_env_sub_scale_GM, "c_m2_subplot", GM_red_list_sub)
+```
+
+## TN
+
+#### by site
+
+##### null
+
+don't actually run code for this - based on significance of other models
+
+##### full
+
+```{r}
+TN_lm_full <- lm_full(c_env_sites_scale_TN, "c_m2_site", full_var)
+```
+
+##### univariate
+
+```{r}
+TN_lm_uni <- lapply(full_var, lm_uni, df = c_env_sites_scale_TN, c = "c_m2_site")
+
+names(TN_lm_uni) <- full_var
+
+TN_lm_uni
+```
+
+#### compare
+
+```{r}
+TN_models_r <- list()
+
+TN_models_r[["TN_lm_full"]] <- TN_lm_full
+TN_models_r[[names(TN_lm_uni)[1]]] <- TN_lm_uni[[1]]
+TN_models_r[[names(TN_lm_uni)[2]]] <- TN_lm_uni[[2]]
+TN_models_r[[names(TN_lm_uni)[3]]] <- TN_lm_uni[[3]]
+TN_models_r[[names(TN_lm_uni)[4]]] <- TN_lm_uni[[4]]
+TN_models_r[[names(TN_lm_uni)[5]]] <- TN_lm_uni[[5]]
+TN_models_r[[names(TN_lm_uni)[6]]] <- TN_lm_uni[[6]]
+TN_models_r[[names(TN_lm_uni)[7]]] <- TN_lm_uni[[7]]
+
+Modnames_TN_r <- paste(names(TN_models_r))
+
+# get table
+aictab(cand.set = TN_models_r, modnames = Modnames_TN_r, sort = TRUE)
+
+
+```
+
+##### reduced
+
+different predictor variables are significant in univariate vs full
+
+at no point are topographic variables important
+
+```{r eval=FALSE, include=FALSE}
+TN_red_list <- list("FHT")
+
+lm_red(c_env_sites_scale_TN, "c_m2_site", TN_red_list)
+
+```
+
+#### by subplot
+
+##### null
+
+```{r}
+# fixed effects
+## doesn't get run as model
+
+# mixed effects
+TN_lm_null_site_sub <- lm_null_site(c_env_sub_scale_TN, "c_m2_subplot")
+```
+
+##### full
+
+```{r}
+# fixed effects
+
+TN_lm_full_sub <- lm_full(c_env_sub_scale_TN, "c_m2_subplot", full_var)
+
+# mixed effects
+TN_lm_full_site_sub <- lm_full_site(c_env_sub_scale_TN, "c_m2_subplot", full_var)
+```
+
+##### univariate
+
+```{r}
+# fixed effects
+
+TN_lm_uni_sub <- lapply(full_var, lm_uni, df = c_env_sub_scale_TN, c = "c_m2_subplot")
+
+names(TN_lm_uni_sub) <- full_var
+
+TN_lm_uni_sub
+
+# mixed effects
+
+TN_lm_uni_site_sub <- lapply(full_var, lm_uni_site, df = c_env_sub_scale_TN, c = "c_m2_subplot")
+
+names(TN_lm_uni_site_sub) <- full_var
+
+TN_lm_uni_site_sub
+```
+
+#### compare
+
+```{r}
+TN_models_sub_r <- list()
+
+TN_models_sub_r[["TN_lm_full_sub"]] <- TN_lm_full_sub
+TN_models_sub_r[[names(TN_lm_uni_sub)[1]]] <- TN_lm_uni_sub[[1]]
+TN_models_sub_r[[names(TN_lm_uni_sub)[2]]] <- TN_lm_uni_sub[[2]]
+TN_models_sub_r[[names(TN_lm_uni_sub)[3]]] <- TN_lm_uni_sub[[3]]
+TN_models_sub_r[[names(TN_lm_uni_sub)[4]]] <- TN_lm_uni_sub[[4]]
+TN_models_sub_r[[names(TN_lm_uni_sub)[5]]] <- TN_lm_uni_sub[[5]]
+TN_models_sub_r[[names(TN_lm_uni_sub)[6]]] <- TN_lm_uni_sub[[6]]
+TN_models_sub_r[[names(TN_lm_uni_sub)[7]]] <- TN_lm_uni_sub[[7]]
+
+Modnames_TN_sub_r <- paste(names(TN_models_sub_r))
+
+# get table
+aictab(cand.set = TN_models_sub_r, modnames = Modnames_TN_sub_r, sort = TRUE)
+
+TN_models_site_sub_r <- list()
+
+TN_models_site_sub_r[["TN_lm_null_site_sub"]] <- TN_lm_null_site_sub
+TN_models_site_sub_r[["TN_lm_full_site_sub"]] <- TN_lm_full_site_sub
+TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[1]]] <- TN_lm_uni_site_sub[[1]]
+TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[2]]] <- TN_lm_uni_site_sub[[2]]
+TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[3]]] <- TN_lm_uni_site_sub[[3]]
+TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[4]]] <- TN_lm_uni_site_sub[[4]]
+TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[5]]] <- TN_lm_uni_site_sub[[5]]
+TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[6]]] <- TN_lm_uni_site_sub[[6]]
+TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[7]]] <- TN_lm_uni_site_sub[[7]]
+
+Modnames_TN_site_sub_r <- paste(names(TN_models_site_sub_r))
+
+# get table
+aictab(cand.set = TN_models_site_sub_r, modnames = Modnames_TN_site_sub_r, sort = TRUE)
+
+```
+
+##### reduced
+
+```{r eval=FALSE, include=FALSE}
+# fixed effects
+TN_red_list_sub <- list("FHT", "LGS")
+
+lm_red(c_env_sub_scale_TN, "c_m2_subplot", TN_red_list_sub)
+
+# mixed effects
+
+TN_lm_red1_site_sub <- lm_red_site(c_env_sub_scale_TN, "c_m2_subplot", TN_red_list_sub)
+```
