@@ -49,18 +49,6 @@ req2 <- GET(github_link2,
            write_disk(path = temp_file2))
 c_m2_subplots <- read_xlsx(temp_file2)  
 c_m2_subplots
-
-# scale predictor variables
-
-c_env_sites_scale <- c_env_sites
-
-c_env_sites_scale[c(11:17)] <- scale(c_env_sites_scale[c(11:17)])
-
-c_env_sites_scale_GM <- c_env_sites_scale %>% 
-  filter(park == "GM")
-
-c_env_sites_scale_TN <- c_env_sites_scale %>% 
-  filter(park == "TN")
 ```
 
 ### environmental variables at sites
