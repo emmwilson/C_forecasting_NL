@@ -51,11 +51,6 @@ cv.cv_glm <- function(df, c, model, variables) {
   C_LM_Output_Sort <- C_LM_Output[order(C_LM_Output$CV),]
 }
 
-cv_try2 <- cv.cv_glm(c_env_sites_scale_GM, "c_m2_site", lm_full, full_var)
-
-cv_try2_sites <- cv.cv_glm(c_env_sub_scale_GM, "c_m2_subplot", lm_full, full_var)
-
-
 
 # for lmer 
 # I think the cvsm cross-validation needs you to fold you data beforehand?
@@ -110,26 +105,26 @@ cv.cv_lmer <- function(df, c, model, variables) {
   #Sort random set to calculate 90% CI for cv$delta[2]
   C_LM_Output_Sort <- C_LM_Output[order(C_LM_Output$CV),]
 }
-
-cv_try3 <- cv.cv_lmer(c_env_sub_scale_GM, "c_m2_subplot", lm_full_site, full_var)
-
-red_var <- list("FHT")
-cv_try3_red <- cv.cv_lmer(c_env_sub_scale_GM, "c_m2_subplot", lm_full_site, red_var)
-
-df_real <- c_env_sub_scale_GM[complete.cases(c_env_sub_scale_GM),]
-
-cv_real_full_try <- cv(GM_lm_full_site_sub, data = df_real, k = 10)
-cv_real_red_try <- cv(GM_lm_red1_site_sub, data = df_real, k = 10)
-
-cv_real_full_try
-cv_real_red_try
-
-library(nlme)
-
-plot(GM_lm_full_site_sub)
-hist(resid(GM_lm_full_site_sub), main="", xlab="Residuals") 
-qqnorm(resid(GM_lm_full_site_sub))
-qqline(resid(GM_lm_full_site_sub))
+# 
+# cv_try3 <- cv.cv_lmer(c_env_sub_scale_GM, "c_m2_subplot", lm_full_site, full_var)
+# 
+# red_var <- list("FHT")
+# cv_try3_red <- cv.cv_lmer(c_env_sub_scale_GM, "c_m2_subplot", lm_full_site, red_var)
+# 
+# df_real <- c_env_sub_scale_GM[complete.cases(c_env_sub_scale_GM),]
+# 
+# cv_real_full_try <- cv(GM_lm_full_site_sub, data = df_real, k = 10)
+# cv_real_red_try <- cv(GM_lm_red1_site_sub, data = df_real, k = 10)
+# 
+# cv_real_full_try
+# cv_real_red_try
+# 
+# library(nlme)
+# 
+# plot(GM_lm_full_site_sub)
+# hist(resid(GM_lm_full_site_sub), main="", xlab="Residuals") 
+# qqnorm(resid(GM_lm_full_site_sub))
+# qqline(resid(GM_lm_full_site_sub))
 
 
 # its got to be something about the random effects?
@@ -180,7 +175,7 @@ cv.glm_works <- function(df, c, model, variables) {
   C_LM_Output_Sort <- C_LM_Output[order(C_LM_Output$CV),]
 }
 
-cv_try1 <- cv.glm_works(c_env_sites_scale_GM, "c_m2_site", lm_full, full_var)
+# cv_try1 <- cv.glm_works(c_env_sites_scale_GM, "c_m2_site", lm_full, full_var)
 
 
 
@@ -194,27 +189,27 @@ cv_try1 <- cv.glm_works(c_env_sites_scale_GM, "c_m2_site", lm_full, full_var)
 
 # followed code from package
 
-library(groupdata2)
-
-df2<-c_env_sub_scale_GM[complete.cases(c_env_sub_scale_GM),]
-df2
-
-lm_full_site_test <- lm_full_site(df2, "c_m2_subplot")
-formula_test <- deparse(lm_full_site_test@call$formula)
-# Set seed for reproducibility
-set.seed(7)
-
-# Fold data
-data <- fold(
-  df2,
-  k = 10
-) %>%
-  arrange(.folds)
-
-cvsm_cross <- cross_validate(
-  data,
-  formulas = formula_test,
-  family = "gaussian",
-  REML = F
-)
-
+# library(groupdata2)
+# 
+# df2<-c_env_sub_scale_GM[complete.cases(c_env_sub_scale_GM),]
+# df2
+# 
+# lm_full_site_test <- lm_full_site(df2, "c_m2_subplot")
+# formula_test <- deparse(lm_full_site_test@call$formula)
+# # Set seed for reproducibility
+# set.seed(7)
+# 
+# # Fold data
+# data <- fold(
+#   df2,
+#   k = 10
+# ) %>%
+#   arrange(.folds)
+# 
+# cvsm_cross <- cross_validate(
+#   data,
+#   formulas = formula_test,
+#   family = "gaussian",
+#   REML = F
+# )
+# 
