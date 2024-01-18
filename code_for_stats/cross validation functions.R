@@ -1,23 +1,4 @@
-loadWorkbook_url <- function(url) {
-  temp_file <- tempfile(fileext = ".xlsx")
-  download.file(url = url, destfile = temp_file, mode = "wb", quiet = TRUE)
-  loadWorkbook(temp_file)
-}
 
-loadWorkbook_url()
-
-
-
-github_link <- "https://github.com/CerebralMastication/Presentations/raw/master/test.xlsx"
-library(httr)
-temp_file <- tempfile(tmpdir = getwd(), fileext = ".xlsx")
-req <- GET(github_link, 
-           # authenticate using GITHUB_PAT
-           authenticate(Sys.getenv("GITHUB_PAT"), ""),
-           # write result to disk
-           write_disk(path = temp_file))
-tab <- read_xlsx(temp_file)
-tab
 
 # using cv::cv  =========================================================
 
@@ -41,7 +22,7 @@ cv.cv_glm <- function(df, c, model, variables) {
     model_C <- model(df2, c, variables) #run function for model of interest on nonshuffled data
     
     eval <- eval(model_C$call$formula)
-    formula1<- eval(eval) #extract the clean formula
+    formula1<- eval(eval) #extract the readable formula
     
     #shuffle data
     C_Shuf <- df2
@@ -51,11 +32,11 @@ cv.cv_glm <- function(df, c, model, variables) {
     #Step 2
     #Run the model on shuffled data
     
-    lm_C_Rand <- glm(formula = formula1, data = C_Shuf) # use clean formula and shuffled data
-    lm_C_Rand$call$formula <- formula1 # make sure glm formula is written cleanly
+    lm_C_Rand <- glm(formula = formula1, data = C_Shuf) # use readable formula and shuffled data
+    lm_C_Rand$call$formula <- formula1 # make sure glm formula is written readable
     
     #get cross validation
-    cv <-cv::cv(model=lm_C_Rand, k=10)
+    cv <-cv::cv(data = C_Shuf, model=lm_C_Rand, k=10)
     
     
     #Step 4
