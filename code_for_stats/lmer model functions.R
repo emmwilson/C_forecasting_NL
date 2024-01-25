@@ -73,3 +73,4 @@ lm_lmer <- function(df, c, variables) {
   lm_lmer@call$formula <- formula1
   lm_lmer
 }
+
