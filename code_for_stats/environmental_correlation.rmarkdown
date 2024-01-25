@@ -16,20 +16,19 @@ pacman::p_load(
   PerformanceAnalytics,
   usdm,
   janitor,
-  openxlsx)
+  openxlsx,
+  raster)
 ```
-
 
 ## data
 
 ### from sites
 
-
 ```{r}
-env_sites_GM <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/env_sites_GM.xlsx") %>% # environmental data from Gros Morne sites
+env_sites_GM <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/to use/env_sites_GM_final.xlsx") %>% # environmental data from Gros Morne sites
   rename(CC = "CC10fill")
 
-env_sites_TN <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/env_sites_TN.xlsx") %>% #environmental data from Terra Nova sites
+env_sites_TN <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/to use/env_sites_TN_final.xlsx") %>% #environmental data from Terra Nova sites
     rename(CC = "CC10fill")
 
 env_sites <- dplyr::bind_rows(env_sites_TN, env_sites_GM) # put sites together
@@ -37,19 +36,18 @@ env_sites$ex_ctrl <- env_sites$ex_ctrl %>%
   replace_na("pair") # turn na's into character so we can filter out exclosures
 env_sites <- env_sites %>% 
   filter(ex_ctrl != "EX") %>% #filter our exclosure sites
-  dplyr::select(!ex_ctrl)  # remove exclosure control column
-
+  dplyr::select(!ex_ctrl)  %>% # remove exclosure control column
+  dplyr::select(!Moose) %>% # remove old moose classification
+  dplyr::select(!nitro) # remove nitro because not good dataset
 ```
-
 
 ### from subplots
 
-
 ```{r}
-env_subplots_GM <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/env_subplots_GM.xlsx") %>% # environmental data from Gros Morne subplots
+env_subplots_GM <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/to use/env_subplots_GM_final.xlsx") %>% # environmental data from Gros Morne subplots
   rename(CC = "CC15fill")
 
-env_subplots_TN <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/env_subplots_TN.xlsx") %>% #environmental data from Terra Nova subplots
+env_subplots_TN <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/to use/env_subplots_TN_final.xlsx") %>% #environmental data from Terra Nova subplots
     rename(CC = "CC10fill")
 
 env_subplots <- dplyr::bind_rows(env_subplots_TN, env_subplots_GM) # put subplots together
@@ -57,8 +55,9 @@ env_subplots$ex_ctrl <- env_subplots$ex_ctrl %>%
   replace_na("pair") # turn na's into character so we can filter out exclosures
 env_subplots <- env_subplots %>% 
   filter(ex_ctrl != "EX") %>% #filter our exclosure subplots
-  dplyr::select(!ex_ctrl) # remove exclosure control column
-
+  dplyr::select(!ex_ctrl) %>% # remove exclosure control column
+  dplyr::select(!Moose) %>% # remove old moose classification
+  dplyr::select(!nitro) # remove nitro because not good dataset
 
 GM_env_subplots <- subset(env_subplots, env_subplots$park_id == "GM")
 TN_env_subplots <- subset(env_subplots, env_subplots$park_id == "TN")
@@ -66,9 +65,7 @@ TN_env_subplots <- subset(env_subplots, env_subplots$park_id == "TN")
 write.xlsx(env_subplots, file = "../final carbon data/env_subplots_final.xlsx")
 ```
 
-
 ### from entire parks
-
 
 ```{r}
 SPC_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_SPC_TN.tif")
@@ -91,6 +88,15 @@ ASP_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 
 names(ASP_TN) <- "ASP_TN"
 LCT_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CEC_LCT_2020/CEC_LCT_2020_TN.tif")
 names(LCT_TN) <- "LCT_TN"
+LGS_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_LGS_TN_filled.tif")
+names(LGS_TN) <- "LGS_TN"
+moose_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/moose_surveys/rasterized/clipped/TN_Moose_Sampling_Unit2015_clip.tif")
+names(moose_TN) <- "moose_TN"
+
+values(moose_TN)[values(moose_TN) == 1] <- "2"
+values(moose_TN)[values(moose_TN) == 2] <- "3"
+values(moose_TN)[values(moose_TN) == 3] <- "1"
+
 
 SPC_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_SPC_GM.tif")
 names(SPC_GM) <- "SPC_GM"
@@ -112,17 +118,23 @@ ASP_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 
 names(ASP_GM) <- "ASP_GM"
 LCT_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CEC_LCT_2020/CEC_LCT_2020_GM.tif")
 names(LCT_GM) <- "LCT_GM"
+LGS_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_LGS_GM_filled.tif")
+names(LGS_GM) <- "LGS_GM"
+moose_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/moose_surveys/rasterized/clipped/GM_Pre-Stratification_2015_clip.tif")
+names(moose_GM) <- "moose_GM"
+
+values(moose_GM)[values(moose_GM) == 1] <- "2"
+values(moose_GM)[values(moose_GM) == 3] <- "1"
+values(moose_GM)[values(moose_GM) == 4] <- "3"
 
 
 ```
-
 
 ## update species \# to dominant species
 
 dominant species not used anymore (switched to forest type)
 
 ### for sites
-
 
 ```{r}
 # associated numbers and dominant species
@@ -131,9 +143,9 @@ dominant_sp <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/A
   
 
 # seperate by park
-dominant_sp_TN <- select(dominant_sp, c(10, 9))
-dominant_sp_GM <- select(dominant_sp, c(10, 6))
-dominant_sp_out <- select(dominant_sp, c(10, 3))
+dominant_sp_TN <- dplyr::select(dominant_sp, c(10, 9))
+dominant_sp_GM <- dplyr::select(dominant_sp, c(10, 6))
+dominant_sp_out <- dplyr::select(dominant_sp, c(10, 3))
 
 sites_outside <- c("TN_30_2022", "TN_26_2022", "TN_05_2023", "TN_27_2022")
 
@@ -156,7 +168,7 @@ env_sites_SPD_out <- env_sites[env_sites$unique_id %in% sites_outside,] %>%
 
 # combine back together
 env_sites_SPD_print <- rbind(env_sites_SPD_TN, env_sites_SPD_GM, env_sites_SPD_out) %>%
-  select(!c(SPC))
+  dplyr::select(!c(SPC))
 env_sites_SPD <- env_sites_SPD_print %>% 
   drop_na(dominant)
   
@@ -165,25 +177,19 @@ GM_env_sites <- subset(env_sites_SPD, env_sites_SPD$park == "GM")
 TN_env_sites <- subset(env_sites_SPD, env_sites_SPD$park == "TN")
 ```
 
-
 ### fix na ASP
-
 
 ```{r}
 env_sites_SPD_print$ASP <-replace_na(env_sites_SPD_print$ASP, 0.1)
 ```
 
-
 ### export process variables
 
-
 ```{r}
-env_site_final <- write.xlsx(env_sites_SPD_print, file = "final carbon data/env_site_final.xlsx")
+env_site_final <- write.xlsx(env_sites_SPD_print, file = "../final carbon data/env_site_final.xlsx")
 ```
 
-
 ### for rasters
-
 
 ```{r}
 # Terra Nova
@@ -201,18 +207,16 @@ dominant_sp_GM_raster <- dominant_sp_GM %>%
 SPD_GM <- classify(SPC_GM, dominant_sp_GM_raster)
 
 
-TN_env_list <- list(SPD_TN, FAC_TN, EVIamp_TN, EVImed_TN, FHT_TN, CC10fill_TN, SLO_TN, ELE_TN, ASP_TN, LCT_TN)
+TN_env_list <- list(SPD_TN, FAC_TN, EVIamp_TN, EVImed_TN, FHT_TN, CC10fill_TN, SLO_TN, ELE_TN, ASP_TN, LCT_TN, moose_TN)
 
 TN_env_raster <- rast(TN_env_list)
 
-GM_env_list <- list(SPD_GM, FAC_GM, EVIamp_GM, EVImed_GM, FHT_GM, CC15fill_GM, SLO_GM, ELE_GM, ASP_GM, LCT_GM)
+GM_env_list <- list(SPD_GM, FAC_GM, EVIamp_GM, EVImed_GM, FHT_GM, CC15fill_GM, SLO_GM, ELE_GM, ASP_GM, LCT_GM, moose_GM)
 
 GM_env_raster <- rast(GM_env_list)
 ```
 
-
 ## correlation
-
 
 ```{r}
 l <- list()  
@@ -226,11 +230,9 @@ make_corrChart <- function(...) {
 print.CorrChart <- function(x, ...) eval(x$call)
 ```
 
-
 ### sites
 
 #### both parks
-
 
 ```{r}
 chart.Correlation <- function (R, histogram = TRUE, method = c("pearson", "kendall", 
@@ -294,11 +296,11 @@ panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
 ```
 
 ```{r, warning=FALSE}
-predictors_site_env <- env_sites_SPD[, -c(1:7, 18)]
+predictors_site_env <- env_sites_SPD[, -c(1:7, 19)]
 # correlation structure
 varCor <- cor(predictors_site_env, use="pairwise.complete.obs")
 corrplot(varCor,  tl.col='black') # dendogram
-chart.Correlation(varCor, histogram=F, pch=19)
+chart.Correlation(predictors_site_env, histogram=F, pch=19)
 
 l$chart_site_both <- make_corrChart(predictors_site_env, histogram=F, pch="0")
 l$chart_site_both
@@ -317,21 +319,19 @@ usdm::vifstep(as.data.frame(predictors_site_env)) ## takes out the highest (sees
 usdm::vifcor(as.data.frame(predictors_site_env), th=0.8) 
 ```
 
-
 #### at each park
 
 ##### GM only
 
-
 ```{r, warning=FALSE}
 
-predictors_site_env_GM <- GM_env_sites[, -c(1:7, 17, 18)]
+predictors_site_env_GM <- GM_env_sites[, -c(1:7, 19)]
 # correlation structure
 varCor_GM <- cor(predictors_site_env_GM, use="pairwise.complete.obs")
 corrplot(varCor_GM,  tl.col='black')
 
 l$chart_site_GM <- make_corrChart(predictors_site_env_GM, histogram=F, pch=19)
-
+l$chart_site_GM
 
 png(filename = "/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/correlation plots/chart_site_GM.png", height = 900, width = 900, units= "px")
 l$chart_site_GM
@@ -346,13 +346,11 @@ usdm::vifstep(as.data.frame(predictors_site_env_GM)) ## takes out the highest (s
 usdm::vifcor(as.data.frame(predictors_site_env_GM), th=0.8) 
 ```
 
-
 ##### TN only
-
 
 ```{r, warning=FALSE}
 
-predictors_site_env_TN <- TN_env_sites[, -c(1:7, 18)]
+predictors_site_env_TN <- TN_env_sites[, -c(1:7, 19)]
 # correlation structure
 varCor_TN <- cor(predictors_site_env_TN, use="pairwise.complete.obs")
 corrplot(varCor_TN,  tl.col='black')
@@ -374,11 +372,9 @@ usdm::vifstep(as.data.frame(predictors_site_env_TN)) ## takes out the highest (s
 usdm::vifcor(as.data.frame(predictors_site_env_TN), th=0.8) 
 ```
 
-
 ### subplots
 
 #### both parks
-
 
 ```{r, warning=FALSE}
 predictors_subplot_env <- env_subplots[, c(12,13,17,18,16,15,14,11,19,9)]
@@ -403,11 +399,9 @@ usdm::vifstep(as.data.frame(predictors_subplot_env)) ## takes out the highest (s
 usdm::vifcor(as.data.frame(predictors_subplot_env), th=0.8) 
 ```
 
-
 #### at each park
 
 ##### GM only
-
 
 ```{r, warning=FALSE}
 
@@ -433,9 +427,7 @@ usdm::vifstep(as.data.frame(predictors_subplot_env_GM)) ## takes out the highest
 usdm::vifcor(as.data.frame(predictors_subplot_env_GM), th=0.8) 
 ```
 
-
 ##### TN only
-
 
 ```{r, warning=FALSE}
 
@@ -461,11 +453,9 @@ usdm::vifstep(as.data.frame(predictors_subplot_env_TN)) ## takes out the highest
 usdm::vifcor(as.data.frame(predictors_subplot_env_TN), th=0.8) 
 ```
 
-
 ### rasters
 
 #### both pakrs
-
 
 ```{r, warning=FALSE}
 TN_env_raster_df <- as.data.frame(TN_env_raster, xy = TRUE)
@@ -507,11 +497,9 @@ usdm::vifstep(as.data.frame(predictors_park_env_NL)) ## takes out the highest (s
 usdm::vifcor(as.data.frame(predictors_park_env_NL), th=0.8) 
 ```
 
-
 #### at each park
 
 ##### GM only
-
 
 ```{r, warning=FALSE}
 predictors_park_env_GM <- GM_env_raster_df[, c(7,5,6,11,10,9,4,8)]
@@ -536,9 +524,7 @@ usdm::vifstep(as.data.frame(predictors_park_env_GM)) ## takes out the highest (s
 usdm::vifcor(as.data.frame(predictors_park_env_GM), th=0.8) 
 ```
 
-
 ##### TN only
-
 
 ```{r, warning=FALSE}
 
@@ -563,4 +549,3 @@ usdm::vif(as.data.frame(predictors_park_env_TN))
 usdm::vifstep(as.data.frame(predictors_park_env_TN)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
 usdm::vifcor(as.data.frame(predictors_park_env_TN), th=0.8) 
 ```
-

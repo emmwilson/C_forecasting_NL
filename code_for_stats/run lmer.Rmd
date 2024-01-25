@@ -29,7 +29,8 @@ pacman::p_load(
   AICcmodavg,
   boot,
   cv,
-  cvms)
+  cvms,
+  stats)
 ```
 
 ## data
@@ -50,14 +51,27 @@ env_site_final <- read.xlsx("../final carbon data/env_site_final.xlsx")
 dplyr::setdiff(c_per_m2$unique_id, env_site_final$unique_id)
 
 c_env_sites <- full_join(c_per_m2, env_site_final) %>%
-  select(!c(FAC, CC, CEC_LCT, dominant))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
+  dplyr::select(!c(FAC, CC, CEC_LCT, dominant))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
+  
+# make moose categorical
+
   
 #subset by park
 c_env_sites_GM <- c_env_sites %>% 
   filter(park == "GM")
 
+c_env_sites_GM["Moose_new"][c_env_sites_GM["Moose_new"] == 1] <- "L"
+c_env_sites_GM["Moose_new"][c_env_sites_GM["Moose_new"] == 2] <- "L"
+c_env_sites_GM["Moose_new"][c_env_sites_GM["Moose_new"] == 3] <- "H"
+c_env_sites_GM["Moose_new"][c_env_sites_GM["Moose_new"] == 4] <- "X"
+
 c_env_sites_TN <- c_env_sites %>% 
   filter(park == "TN")
+
+c_env_sites_TN["Moose_new"][c_env_sites_TN["Moose_new"] == 1] <- "L"
+c_env_sites_TN["Moose_new"][c_env_sites_TN["Moose_new"] == 2] <- "M"
+c_env_sites_TN["Moose_new"][c_env_sites_TN["Moose_new"] == 3] <- "H"
+c_env_sites_TN["Moose_new"][c_env_sites_TN["Moose_new"] == 4] <- "V"
 
 ```
 
@@ -69,14 +83,24 @@ env_subplots_final <- read.xlsx("../final carbon data/env_subplots_final.xlsx")
 dplyr::setdiff(c_per_m2_sub$unique_id, env_subplots_final$unique_id)
 
 c_env_subplots <- full_join(c_per_m2_sub, env_subplots_final) %>%
-  select(!c(FAC, CC, CEC_LCT, SPC))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
+  dplyr::select(!c(FAC, CC, CEC_LCT, SPC))  # remove FAC because super correlated and categorical, remove LGS for now because missing values
 
 #subset by park
 c_env_subplots_GM <- c_env_subplots %>% 
   filter(park_id == "GM")
 
+c_env_subplots_GM["Moose_new"][c_env_subplots_GM["Moose_new"] == 1] <- "L"
+c_env_subplots_GM["Moose_new"][c_env_subplots_GM["Moose_new"] == 2] <- "L"
+c_env_subplots_GM["Moose_new"][c_env_subplots_GM["Moose_new"] == 3] <- "H"
+c_env_subplots_GM["Moose_new"][c_env_subplots_GM["Moose_new"] == 4] <- "X"
+
 c_env_subplots_TN <- c_env_subplots %>% 
   filter(park_id == "TN")
+
+c_env_subplots_TN["Moose_new"][c_env_subplots_TN["Moose_new"] == 1] <- "L"
+c_env_subplots_TN["Moose_new"][c_env_subplots_TN["Moose_new"] == 2] <- "M"
+c_env_subplots_TN["Moose_new"][c_env_subplots_TN["Moose_new"] == 3] <- "H"
+c_env_subplots_TN["Moose_new"][c_env_subplots_TN["Moose_new"] == 4] <- "V"
 
 ```
 
@@ -85,13 +109,23 @@ c_env_subplots_TN <- c_env_subplots %>%
 ```{r}
 c_env_sites_scale <- c_env_sites
 
-c_env_sites_scale[c(11:17)] <- scale(c_env_sites_scale[c(11:17)])
+c_env_sites_scale[c(11:16,18,19)] <- scale(c_env_sites_scale[c(11:16,18,19)])
 
 c_env_sites_scale_GM <- c_env_sites_scale %>% 
   filter(park == "GM")
 
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 1] <- "L"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 2] <- "L"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 3] <- "H"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 4] <- "X"
+
 c_env_sites_scale_TN <- c_env_sites_scale %>% 
   filter(park == "TN")
+
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 1] <- "L"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 2] <- "M"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 3] <- "H"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 4] <- "V"
 ```
 
 #### for subplots
@@ -99,19 +133,28 @@ c_env_sites_scale_TN <- c_env_sites_scale %>%
 ```{r}
 c_env_sub_scale <- c_env_subplots
 
-c_env_sub_scale[c(21:27)] <- scale(c_env_sub_scale[c(21:27)])
+c_env_sub_scale[c(21:26,28,29)] <- scale(c_env_sub_scale[c(21:26,28,29)])
 
 c_env_sub_scale_GM <- c_env_sub_scale %>% 
   filter(park_id == "GM")
 
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 1] <- "L"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 2] <- "L"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 3] <- "H"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 4] <- "X"
+
 c_env_sub_scale_TN <- c_env_sub_scale %>% 
   filter(park_id == "TN")
+
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 1] <- "L"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 2] <- "M"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 3] <- "H"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 4] <- "V"
 ```
 
 ## cross validation
 
 ```{r}
-source("")
 
 ```
 
@@ -147,25 +190,35 @@ source("lmer model functions.R")
 
 ##### null
 
-don't actually run code for this - based on significance of other models
+```{r}
+GM_lm_null <- lm_glm(c_env_sites_scale_GM, "c_m2_site", "1")
+
+summary(GM_lm_null)
+```
 
 ##### full
 
 ```{r}
-full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS")
+full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS", "0 + Moose_new", "nitro")
 
-GM_lm_full <- lm_full(c_env_sites_scale_GM, "c_m2_site", full_var)
+GM_lm_full <- lm_glm(c_env_sites_scale_GM, "c_m2_site", full_var)
+
+summary(GM_lm_full)
+
 ```
 
 ##### univariate
 
 ```{r}
-GM_lm_uni <- lapply(full_var, lm_uni, df = c_env_sites_scale_GM, c = "c_m2_site")
+GM_lm_uni <- lapply(full_var, lm_glm, df = c_env_sites_scale_GM, c = "c_m2_site")
 
 
 names(GM_lm_uni) <- full_var
 
+summary(GM_lm_uni$'0 + Moose_new')
 
+
+GM_lm_uni_summary <- lapply(GM_lm_uni, summary)
 ```
 
 #### compare
@@ -173,7 +226,7 @@ names(GM_lm_uni) <- full_var
 ```{r}
 GM_models_r <- list()
 
-
+GM_models_r[["GM_lm_null"]] <- GM_lm_null
 GM_models_r[["GM_lm_full"]] <- GM_lm_full
 GM_models_r[[names(GM_lm_uni)[1]]] <- GM_lm_uni[[1]]
 GM_models_r[[names(GM_lm_uni)[2]]] <- GM_lm_uni[[2]]
@@ -182,6 +235,8 @@ GM_models_r[[names(GM_lm_uni)[4]]] <- GM_lm_uni[[4]]
 GM_models_r[[names(GM_lm_uni)[5]]] <- GM_lm_uni[[5]]
 GM_models_r[[names(GM_lm_uni)[6]]] <- GM_lm_uni[[6]]
 GM_models_r[[names(GM_lm_uni)[7]]] <- GM_lm_uni[[7]]
+GM_models_r[[names(GM_lm_uni)[8]]] <- GM_lm_uni[[8]]
+GM_models_r[[names(GM_lm_uni)[9]]] <- GM_lm_uni[[9]]
 
 Modnames_GM_r <- paste(names(GM_models_r))
 
@@ -197,10 +252,11 @@ different predictor variables are significant in univariate vs full
 at no point are topographic variables important
 
 ```{r eval=FALSE, include=FALSE}
-GM_red_list <- list("FHT", "EVIamp")
+GM_red_list <- list("FHT", "0 + Moose_new")
 
-GM_lm_red1 <- lm_red(c_env_sites_scale_GM, "c_m2_site", GM_red_list)
+GM_lm_red1 <- lm_glm(c_env_sites_scale_GM, "c_m2_site", GM_red_list)
 
+summary(GM_lm_red1)
 ```
 
 #### by subplot
@@ -209,10 +265,14 @@ GM_lm_red1 <- lm_red(c_env_sites_scale_GM, "c_m2_site", GM_red_list)
 
 ```{r}
 # fixed effects
-## doesn't get run as model
+GM_lm_null_sub <- lm_glm(c_env_sub_scale_GM, "c_m2_subplot", "1")
+
+summary(GM_lm_null_sub)
 
 # mixed effects
-GM_lm_null_site_sub <- lm_null_site(c_env_sub_scale_GM, "c_m2_subplot")
+GM_lm_null_site_sub <- lm_lmer(c_env_sub_scale_GM, "c_m2_subplot", "1")
+
+summary(GM_lm_null_site_sub)
 ```
 
 ##### full
@@ -220,10 +280,12 @@ GM_lm_null_site_sub <- lm_null_site(c_env_sub_scale_GM, "c_m2_subplot")
 ```{r}
 # fixed effects
 
-GM_lm_full_sub <- lm_full(c_env_sub_scale_GM, "c_m2_subplot", full_var)
+GM_lm_full_sub <- lm_glm(c_env_sub_scale_GM, "c_m2_subplot", full_var)
 
 # mixed effects
-GM_lm_full_site_sub <- lm_full_site(c_env_sub_scale_GM, "c_m2_subplot", full_var)
+GM_lm_full_site_sub <- lm_lmer(c_env_sub_scale_GM, "c_m2_subplot", full_var)
+GM_lm_full_site_sub
+summary(GM_lm_full_site_sub)
 ```
 
 ##### univariate
@@ -231,19 +293,23 @@ GM_lm_full_site_sub <- lm_full_site(c_env_sub_scale_GM, "c_m2_subplot", full_var
 ```{r}
 # fixed effects
 
-GM_lm_uni_sub <- lapply(full_var, lm_uni, df = c_env_sub_scale_GM, c = "c_m2_subplot")
+GM_lm_uni_sub <- lapply(full_var, lm_glm, df = c_env_sub_scale_GM, c = "c_m2_subplot")
 
 names(GM_lm_uni_sub) <- full_var
 
 GM_lm_uni_sub
 
+GM_lm_uni_sub_summary <- lapply(GM_lm_uni_sub, summary)
+
 # mixed effects
 
-GM_lm_uni_site_sub <- lapply(full_var, lm_uni_site, df = c_env_sub_scale_GM, c = "c_m2_subplot")
+GM_lm_uni_site_sub <- lapply(full_var, lm_lmer, df = c_env_sub_scale_GM, c = "c_m2_subplot")
 
 names(GM_lm_uni_site_sub) <- full_var
 
 GM_lm_uni_site_sub
+
+GM_lm_uni_site_sub_summary <- lapply(GM_lm_uni_site_sub, summary)
 ```
 
 #### compare
@@ -251,6 +317,7 @@ GM_lm_uni_site_sub
 ```{r}
 GM_models_sub_r <- list()
 
+GM_models_sub_r[["GM_lm_null_sub"]] <- GM_lm_null_sub
 GM_models_sub_r[["GM_lm_full_sub"]] <- GM_lm_full_sub
 GM_models_sub_r[[names(GM_lm_uni_sub)[1]]] <- GM_lm_uni_sub[[1]]
 GM_models_sub_r[[names(GM_lm_uni_sub)[2]]] <- GM_lm_uni_sub[[2]]
@@ -259,6 +326,8 @@ GM_models_sub_r[[names(GM_lm_uni_sub)[4]]] <- GM_lm_uni_sub[[4]]
 GM_models_sub_r[[names(GM_lm_uni_sub)[5]]] <- GM_lm_uni_sub[[5]]
 GM_models_sub_r[[names(GM_lm_uni_sub)[6]]] <- GM_lm_uni_sub[[6]]
 GM_models_sub_r[[names(GM_lm_uni_sub)[7]]] <- GM_lm_uni_sub[[7]]
+GM_models_sub_r[[names(GM_lm_uni_sub)[8]]] <- GM_lm_uni_sub[[8]]
+GM_models_sub_r[[names(GM_lm_uni_sub)[9]]] <- GM_lm_uni_sub[[9]]
 
 Modnames_GM_sub_r <- paste(names(GM_models_sub_r))
 
@@ -276,6 +345,8 @@ GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[4]]] <- GM_lm_uni_site_sub[[4]]
 GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[5]]] <- GM_lm_uni_site_sub[[5]]
 GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[6]]] <- GM_lm_uni_site_sub[[6]]
 GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[7]]] <- GM_lm_uni_site_sub[[7]]
+GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[8]]] <- GM_lm_uni_site_sub[[8]]
+GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[9]]] <- GM_lm_uni_site_sub[[9]]
 
 Modnames_GM_site_sub_r <- paste(names(GM_models_site_sub_r))
 
@@ -288,14 +359,20 @@ aictab(cand.set = GM_models_site_sub_r, modnames = Modnames_GM_site_sub_r, sort 
 
 ```{r eval=FALSE, include=FALSE}
 # fixed effects
-GM_red_list_sub <- list("FHT", "LGS")
+GM_red_list_sub <- list("FHT", "LGS", "ASP")
 
 
-GM_lm_red1_site <- lm_red(c_env_sub_scale_GM, "c_m2_subplot", GM_red_list_sub)
+GM_lm_red1_site <- lm_glm(c_env_sub_scale_GM, "c_m2_subplot", GM_red_list_sub)
+
+summary(GM_lm_red1_site)
 
 # mixed effects
 
-GM_lm_red1_site_sub <- lm_red_site(c_env_sub_scale_GM, "c_m2_subplot", GM_red_list_sub)
+GM_lm_red1_site_sub <- lm_lmer(c_env_sub_scale_GM, "c_m2_subplot", GM_red_list_sub)
+
+summary(GM_lm_red1_site_sub)
+
+AIC(GM_lm_red1_site_sub)
 ```
 
 ## TN
@@ -304,22 +381,28 @@ GM_lm_red1_site_sub <- lm_red_site(c_env_sub_scale_GM, "c_m2_subplot", GM_red_li
 
 ##### null
 
-don't actually run code for this - based on significance of other models
+```{r}
+TN_lm_null <- lm_glm(c_env_sites_scale_TN, "c_m2_site", "1")
+
+summary(TN_lm_null)
+```
 
 ##### full
 
 ```{r}
-TN_lm_full <- lm_full(c_env_sites_scale_TN, "c_m2_site", full_var)
+TN_lm_full <- lm_glm(c_env_sites_scale_TN, "c_m2_site", full_var)
+
+summary(TN_lm_full)
 ```
 
 ##### univariate
 
 ```{r}
-TN_lm_uni <- lapply(full_var, lm_uni, df = c_env_sites_scale_TN, c = "c_m2_site")
+TN_lm_uni <- lapply(full_var, lm_glm, df = c_env_sites_scale_TN, c = "c_m2_site")
 
 names(TN_lm_uni) <- full_var
 
-TN_lm_uni
+TN_lm_uni_summary <- lapply(TN_lm_uni, summary)
 ```
 
 #### compare
@@ -327,6 +410,7 @@ TN_lm_uni
 ```{r}
 TN_models_r <- list()
 
+TN_models_r[["TN_lm_null"]] <- TN_lm_null
 TN_models_r[["TN_lm_full"]] <- TN_lm_full
 TN_models_r[[names(TN_lm_uni)[1]]] <- TN_lm_uni[[1]]
 TN_models_r[[names(TN_lm_uni)[2]]] <- TN_lm_uni[[2]]
@@ -335,6 +419,8 @@ TN_models_r[[names(TN_lm_uni)[4]]] <- TN_lm_uni[[4]]
 TN_models_r[[names(TN_lm_uni)[5]]] <- TN_lm_uni[[5]]
 TN_models_r[[names(TN_lm_uni)[6]]] <- TN_lm_uni[[6]]
 TN_models_r[[names(TN_lm_uni)[7]]] <- TN_lm_uni[[7]]
+TN_models_r[[names(TN_lm_uni)[8]]] <- TN_lm_uni[[8]]
+TN_models_r[[names(TN_lm_uni)[9]]] <- TN_lm_uni[[9]]
 
 Modnames_TN_r <- paste(names(TN_models_r))
 
@@ -353,7 +439,7 @@ at no point are topographic variables important
 ```{r eval=FALSE, include=FALSE}
 TN_red_list <- list("FHT")
 
-lm_red(c_env_sites_scale_TN, "c_m2_site", TN_red_list)
+lm_glm(c_env_sites_scale_TN, "c_m2_site", TN_red_list)
 
 ```
 
@@ -363,10 +449,11 @@ lm_red(c_env_sites_scale_TN, "c_m2_site", TN_red_list)
 
 ```{r}
 # fixed effects
-## doesn't get run as model
+
+TN_lm_null_sub <- lm_glm(c_env_sub_scale_TN, "c_m2_subplot", "1")
 
 # mixed effects
-TN_lm_null_site_sub <- lm_null_site(c_env_sub_scale_TN, "c_m2_subplot")
+TN_lm_null_site_sub <- lm_lmer(c_env_sub_scale_TN, "c_m2_subplot", "1")
 ```
 
 ##### full
@@ -374,10 +461,12 @@ TN_lm_null_site_sub <- lm_null_site(c_env_sub_scale_TN, "c_m2_subplot")
 ```{r}
 # fixed effects
 
-TN_lm_full_sub <- lm_full(c_env_sub_scale_TN, "c_m2_subplot", full_var)
+TN_lm_full_sub <- lm_glm(c_env_sub_scale_TN, "c_m2_subplot", full_var)
 
 # mixed effects
-TN_lm_full_site_sub <- lm_full_site(c_env_sub_scale_TN, "c_m2_subplot", full_var)
+TN_lm_full_site_sub <- lm_lmer(c_env_sub_scale_TN, "c_m2_subplot", full_var)
+
+summary(TN_lm_full_site_sub)
 ```
 
 ##### univariate
@@ -385,19 +474,23 @@ TN_lm_full_site_sub <- lm_full_site(c_env_sub_scale_TN, "c_m2_subplot", full_var
 ```{r}
 # fixed effects
 
-TN_lm_uni_sub <- lapply(full_var, lm_uni, df = c_env_sub_scale_TN, c = "c_m2_subplot")
+TN_lm_uni_sub <- lapply(full_var, lm_glm, df = c_env_sub_scale_TN, c = "c_m2_subplot")
 
 names(TN_lm_uni_sub) <- full_var
 
 TN_lm_uni_sub
 
+TN_lm_uni_sub_summary <- lapply(TN_lm_uni_sub, summary)
+
 # mixed effects
 
-TN_lm_uni_site_sub <- lapply(full_var, lm_uni_site, df = c_env_sub_scale_TN, c = "c_m2_subplot")
+TN_lm_uni_site_sub <- lapply(full_var, lm_lmer, df = c_env_sub_scale_TN, c = "c_m2_subplot")
 
 names(TN_lm_uni_site_sub) <- full_var
 
 TN_lm_uni_site_sub
+
+TN_lm_uni_site_sub_summary <- lapply(TN_lm_uni_site_sub, summary)
 ```
 
 #### compare
@@ -405,6 +498,7 @@ TN_lm_uni_site_sub
 ```{r}
 TN_models_sub_r <- list()
 
+TN_models_sub_r[["TN_lm_null_sub"]] <- TN_lm_null_sub
 TN_models_sub_r[["TN_lm_full_sub"]] <- TN_lm_full_sub
 TN_models_sub_r[[names(TN_lm_uni_sub)[1]]] <- TN_lm_uni_sub[[1]]
 TN_models_sub_r[[names(TN_lm_uni_sub)[2]]] <- TN_lm_uni_sub[[2]]
@@ -413,6 +507,8 @@ TN_models_sub_r[[names(TN_lm_uni_sub)[4]]] <- TN_lm_uni_sub[[4]]
 TN_models_sub_r[[names(TN_lm_uni_sub)[5]]] <- TN_lm_uni_sub[[5]]
 TN_models_sub_r[[names(TN_lm_uni_sub)[6]]] <- TN_lm_uni_sub[[6]]
 TN_models_sub_r[[names(TN_lm_uni_sub)[7]]] <- TN_lm_uni_sub[[7]]
+TN_models_sub_r[[names(TN_lm_uni_sub)[8]]] <- TN_lm_uni_sub[[8]]
+TN_models_sub_r[[names(TN_lm_uni_sub)[9]]] <- TN_lm_uni_sub[[9]]
 
 Modnames_TN_sub_r <- paste(names(TN_models_sub_r))
 
@@ -430,6 +526,8 @@ TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[4]]] <- TN_lm_uni_site_sub[[4]]
 TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[5]]] <- TN_lm_uni_site_sub[[5]]
 TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[6]]] <- TN_lm_uni_site_sub[[6]]
 TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[7]]] <- TN_lm_uni_site_sub[[7]]
+TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[8]]] <- TN_lm_uni_site_sub[[8]]
+TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[9]]] <- TN_lm_uni_site_sub[[9]]
 
 Modnames_TN_site_sub_r <- paste(names(TN_models_site_sub_r))
 
@@ -444,9 +542,9 @@ aictab(cand.set = TN_models_site_sub_r, modnames = Modnames_TN_site_sub_r, sort 
 # fixed effects
 TN_red_list_sub <- list("FHT", "LGS")
 
-lm_red(c_env_sub_scale_TN, "c_m2_subplot", TN_red_list_sub)
+lm_glm(c_env_sub_scale_TN, "c_m2_subplot", TN_red_list_sub)
 
 # mixed effects
 
-TN_lm_red1_site_sub <- lm_red_site(c_env_sub_scale_TN, "c_m2_subplot", TN_red_list_sub)
+TN_lm_red1_site_sub <- lm_lmer(c_env_sub_scale_TN, "c_m2_subplot", TN_red_list_sub)
 ```
