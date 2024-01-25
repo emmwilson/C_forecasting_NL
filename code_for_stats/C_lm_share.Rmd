@@ -96,9 +96,17 @@ c_env_sites_scale[c(11:16, 18)] <- scale(c_env_sites_scale[c(11:16, 18)], center
 
 c_env_sites_scale_GM <- c_env_sites_scale %>% 
   filter(park == "GM")
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 1] <- "L"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 2] <- "L"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 3] <- "H"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 4] <- "X"
 
 c_env_sites_scale_TN <- c_env_sites_scale %>% 
   filter(park == "TN")
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 1] <- "L"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 2] <- "M"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 3] <- "H"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 4] <- "V"
 ```
 
 ### environmental variables at each subplot
@@ -145,8 +153,18 @@ c_env_sub_scale[c(21:26,28)] <- scale(c_env_sub_scale[c(21:26,28)], center = F)
 c_env_sub_scale_GM <- c_env_sub_scale %>% 
   filter(park_id == "GM")
 
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 1] <- "L"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 2] <- "L"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 3] <- "H"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 4] <- "X"
+
 c_env_sub_scale_TN <- c_env_sub_scale %>% 
   filter(park_id == "TN")
+
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 1] <- "L"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 2] <- "M"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 3] <- "H"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 4] <- "V"
 ```
 
 ## model functions
@@ -364,21 +382,34 @@ view(aictab(cand.set = GM_models_site_sub_r, modnames = Modnames_GM_site_sub_r, 
 ##### reduced
 
 ```{r eval=FALSE, include=FALSE}
-# fixed effects
-GM_red_list_sub <- list("FHT", "LGS", "ASP")
+names(full_var) <- full_var
 
+GM_sub_red_list1 <- within(full_var, rm("ELE"))
+GM_sub_red_list2 <- within(GM_sub_red_list1, rm("SLO"))
+GM_sub_red_list3 <- within(GM_sub_red_list2, rm("Moose_new"))
+GM_sub_red_list4 <- within(GM_sub_red_list3, rm("EVImed")) #would be weird if important in non-mixed model but not here, it is worse than keeping it so try removing a different variable
+GM_sub_red_list5 <- within(GM_sub_red_list3, rm("ASP")) # even worse
+GM_sub_red_list6 <- within(GM_sub_red_list3, rm("EVIamp")) 
+GM_sub_red_list7 <- within(GM_sub_red_list3, rm("LGS")) # taking away EVIamp or LGS basically the same so try both
+GM_sub_red_list8 <- within(GM_sub_red_list6, rm("LGS")) 
+GM_sub_red_list9 <- within(GM_sub_red_list8, rm("ASP")) # bad
+GM_sub_red_list10 <- within(GM_sub_red_list8, rm("EVImed"))
 
-GM_lm_red1_site <- lm_glm(c_env_sub_scale_GM, "c_m2_subplot", GM_red_list_sub)
+GM_sub_red_list <- list(full_var, "FHT", GM_sub_red_list1, GM_sub_red_list2, GM_sub_red_list3, GM_sub_red_list4, GM_sub_red_list5, GM_sub_red_list6, GM_sub_red_list7, GM_sub_red_list8, GM_sub_red_list9, GM_sub_red_list10)
 
-summary(GM_lm_red1_site)
+GM_sub_lm_red <- lapply(GM_sub_red_list, lm_lmer, df = c_env_sub_scale_GM, c = "c_m2_subplot")
+names(GM_sub_lm_red) <- GM_sub_red_list
 
-# mixed effects
+GM_sub_lm_red_summary <- lapply(GM_sub_lm_red, summary)
+GM_sub_lm_red_summary
 
-GM_lm_red1_site_sub <- lm_lmer(c_env_sub_scale_GM, "c_m2_subplot", GM_red_list_sub)
+Modnames_GM_sub_red_r <- names(GM_sub_lm_red)
 
-summary(GM_lm_red1_site_sub)
+aictab(cand.set = GM_sub_lm_red, modnames = Modnames_GM_sub_red_r, sort = TRUE) #this calculates corrected AIC so slightly different values than normal AIC
 
-AIC(GM_lm_red1_site_sub)
+view(aictab(cand.set = GM_sub_lm_red, modnames = Modnames_GM_sub_red_r, sort = TRUE))
+
+GM_sub_lm_red_r2 <- lapply(GM_sub_lm_red, r.squaredGLMM) # none have the same r2m and r2c values
 ```
 
 ## TN
@@ -439,7 +470,7 @@ Modnames_TN_r <- paste(names(TN_models_r))
 # get table
 view(aictab(cand.set = TN_models_r, modnames = Modnames_TN_r, sort = TRUE))
 
-# thoughts: FHT important again
+# thoughts: FHT important again. also, even though moose univariate model is the worst AIC, it is actually important for reduced models (see below)
 ```
 
 ##### reduced
@@ -474,7 +505,6 @@ Modnames_TN_red_r <- names(TN_lm_red)
 aictab(cand.set = TN_lm_red, modnames = Modnames_TN_red_r, sort = TRUE) #this calculates corrected AIC so slightly different values than normal AIC
 
 aictab(cand.set = TN_lm_red, modnames = Modnames_TN_red_r, sort = TRUE)
-
 
 # EVIamp is only sig as long as moose AND LGS are in the model, if either are taken away EVIamp becomes insig
 ```
@@ -580,12 +610,23 @@ aictab(cand.set = TN_models_site_sub_r, modnames = Modnames_TN_site_sub_r, sort 
 ##### reduced
 
 ```{r eval=FALSE, include=FALSE}
-# fixed effects
-TN_red_list_sub <- list("FHT", "LGS")
+names(full_var) <- full_var
 
-lm_glm(c_env_sub_scale_TN, "c_m2_subplot", TN_red_list_sub)
+TN_sub_red_list1 <- within(full_var, rm("ELE"))
 
-# mixed effects
+TN_sub_red_list <- list(full_var, "FHT", TN_sub_red_list1)
 
-TN_lm_red1_site_sub <- lm_lmer(c_env_sub_scale_TN, "c_m2_subplot", TN_red_list_sub)
+TN_sub_lm_red <- lapply(TN_sub_red_list, lm_lmer, df = c_env_sub_scale_TN, c = "c_m2_subplot")
+names(TN_sub_lm_red) <- TN_sub_red_list
+
+TN_sub_lm_red_summary <- lapply(TN_sub_lm_red, summary)
+TN_sub_lm_red_summary
+
+Modnames_TN_sub_red_r <- names(TN_sub_lm_red)
+
+aictab(cand.set = TN_sub_lm_red, modnames = Modnames_TN_sub_red_r, sort = TRUE) #this calculates corrected AIC so slightly different values than normal AIC
+
+view(aictab(cand.set = TN_sub_lm_red, modnames = Modnames_TN_sub_red_r, sort = TRUE))
+
+TN_sub_lm_red_r2 <- lapply(TN_sub_lm_red, r.squaredGLMM) # none have the same r2m and r2c values
 ```
