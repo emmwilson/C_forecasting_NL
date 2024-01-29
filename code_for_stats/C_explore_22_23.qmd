@@ -21,29 +21,29 @@ pacman::p_load(
 
 ```{r}
 #combine individual excel files fror carbon in each pool
-c_2022_dw <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Deadwood_Field_Data NEW.xlsm", sheet = "DW carbon") %>%
+c_2022_dw <- read_xlsx("../final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Deadwood_Field_Data NEW.xlsm", sheet = "DW carbon") %>%
   dplyr::select(c(Site_Subplot_ID, dw_carbon_9m2))
-c_2022_te <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
+c_2022_te <- read_xlsx("../final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
   dplyr::select(c(Site_Subplot_ID, te_carbon_9m2))
-c_2022_gc <- read_xlsx("final carbon data/Final_Carbon_Data_R/ground_cover_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_gc <- read_xlsx("../final carbon data/Final_Carbon_Data_R/ground_cover_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Site_Subplot_ID, gc_carbon_9m2))
-c_2022_hb <- read_xlsx("final carbon data/Final_Carbon_Data_R/herbaceous_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_hb <- read_xlsx("../final carbon data/Final_Carbon_Data_R/herbaceous_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Site_Subplot_ID, hb_carbon_9m2))
-c_2022_ll <- read_xlsx("final carbon data/Final_Carbon_Data_R/litter_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_ll <- read_xlsx("../final carbon data/Final_Carbon_Data_R/litter_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Park_ID, Site_ID, Ex_Ctrl, Subplot_ID, Site_Subplot_ID, ll_carbon_9m2))
-c_2022_sp <- read_xlsx("final carbon data/Final_Carbon_Data_R/sapling_carbon.xlsx", sheet = "Sheet 1") %>% dplyr::select(c(Site_Subplot_ID, sp_carbon_9m2))
+c_2022_sp <- read_xlsx("../final carbon data/Final_Carbon_Data_R/sapling_carbon.xlsx", sheet = "Sheet 1") %>% dplyr::select(c(Site_Subplot_ID, sp_carbon_9m2))
 #c_2022_sr <- read_xlsx("Final_Carbon_Data_R/shrub_root_carbon.xlsx", sheet = "Sheet 1") because this data came before R fixed the under 30 units I need to calculate on my own
-c_2022_sl <- read_xlsx("final carbon data/Final_Carbon_Data_R/soil_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_sl <- read_xlsx("../final carbon data/Final_Carbon_Data_R/soil_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Site_Subplot_ID, sl_carbon_9m2))
 
-c_2022_tr <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree root carbon") %>%
+c_2022_tr <- read_xlsx("../final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree root carbon") %>%
   dplyr::select(c(Site_Subplot_ID, tr_carbon_9m2))
-c_2022_u3 <- read_xlsx("final carbon data/Final_Carbon_Data_R/under_30_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_u3 <- read_xlsx("../final carbon data/Final_Carbon_Data_R/under_30_carbon.xlsx", sheet = "Sheet 1") %>%
   mutate(u3_carbon_9m2 = u3_carbon_9m2/1000000) %>% # convert units
   dplyr::select(c(Site_Subplot_ID, u3_carbon_9m2))
-c_2022_ws <- read_xlsx("final carbon data/Final_Carbon_Data_R/woody_shrubs_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_ws <- read_xlsx("../final carbon data/Final_Carbon_Data_R/woody_shrubs_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Site_Subplot_ID, ws_carbon_9m2))
-site_data_2022 <- read_xlsx("final carbon data/Final_Carbon_Data_R/subplot_disturbacne.xlsx")
+site_data_2022 <- read_xlsx("../final carbon data/Final_Carbon_Data_R/subplot_disturbacne.xlsx")
 
 c_2022_sr_list <- list(c_2022_u3, c_2022_ws, c_2022_sp)
 c_2022_sr <- c_2022_sr_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
@@ -78,7 +78,7 @@ c_2022_mess <- c_2022_mess %>%
   filter(ex_ctrl != "EX")
 
 c_2022_compat <- c_2022_mess %>%
-  select(c(2:5,18,19,23,6,7,10,13,20:22,17))
+  dplyr::select(c(2:5,18,19,23,6,7,10,13,20:22,17))
 ```
 
 ![](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAaCAYAAADFTB7LAAAAcElEQVR4Xu3OwQmAQAxE0bClWYCW5N06tM6V2YPg5CjoF/JhLoHAi6iqn9eOefUbqrYvHY0cQDLyAlKRNyARmYA0ZMLRkAlGQyaU72tkAtlim7r/vJqDUDjlKBROOQyFU2icQuMUGqfQuBEaV1XPOwEx96nYACK8+wAAAABJRU5ErkJggg== "Run Current Chunk")
@@ -86,10 +86,10 @@ c_2022_compat <- c_2022_mess %>%
 ### 2023 data
 
 ```{r results='hide', message=FALSE}
-c_2023 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
+c_2023 <- read_xlsx("../final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
   replace(is.na(.), 0) 
 
-site_data <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+site_data <- read_xlsx("../final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
 site_data$Site_ID <- sprintf("%02.f", site_data$Site_ID)
 
 c_2023_mess <- c_2023 %>%
@@ -106,7 +106,7 @@ c_2023_mess <- c_2023 %>%
   
 
 c_2023_compat <- c_2023_mess %>%
-  select(c(22,23,25,2,27,38,39,5,7,10,11,13,16,18,21)) %>%
+  dplyr::select(c(22,23,25,2,27,38,39,5,7,10,11,13,16,18,21)) %>%
   replace(is.na(.), 0)
 ```
 
@@ -255,9 +255,13 @@ ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = park_id)) +
 
 ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = gap)) + 
   geom_boxplot() + theme(legend.title = element_blank())
+ggplot(c_22_23, aes(x=factor(gap), y=sl_carbon_9m2, colour = gap)) + 
+  geom_boxplot() + theme(legend.title = element_blank())
 
 ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
   geom_boxplot() + theme(legend.title = element_blank())
+
+summary(lm(c_22_23$sl_carbon_9m2 ~ c_22_23$gap))
 
 ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = gap)) + 
   geom_violin() + theme(legend.title = element_blank())
