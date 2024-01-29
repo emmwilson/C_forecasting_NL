@@ -17,29 +17,29 @@ pacman::p_load(
 ### 2022
 
 ```{r}
-c_2022_dw <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Deadwood_Field_Data NEW.xlsm", sheet = "DW carbon") %>%
+c_2022_dw <- read_xlsx("../final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Deadwood_Field_Data NEW.xlsm", sheet = "DW carbon") %>%
   dplyr::select(c(Site_Subplot_ID, dw_carbon_9m2))
-c_2022_te <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
+c_2022_te <- read_xlsx("../final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
   dplyr::select(c(Site_Subplot_ID, te_carbon_9m2))
-c_2022_gc <- read_xlsx("final carbon data/Final_Carbon_Data_R/ground_cover_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_gc <- read_xlsx("../final carbon data/Final_Carbon_Data_R/ground_cover_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Site_Subplot_ID, gc_carbon_9m2))
-c_2022_hb <- read_xlsx("final carbon data/Final_Carbon_Data_R/herbaceous_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_hb <- read_xlsx("../final carbon data/Final_Carbon_Data_R/herbaceous_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Site_Subplot_ID, hb_carbon_9m2))
-c_2022_ll <- read_xlsx("final carbon data/Final_Carbon_Data_R/litter_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_ll <- read_xlsx("../final carbon data/Final_Carbon_Data_R/litter_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Park_ID, Site_ID, Ex_Ctrl, Subplot_ID, Site_Subplot_ID, ll_carbon_9m2))
-c_2022_sp <- read_xlsx("final carbon data/Final_Carbon_Data_R/sapling_carbon.xlsx", sheet = "Sheet 1") %>% dplyr::select(c(Site_Subplot_ID, sp_carbon_9m2))
+c_2022_sp <- read_xlsx("../final carbon data/Final_Carbon_Data_R/sapling_carbon.xlsx", sheet = "Sheet 1") %>% dplyr::select(c(Site_Subplot_ID, sp_carbon_9m2))
 #c_2022_sr <- read_xlsx("Final_Carbon_Data_R/shrub_root_carbon.xlsx", sheet = "Sheet 1") because this data came before R fixed the under 30 units I need to calculate on my own
-c_2022_sl <- read_xlsx("final carbon data/Final_Carbon_Data_R/soil_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_sl <- read_xlsx("../final carbon data/Final_Carbon_Data_R/soil_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Site_Subplot_ID, sl_carbon_9m2))
 
-c_2022_tr <- read_xlsx("final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree root carbon") %>%
+c_2022_tr <- read_xlsx("../final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree root carbon") %>%
   dplyr::select(c(Site_Subplot_ID, tr_carbon_9m2))
-c_2022_u3 <- read_xlsx("final carbon data/Final_Carbon_Data_R/under_30_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_u3 <- read_xlsx("../final carbon data/Final_Carbon_Data_R/under_30_carbon.xlsx", sheet = "Sheet 1") %>%
   mutate(u3_carbon_9m2 = u3_carbon_9m2/1000000) %>% # convert units
   dplyr::select(c(Site_Subplot_ID, u3_carbon_9m2))
-c_2022_ws <- read_xlsx("final carbon data/Final_Carbon_Data_R/woody_shrubs_carbon.xlsx", sheet = "Sheet 1") %>%
+c_2022_ws <- read_xlsx("../final carbon data/Final_Carbon_Data_R/woody_shrubs_carbon.xlsx", sheet = "Sheet 1") %>%
   dplyr::select(c(Site_Subplot_ID, ws_carbon_9m2))
-site_data_2022 <- read_xlsx("final carbon data/Final_Carbon_Data_R/subplot_disturbacne.xlsx")
+site_data_2022 <- read_xlsx("../final carbon data/Final_Carbon_Data_R/subplot_disturbacne.xlsx")
 
 c_2022_sr_list <- list(c_2022_u3, c_2022_ws, c_2022_sp)
 c_2022_sr <- c_2022_sr_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
@@ -80,10 +80,10 @@ c_2022_compat <- c_2022_mess %>%
 ### 2023
 
 ```{r}
-c_2023 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
+c_2023 <- read_xlsx("../final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
   replace(is.na(.), 0) 
 
-site_data <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+site_data <- read_xlsx("../final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
 site_data$Site_ID <- sprintf("%02.f", site_data$Site_ID)
 
 c_2023_mess <- c_2023 %>%
@@ -122,6 +122,36 @@ c_22_23_m2 <- c_22_23 %>%
 c_22_23_m2_sub <- c_22_23 %>%
   mutate(c_m2_subplot = total_c_per_subplot/9)
 
-c_m2_site <- write.xlsx(c_22_23_m2, file = "final carbon data/c_m2_site.xlsx")
-c_m2_subplot <- write.xlsx(c_22_23_m2_sub, file = "final carbon data/c_m2_subplot.xlsx")
+c_m2_site <- write.xlsx(c_22_23_m2, file = "../final carbon data/c_m2_site.xlsx")
+c_m2_subplot <- write.xlsx(c_22_23_m2_sub, file = "../final carbon data/c_m2_subplot.xlsx")
+```
+
+## aboveground carbon per 1m\^2 at each site
+
+```{r}
+c_22_23_m2_above <- c_22_23 %>%
+  mutate(id = paste0(park_id, "_",site_id)) %>% 
+  group_by(id, park_id, gap) %>% 
+  summarize(c_m2_site_agb = sum(total_c_per_subplot-sl_carbon_9m2)/36) # divide by 36 because each of the 4 subplots is 9m2
+
+c_22_23_m2_sub_above <- c_22_23 %>%
+  mutate(c_m2_subplot_agb = (total_c_per_subplot-sl_carbon_9m2)/9)
+
+c_m2_site_above <- write.xlsx(c_22_23_m2_above, file = "../final carbon data/c_m2_site_above.xlsx")
+c_m2_subplot_above <- write.xlsx(c_22_23_m2_sub_above, file = "../final carbon data/c_m2_subplot_above.xlsx")
+```
+
+## belowground carbon per 1m\^2 at each site
+
+```{r}
+c_22_23_m2_below <- c_22_23 %>%
+  mutate(id = paste0(park_id, "_",site_id)) %>% 
+  group_by(id, park_id, gap) %>% 
+  summarize(c_m2_site_blw = sum(sl_carbon_9m2)/36) # divide by 36 because each of the 4 subplots is 9m2
+
+c_22_23_m2_sub_below <- c_22_23 %>%
+  mutate(c_m2_subplot_blw = (sl_carbon_9m2)/9)
+
+c_m2_site_below <- write.xlsx(c_22_23_m2_below, file = "../final carbon data/c_m2_site_below.xlsx")
+c_m2_subplot_below <- write.xlsx(c_22_23_m2_sub_below, file = "../final carbon data/c_m2_subplot_below.xlsx")
 ```
