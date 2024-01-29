@@ -88,18 +88,18 @@ c_agb_env_sites_scale[c(11:16, 18)] <- scale(c_agb_env_sites_scale[c(11:16, 18)]
 c_agb_env_sites_scale_GM <- c_agb_env_sites_scale %>% 
   filter(park == "GM")
 
-c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 1] <- "L"
-c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 2] <- "L"
-c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 3] <- "H"
-c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 4] <- "X"
+c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 1] <- "aL"
+c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 2] <- "aL"
+c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 3] <- "bH"
+c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 4] <- "cX"
 
 c_agb_env_sites_scale_TN <- c_agb_env_sites_scale %>% 
   filter(park == "TN")
 
-c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 1] <- "L"
-c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 2] <- "M"
-c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 3] <- "H"
-c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 4] <- "V"
+c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 1] <- "aL"
+c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 2] <- "bM"
+c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 3] <- "cH"
+c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 4] <- "dV"
 
 
 ```
@@ -140,19 +140,19 @@ c_agb_env_sub_scale[c(21:26, 28)] <- scale(c_agb_env_sub_scale[c(21:26, 28)], ce
 c_agb_env_sub_scale_GM <- c_agb_env_sub_scale %>% 
   filter(park_id == "GM")
 
-c_agb_env_sub_scale_GM["Moose_new"][c_agb_env_sub_scale_GM["Moose_new"] == 1] <- "L"
-c_agb_env_sub_scale_GM["Moose_new"][c_agb_env_sub_scale_GM["Moose_new"] == 2] <- "L"
-c_agb_env_sub_scale_GM["Moose_new"][c_agb_env_sub_scale_GM["Moose_new"] == 3] <- "H"
-c_agb_env_sub_scale_GM["Moose_new"][c_agb_env_sub_scale_GM["Moose_new"] == 4] <- "X"
+c_agb_env_sub_scale_GM["Moose_new"][c_agb_env_sub_scale_GM["Moose_new"] == 1] <- "aL"
+c_agb_env_sub_scale_GM["Moose_new"][c_agb_env_sub_scale_GM["Moose_new"] == 2] <- "aL"
+c_agb_env_sub_scale_GM["Moose_new"][c_agb_env_sub_scale_GM["Moose_new"] == 3] <- "bH"
+c_agb_env_sub_scale_GM["Moose_new"][c_agb_env_sub_scale_GM["Moose_new"] == 4] <- "cX"
 
 
 c_agb_env_sub_scale_TN <- c_agb_env_sub_scale %>% 
   filter(park_id == "TN") 
 
-c_agb_env_sub_scale_TN["Moose_new"][c_agb_env_sub_scale_TN["Moose_new"] == 1] <- "L"
-c_agb_env_sub_scale_TN["Moose_new"][c_agb_env_sub_scale_TN["Moose_new"] == 2] <- "M"
-c_agb_env_sub_scale_TN["Moose_new"][c_agb_env_sub_scale_TN["Moose_new"] == 3] <- "H"
-c_agb_env_sub_scale_TN["Moose_new"][c_agb_env_sub_scale_TN["Moose_new"] == 4] <- "V"
+c_agb_env_sub_scale_TN["Moose_new"][c_agb_env_sub_scale_TN["Moose_new"] == 1] <- "aL"
+c_agb_env_sub_scale_TN["Moose_new"][c_agb_env_sub_scale_TN["Moose_new"] == 2] <- "bM"
+c_agb_env_sub_scale_TN["Moose_new"][c_agb_env_sub_scale_TN["Moose_new"] == 3] <- "cH"
+c_agb_env_sub_scale_TN["Moose_new"][c_agb_env_sub_scale_TN["Moose_new"] == 4] <- "dV"
 
 ```
 
@@ -280,7 +280,7 @@ view(aic_GM_agb) # table of AIC values for null, full and univariate models
 # thoughts: FHT staying strong. strange that EVImed has such high AIC but was sig in full model. AIC for EVIamp agrees with univariate model. 
 ```
 
-#### reduced
+##### reduced
 
 
 
@@ -503,7 +503,7 @@ view(aic_TN_agb) # table of AIC values for null, full and univariate models
 # thoughts: FHT staying strong. strange that EVImed has such high AIC but was sig in full model. AIC for EVIamp agrees with univariate model. 
 ```
 
-#### reduced
+##### reduced
 
 
 
