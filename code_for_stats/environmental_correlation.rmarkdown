@@ -325,7 +325,7 @@ usdm::vifcor(as.data.frame(predictors_site_env), th=0.8)
 
 ```{r, warning=FALSE}
 
-predictors_site_env_GM <- GM_env_sites[, -c(1:7, 19)]
+predictors_site_env_GM <- GM_env_sites[, -c(1:7, 18:19)]
 # correlation structure
 varCor_GM <- cor(predictors_site_env_GM, use="pairwise.complete.obs")
 corrplot(varCor_GM,  tl.col='black')
@@ -350,7 +350,7 @@ usdm::vifcor(as.data.frame(predictors_site_env_GM), th=0.8)
 
 ```{r, warning=FALSE}
 
-predictors_site_env_TN <- TN_env_sites[, -c(1:7, 19)]
+predictors_site_env_TN <- TN_env_sites[, -c(1:7, 18:19)]
 # correlation structure
 varCor_TN <- cor(predictors_site_env_TN, use="pairwise.complete.obs")
 corrplot(varCor_TN,  tl.col='black')

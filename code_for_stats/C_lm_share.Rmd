@@ -14,7 +14,8 @@ pacman::p_load(
   lme4,
   boot,
   MuMIn,
-  sjPlot)
+  sjPlot,
+  AICcmodavg)
   
 ```
 
@@ -87,18 +88,18 @@ c_env_sites_scale[c(11:16, 18)] <- scale(c_env_sites_scale[c(11:16, 18)], center
 c_env_sites_scale_GM <- c_env_sites_scale %>% 
   filter(park == "GM")
 
-c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 1] <- "L"
-c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 2] <- "L"
-c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 3] <- "H"
-c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 4] <- "X"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 1] <- "aL"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 2] <- "aL"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 3] <- "bH"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 4] <- "cX"
 
 c_env_sites_scale_TN <- c_env_sites_scale %>% 
   filter(park == "TN")
 
-c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 1] <- "L"
-c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 2] <- "M"
-c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 3] <- "H"
-c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 4] <- "V"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 1] <- "aL"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 2] <- "bM"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 3] <- "cH"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 4] <- "dV"
 
 
 ```
@@ -139,19 +140,19 @@ c_env_sub_scale[c(21:26, 28)] <- scale(c_env_sub_scale[c(21:26, 28)], center = F
 c_env_sub_scale_GM <- c_env_sub_scale %>% 
   filter(park_id == "GM")
 
-c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 1] <- "L"
-c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 2] <- "L"
-c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 3] <- "H"
-c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 4] <- "X"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 1] <- "aL"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 2] <- "aL"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 3] <- "bH"
+c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 4] <- "cX"
 
 
 c_env_sub_scale_TN <- c_env_sub_scale %>% 
   filter(park_id == "TN") 
 
-c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 1] <- "L"
-c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 2] <- "M"
-c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 3] <- "H"
-c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 4] <- "V"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 1] <- "aL"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 2] <- "bM"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 3] <- "cH"
+c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 4] <- "dV"
 
 ```
 
