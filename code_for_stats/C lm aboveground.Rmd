@@ -2,7 +2,11 @@
 title: "C lm aboveground"
 author: "Emmerson Wilson"
 date: "2024-01-18"
-output: html_document
+output:
+ pdf_document:
+   toc: true
+   toc_depth: 5
+classoption: landscape
 ---
 
 ```{r}
@@ -16,12 +20,12 @@ pacman::p_load(
   MuMIn,
   sjPlot,
   AICcmodavg)
-  
+options(tinytex.verbose = TRUE) 
 ```
 
-## data
+# data
 
-### c at sites
+## c at sites
 
 ```{r}
 library(httr)
@@ -36,10 +40,9 @@ req_agb1 <- GET(github_link_agb1,
            write_disk(path = temp_file_agb1))
 c_m2_sites_agb <- read_xlsx(temp_file_agb1)%>% 
   rename(unique_id = "id")
-c_m2_sites_agb
 ```
 
-### c at subplots
+## c at subplots
 
 ```{r}
 github_link_agb2 <- "https://github.com/emmwilson/C_forecasting_NL/blob/main/final%20carbon%20data/c_m2_subplot_above.xlsx?raw=true"
@@ -51,10 +54,9 @@ req_agb2 <- GET(github_link_agb2,
            # write result to disk
            write_disk(path = temp_file_agb2))
 c_m2_subplots_agb <- read_xlsx(temp_file_agb2)  
-c_m2_subplots_agb
 ```
 
-### environmental variables at sites
+## environmental variables at sites
 
 ```{r}
 github_link3 <- "https://github.com/emmwilson/C_forecasting_NL/blob/main/final%20carbon%20data/env_site_final.xlsx?raw=true"
@@ -66,7 +68,6 @@ req3 <- GET(github_link3,
            # write result to disk
            write_disk(path = temp_file3))
 env_site_final <- read_xlsx(temp_file3)
-env_site_final
 
 c_agb_env_sites <- full_join(c_m2_sites_agb, env_site_final) %>%
   dplyr::select(!c(FAC, CC, CEC_LCT, dominant))
@@ -104,7 +105,7 @@ c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 4
 
 ```
 
-### environmental variables at each subplot
+## environmental variables at each subplot
 
 ```{r}
 github_link4 <- "https://github.com/emmwilson/C_forecasting_NL/blob/main/final%20carbon%20data/env_subplots_final.xlsx?raw=true"
@@ -116,7 +117,7 @@ req4 <- GET(github_link4,
            # write result to disk
            write_disk(path = temp_file4))
 env_subplot_final <- read_xlsx(temp_file4)
-env_subplot_final
+
 
 c_agb_env_subplots <- full_join(c_m2_subplots_agb, env_subplot_final) %>%
   dplyr::select(!c(FAC, CC, CEC_LCT, SPC))
@@ -156,7 +157,7 @@ c_agb_env_sub_scale_TN["Moose_new"][c_agb_env_sub_scale_TN["Moose_new"] == 4] <-
 
 ```
 
-## model functions
+# model functions
 
 ```{r}
 source("https://github.com/emmwilson/C_forecasting_NL/blob/main/code_for_stats/lmer%20model%20functions.R?raw=true")
@@ -166,13 +167,11 @@ R2 <- function(model){
 }
 ```
 
+# GM
 
-## GM
+## by site
 
-
-#### by site
-
-##### null
+### null
 
 ```{r}
 #run the model
@@ -189,7 +188,7 @@ GM_agb_lm_null_summary <- GM_agb_lm_null_summary[,c(5,6,1:4)]
 GM_agb_lm_null_summary
 ```
 
-##### full
+### full
 
 ```{r}
 # make list of all variables to be included in full model
@@ -197,8 +196,6 @@ full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS", "Moose_n
 
 # run the model
 GM_agb_lm_full <- lm_glm(c_agb_env_sites_scale_GM, "c_m2_site_agb", full_var)
-
-# thoughts: FHT obviously important. seems no effect of moose levels - want to see if moose are correlated with forest height
 
 # add summary of model to dataframe
 GM_agb_lm_full_summary <- as.data.frame(summary(GM_agb_lm_full)$coefficients) %>% 
@@ -210,8 +207,7 @@ GM_agb_lm_full_summary <- GM_agb_lm_full_summary[,c(5,6,1:4)]
 GM_agb_lm_full_summary
 ```
 
-
-##### univariate
+### univariate
 
 ```{r}
 # run model with each predictor variable on own
@@ -223,29 +219,36 @@ names(GM_agb_lm_uni) <- full_var # make sure names of objects in list consistent
 
 GM_agb_lm_uni_summary <- lapply(GM_agb_lm_uni, summary)
 
-GM_agb_lm_uni_summary
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
+
+GM_agb_uni_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(GM_agb_lm_uni_summary, coef), as.data.frame), "model"=names(GM_agb_lm_uni_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+GM_agb_uni_summary_all <- GM_agb_uni_summary_all[,c(5,6,1:4)]
 
 #thoughts: FHT obviosuly important again. strange that full model had EVImed as sig but univariate has EVIamp as sig (will try diff combos of reduced to explore). 
 
 ```
 
-#### summary of uni, null and full
+### summary of uni, null and full
 
 ```{r}
-# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
-
-
-GM_agb_uni_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(GM_agb_lm_uni_summary, coef), as.data.frame), "model"=names(GM_agb_lm_uni_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
-GM_agb_uni_summary_all <- GM_agb_uni_summary_all[,c(5,6,1:4)]
-GM_agb_uni_summary_all
-
 # combine summary dataframes for null, full and univariate models
 GM_agb_lm_summary <- rbind(GM_agb_lm_null_summary, GM_agb_lm_full_summary, GM_agb_uni_summary_all) 
 GM_agb_lm_summary <- GM_agb_lm_summary %>% 
   mutate(significance = ifelse(GM_agb_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(GM_agb_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(GM_agb_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(GM_agb_lm_summary$`Pr(>|t|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
+
+GM_agb_lm_summary
+
+write.csv(GM_agb_lm_summary,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/GM_agb_lm_summary.csv")
+
 ```
 
-#### compare
+thoughts: FHT significant for full and unvariate models, makes sense. only other variables that are significant is EVIamp in the univariate model, and is negatively related to C, LGS in the univariate model and is positively related to C.EVIamp is often understood as "The amplitude indicates the extent of the seasonal changes in vegetation " - Zhu et al 2022. Thus, low amplitudes likely correlate to areas of coniferous trees that don't change greeness much in the year. Whereas, high EVIamp would indicate areas where the greeness changes a lot over the year (deciduous, shrubs, grasses etc).
+
+Little tangent about using EVIamp to distinguish landcover types: 
+
+ "smaller EVI amplitude of coniferous species compared to that of deciduous species" - Masasalmi & Rautiainen 2022.The EVIamp being negatively correlated with C would then indicate that stands dominated by coniferous tree have higher carbon. One paper from China found Grasslands had substantially higher amplitude than both deciduous and coniferous forests - Na-U-Dom, Mo & Garcia 2017. But from Slovakia they had a hard time destinguishing between grasslands and deciduous forest based on PCA analysis of various NDVI measures including seasonality - Clerici et al 2012
+
+### compare AIC and R2
 
 ```{r}
 # see excel "c_lm_model_results.xlsx" for consolidated values
@@ -269,81 +272,192 @@ Modnames_GM_agb_r <- paste(names(GM_agb_models_r)) # make sure names are same as
 # get table
 aic_GM_agb <- as.data.frame(aictab(cand.set = GM_agb_models_r, modnames = Modnames_GM_agb_r, sort = TRUE))
   
-# R2_GM <- as.data.frame(sapply(GM_agb_models_r, R2)) %>% setNames(c("R2")) 
-# R2_GM <- R2_GM %>% 
-#   mutate("Modnames" = rownames(R2_GM))
-# 
-# aic_R2_GM <- full_join(aic_GM, R2_GM)
+R2_GM_agb <- as.data.frame(sapply(GM_agb_models_r, R2)) %>% setNames(c("R2"))
+R2_GM_agb <- R2_GM_agb %>%
+  mutate("Modnames" = rownames(R2_GM_agb))
+
+aic_R2_GM_agb <- full_join(aic_GM_agb, R2_GM_agb)
   
-view(aic_GM_agb) # table of AIC values for null, full and univariate models
+aic_R2_GM_agb # table of AIC values for null, full and univariate models
 
 # thoughts: FHT staying strong. strange that EVImed has such high AIC but was sig in full model. AIC for EVIamp agrees with univariate model. 
+
+write.csv(aic_R2_GM_agb,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_GM_agb.csv")
 ```
 
-##### reduced
+### reduced
+
+```{r}
+names(full_var) <- full_var
+ # remove variables mostly based off of relative standing of univariate models' AICc scores. and also slightly informed by significance
+# make lists of variables to be tested in reduced models in order
+GM_agb_red_list1 <- within(full_var, rm("ELE"))
+GM_agb_red_list2 <- within(GM_agb_red_list1, rm("SLO"))
+GM_agb_red_list3 <- within(GM_agb_red_list2, rm("ASP")) # topographic don't seem important
+GM_agb_red_list4 <- within(GM_agb_red_list3, rm("EVImed")) # removing EVImed made AIC much worse so try removing something else
+GM_agb_red_list5 <- within(GM_agb_red_list3, rm("Moose_new")) #defenitely better than removing EVImed
+GM_agb_red_list6 <- within(GM_agb_red_list5, rm("EVImed"))
+GM_agb_red_list7 <- within(GM_agb_red_list5, rm("LGS"))
+GM_agb_red_list8 <- within(GM_agb_red_list6, rm("LGS"))
+GM_agb_red_list9 <- within(GM_agb_red_list5, rm("EVIamp"))
+GM_agb_red_list10 <- within(GM_agb_red_list7, rm("EVIamp"))
+
+# add lists of variables to a metalist
+GM_agb_red_list <- list(GM_agb_red_list1, GM_agb_red_list2, GM_agb_red_list3, GM_agb_red_list4, GM_agb_red_list5, GM_agb_red_list6, GM_agb_red_list7, GM_agb_red_list8, GM_agb_red_list9, GM_agb_red_list10)
 
 
+# run glm on each combination of variables
+GM_agb_lm_red <- lapply(GM_agb_red_list, lm_glm, df = c_agb_env_sites_scale_GM, c = "c_m2_site_agb")
 
+names(GM_agb_lm_red) <- lapply(GM_agb_red_list, paste0, collapse = " + ") # name each object 
 
-#### by subplot
+GM_agb_lm_red_summary <- lapply(GM_agb_lm_red, summary) # get summary of each reduced model
 
-##### null
+Modnames_GM_agb_red_r <- names(GM_agb_lm_red)
+
+# aic for reduced models
+aic_GM_agb_red <- aictab(cand.set = GM_agb_lm_red, modnames = Modnames_GM_agb_red_r, sort = TRUE)
+
+# r2 for reduced models
+R2_GM_agb_red <- as.data.frame(sapply(GM_agb_lm_red, R2)) %>% setNames(c("R2"))
+R2_GM_agb_red <- R2_GM_agb_red %>% mutate("Modnames" = rownames(R2_GM_agb_red))
+
+aic_R2_GM_agb_red <- full_join(aic_GM_agb_red, R2_GM_agb_red)
+
+aic_R2_GM_agb_red
+```
+
+### AIC and R2 for all models
+
+```{r}
+# aic for all models
+aic_GM_agb_all <- as.data.frame(aictab(cand.set = c(GM_agb_models_r, GM_agb_lm_red), modnames = names(c(GM_agb_models_r, GM_agb_lm_red)), sort = TRUE))
+
+# r2 for all models
+R2_GM_agb_all <- rbind(R2_GM_agb, R2_GM_agb_red)
+
+aic_R2_GM_agb_all <- full_join(aic_GM_agb_all, R2_GM_agb_all)
+
+# final table of AIC and r2 for GM_agb
+aic_R2_GM_agb_all
+
+write.csv(aic_R2_GM_agb_all,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_GM_agb_all.csv")
+```
+
+thoughts: There isn't much difference between the top 4 models in terms of AICc and R2. They all include FHT, and some mix of EVIamp, EVImed and LGS. Adding moose would add 2% to the explained variance (model 7 vs model 3), but it increase the AIC by almost 4.
+
+## by subplot
+
+### null
 
 ```{r}
 # fixed effects - very much pseaudoreplication but ran the models out of curiosity
-GM_agb_lm_null_sub <- lm_glm(c_agb_env_sub_scale_GM, "c_m2_subplot_agb", "1")
+GM_agb_lm_null_subfe <- lm_glm(c_agb_env_sub_scale_GM, "c_m2_subplot_agb", "1")
 
-summary(GM_agb_lm_null_sub)
+summary(GM_agb_lm_null_subfe)
 
 # mixed effects
-GM_agb_lm_null_site_sub <- lm_lmer(c_agb_env_sub_scale_GM, "c_m2_subplot_agb", "1")
+GM_agb_lm_null_sub <- lm_lmer(c_agb_env_sub_scale_GM, "c_m2_subplot_agb", "1")
 
-GM_agb_lm_null_site_sub_summary <- summary(GM_agb_lm_null_site_sub)
-r.squaredGLMM(GM_agb_lm_null_site_sub)
+# get the summary of the model into a dataframe
+GM_agb_lm_null_sub_summary <- as.data.frame(summary(GM_agb_lm_null_sub)$coefficients) %>% 
+  mutate(model = "GM_agb_lm_null_sub") 
+GM_agb_lm_null_sub_summary <- GM_agb_lm_null_sub_summary %>% 
+  add_column("predictor" = rownames(GM_agb_lm_null_sub_summary))
+
+# reorder columns so model name first
+GM_agb_lm_null_sub_summary <- GM_agb_lm_null_sub_summary[,c(1,5,2:4)]
+GM_agb_lm_null_sub_summary
 ```
 
-##### full
+### full
 
 ```{r}
 # fixed effects
 
-GM_agb_lm_full_sub <- lm_glm(c_agb_env_sub_scale_GM, "c_m2_subplot_agb", full_var)
-summary(GM_agb_lm_full_sub)
+GM_agb_lm_full_subfe <- lm_glm(c_agb_env_sub_scale_GM, "c_m2_subplot_agb", full_var)
+summary(GM_agb_lm_full_subfe)
 
 # mixed effects
-GM_agb_lm_full_site_sub <- lm_lmer(c_agb_env_sub_scale_GM, "c_m2_subplot_agb", full_var)
+GM_agb_lm_full_sub <- lm_lmer(c_agb_env_sub_scale_GM, "c_m2_subplot_agb", full_var)
 
-summary(GM_agb_lm_full_site_sub)
-r.squaredGLMM(GM_agb_lm_full_site_sub)
+
+# get the summary of the model into a dataframe
+GM_agb_lm_full_sub_summary <- as.data.frame(summary(GM_agb_lm_full_sub)$coefficients) %>% 
+  mutate(model = "GM_agb_lm_full_sub") 
+GM_agb_lm_full_sub_summary <- GM_agb_lm_full_sub_summary %>% 
+  add_column("predictor" = rownames(GM_agb_lm_full_sub_summary))
+
+# reorder columns so model name first
+GM_agb_lm_full_sub_summary <- GM_agb_lm_full_sub_summary[,c(1,5,2:4)]
+GM_agb_lm_full_sub_summary
 ```
 
-##### univariate
+
+### univariate
 
 ```{r}
 # fixed effects
 
-GM_agb_lm_uni_sub <- lapply(full_var, lm_glm, df = c_agb_env_sub_scale_GM, c = "c_m2_subplot_agb")
+GM_agb_lm_uni_subfe <- lapply(full_var, lm_glm, df = c_agb_env_sub_scale_GM, c = "c_m2_subplot_agb")
+
+names(GM_agb_lm_uni_subfe) <- full_var
+
+GM_agb_lm_uni_subfe_summary <- lapply(GM_agb_lm_uni_subfe, summary)
+
+# mixed effects
+
+GM_agb_lm_uni_sub <- lapply(full_var, lm_lmer, df = c_agb_env_sub_scale_GM, c = "c_m2_subplot_agb")
 
 names(GM_agb_lm_uni_sub) <- full_var
 
 GM_agb_lm_uni_sub_summary <- lapply(GM_agb_lm_uni_sub, summary)
-GM_agb_lm_uni_sub_summary
 
-# mixed effects
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
 
-GM_agb_lm_uni_site_sub <- lapply(full_var, lm_lmer, df = c_agb_env_sub_scale_GM, c = "c_m2_subplot_agb")
+GM_agb_uni_sub_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(GM_agb_lm_uni_sub_summary, coef), as.data.frame), "model"=names(GM_agb_lm_uni_sub_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+GM_agb_uni_sub_summary_all <- GM_agb_uni_sub_summary_all[,c(1,5,2:4)]
 
-names(GM_agb_lm_uni_site_sub) <- full_var
+GM_agb_lm_uni_sub_r2 <- lapply(GM_agb_lm_uni_sub, r.squaredGLMM)
 
-GM_agb_lm_uni_site_sub_summary <- lapply(GM_agb_lm_uni_site_sub, summary)
-
-GM_agb_lm_uni_site_sub_r2 <- lapply(GM_agb_lm_uni_site_sub, r.squaredGLMM)
-GM_agb_lm_uni_site_sub_r2
 ```
 
-#### compare
+### summary of uni, null and full
 
 ```{r}
+
+# combine summary dataframes for null, full and univariate models
+GM_agb_lm_sub_summary <- rbind(GM_agb_lm_null_sub_summary, GM_agb_lm_full_sub_summary, GM_agb_uni_sub_summary_all) 
+GM_agb_lm_sub_summary
+
+write.csv(GM_agb_lm_sub_summary,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/GM_agb_lm_sub_summary.csv")
+
+```
+
+thoughts: we don't get significance through summary but we can compare coefficients to the model run against c at sites without random effects. FHT has a similar coefficient for univariate and full model, with a slightly smaller standard error. Coefficient for EVIamp in a univariate model is still negative but slightly closer to 0, with a similar standard error. And the coefficient for LGS in a univariate model is still positive, but smaller with a smaller standard error. It is reassuring that the sign and general magnitude of coefficients are similar across fixed effects and random effects models.
+
+### compare AIC and R2
+
+```{r}
+GM_agb_models_subfe_r <- list()
+
+GM_agb_models_subfe_r[["GM_agb_lm_null_subfe"]] <- GM_agb_lm_null_subfe
+GM_agb_models_subfe_r[["GM_agb_lm_full_subfe"]] <- GM_agb_lm_full_subfe
+GM_agb_models_subfe_r[[names(GM_agb_lm_uni_subfe)[1]]] <- GM_agb_lm_uni_subfe[[1]]
+GM_agb_models_subfe_r[[names(GM_agb_lm_uni_subfe)[2]]] <- GM_agb_lm_uni_subfe[[2]]
+GM_agb_models_subfe_r[[names(GM_agb_lm_uni_subfe)[3]]] <- GM_agb_lm_uni_subfe[[3]]
+GM_agb_models_subfe_r[[names(GM_agb_lm_uni_subfe)[4]]] <- GM_agb_lm_uni_subfe[[4]]
+GM_agb_models_subfe_r[[names(GM_agb_lm_uni_subfe)[5]]] <- GM_agb_lm_uni_subfe[[5]]
+GM_agb_models_subfe_r[[names(GM_agb_lm_uni_subfe)[6]]] <- GM_agb_lm_uni_subfe[[6]]
+GM_agb_models_subfe_r[[names(GM_agb_lm_uni_subfe)[7]]] <- GM_agb_lm_uni_subfe[[7]]
+GM_agb_models_subfe_r[[names(GM_agb_lm_uni_subfe)[8]]] <- GM_agb_lm_uni_subfe[[8]]
+
+Modnames_GM_agb_subfe_r <- paste(names(GM_agb_models_subfe_r))
+
+# get table
+aic_GM_agb_sub_fe <- aictab(cand.set = GM_agb_models_subfe_r, modnames = Modnames_GM_agb_subfe_r, sort = TRUE)
+
+#mixed effect
 GM_agb_models_sub_r <- list()
 
 GM_agb_models_sub_r[["GM_agb_lm_null_sub"]] <- GM_agb_lm_null_sub
@@ -360,45 +474,114 @@ GM_agb_models_sub_r[[names(GM_agb_lm_uni_sub)[8]]] <- GM_agb_lm_uni_sub[[8]]
 Modnames_GM_agb_sub_r <- paste(names(GM_agb_models_sub_r))
 
 # get table
-aic_GM_agb_sub_fe <- aictab(cand.set = GM_agb_models_sub_r, modnames = Modnames_GM_agb_sub_r, sort = TRUE) %>% 
-  mutate(R2m = sapply(lapply(GM_agb_models_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-  mutate(R2c = sapply(lapply(GM_agb_models_sub_r, r.squaredGLMM), "[[", 2))
+ aic_GM_agb_sub <- aictab(cand.set = GM_agb_models_sub_r, modnames = Modnames_GM_agb_sub_r, sort = TRUE) 
 
+R2_GM_agb_sub <- as.data.frame(sapply(GM_agb_models_sub_r, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_GM_agb_sub <- R2_GM_agb_sub %>% 
+   mutate("Modnames" = rownames(R2_GM_agb_sub))
 
-GM_agb_models_site_sub_r <- list()
+aic_R2_GM_agb_sub <- full_join(aic_GM_agb_sub, R2_GM_agb_sub)
+ 
+aic_R2_GM_agb_sub
 
-GM_agb_models_site_sub_r[["GM_agb_lm_null_site_sub"]] <- GM_agb_lm_null_site_sub
-GM_agb_models_site_sub_r[["GM_agb_lm_full_site_sub"]] <- GM_agb_lm_full_site_sub
-GM_agb_models_site_sub_r[[names(GM_agb_lm_uni_site_sub)[1]]] <- GM_agb_lm_uni_site_sub[[1]]
-GM_agb_models_site_sub_r[[names(GM_agb_lm_uni_site_sub)[2]]] <- GM_agb_lm_uni_site_sub[[2]]
-GM_agb_models_site_sub_r[[names(GM_agb_lm_uni_site_sub)[3]]] <- GM_agb_lm_uni_site_sub[[3]]
-GM_agb_models_site_sub_r[[names(GM_agb_lm_uni_site_sub)[4]]] <- GM_agb_lm_uni_site_sub[[4]]
-GM_agb_models_site_sub_r[[names(GM_agb_lm_uni_site_sub)[5]]] <- GM_agb_lm_uni_site_sub[[5]]
-GM_agb_models_site_sub_r[[names(GM_agb_lm_uni_site_sub)[6]]] <- GM_agb_lm_uni_site_sub[[6]]
-GM_agb_models_site_sub_r[[names(GM_agb_lm_uni_site_sub)[7]]] <- GM_agb_lm_uni_site_sub[[7]]
-GM_agb_models_site_sub_r[[names(GM_agb_lm_uni_site_sub)[8]]] <- GM_agb_lm_uni_site_sub[[8]]
-
-Modnames_GM_agb_site_sub_r <- paste(names(GM_agb_models_site_sub_r))
-
-# get table
- aic_GM_agb_sub <- aictab(cand.set = GM_agb_models_site_sub_r, modnames = Modnames_GM_agb_site_sub_r, sort = TRUE) 
-#   mutate(R2m = sapply(lapply(GM_agb_models_site_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-#   mutate(R2c = sapply(lapply(GM_agb_models_site_sub_r, r.squaredGLMM), "[[", 2))
-view(aic_GM_agb_sub)
+write.csv(aic_R2_GM_agb_sub,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_GM_agb_sub.csv")
 ```
 
-##### reduced
+### reduced
+
+```{r}
+names(full_var) <- full_var
+
+GM_agb_sub_red_list1 <- within(full_var, rm("ELE"))
+GM_agb_sub_red_list2 <- within(GM_agb_sub_red_list1, rm("SLO"))
+GM_agb_sub_red_list3 <- within(GM_agb_sub_red_list2, rm("EVImed"))
+GM_agb_sub_red_list4 <- within(GM_agb_sub_red_list2, rm("Moose_new"))
+GM_agb_sub_red_list5 <- within(GM_agb_sub_red_list3, rm("Moose_new"))
+GM_agb_sub_red_list6 <- within(GM_agb_sub_red_list4, rm("EVIamp"))
+GM_agb_sub_red_list7 <- within(GM_agb_sub_red_list5, rm("EVIamp"))
+GM_agb_sub_red_list8 <- within(GM_agb_sub_red_list6, rm("LGS"))
+GM_agb_sub_red_list9 <- within(GM_agb_sub_red_list6, rm("ASP")) # taking out aspect bad
+GM_agb_sub_red_list10 <- within(GM_agb_sub_red_list8, rm("ASP")) 
+
+GM_agb_sub_red_list <- list(GM_agb_sub_red_list1, GM_agb_sub_red_list2, GM_agb_sub_red_list3, GM_agb_sub_red_list4, GM_agb_sub_red_list5, GM_agb_sub_red_list6, GM_agb_sub_red_list7, GM_agb_sub_red_list8, GM_agb_sub_red_list9, GM_agb_sub_red_list10)
+
+GM_agb_sub_lm_red <- lapply(GM_agb_sub_red_list, lm_lmer, df = c_agb_env_sub_scale_GM, c = "c_m2_subplot_agb")
+
+names(GM_agb_sub_lm_red) <- lapply(GM_agb_sub_red_list, paste0, collapse = " + ") # make names of functions the formula not list of "var = var"
+
+GM_agb_sub_lm_red_summary <- lapply(GM_agb_sub_lm_red, summary)
 
 
-## TN
+Modnames_GM_agb_sub_red_r <- names(GM_agb_sub_lm_red)
+#this calculates corrected AIC so slightly different values than normal AIC
+
+# table for just reduced models
+aic_GM_agb_sub_red <- aictab(cand.set = GM_agb_sub_lm_red, modnames = Modnames_GM_agb_sub_red_r, sort = TRUE) 
+
+R2_GM_agb_sub_red <- as.data.frame(sapply(GM_agb_sub_lm_red, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_GM_agb_sub_red <- R2_GM_agb_sub_red %>% 
+   mutate("Modnames" = rownames(R2_GM_agb_sub_red))
+
+aic_R2_GM_agb_sub_red <- full_join(aic_GM_agb_sub_red, R2_GM_agb_sub_red)
 
 
-#### by site
+```
 
-##### null
+### AIC and R2 for all models
+
+```{r}
+# table for all models
+aic_GM_agb_sub_all <- aictab(cand.set = c(GM_agb_models_sub_r, GM_agb_sub_lm_red), modnames = c(Modnames_GM_agb_sub_r, Modnames_GM_agb_sub_red_r), sort = TRUE) 
+
+R2_GM_agb_sub_all <- rbind(R2_GM_agb_sub, R2_GM_agb_sub_red)
+
+aic_R2_GM_agb_sub_all <- as.data.frame(full_join(aic_GM_agb_sub_all, R2_GM_agb_sub_all))
+
+aic_R2_GM_agb_sub_all
+
+
+write.csv(aic_R2_GM_agb_sub_all,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_GM_agb_sub_all.csv")
+```
+
+thoughts: FHT, EVIamp, EVImed and LGS all make the top models. There is the addition of aspect in the top models, the AIC gets much higher if aspect gets removed (model 10 is the best model without aspect and its deltaAIC is 20). I think I need to change the way aspect is included, right now 360 is the furthest away from 0 (north), when in reality that is the closest you can get to north. I would expect the relationship between C and aspect to be unimodal but the model is constrained to linear. If we change it to true distance from 0, N would always be 0, S would be +180 and -180, E would be +90 and W would be -90. Do you think that works?
+All the models' R2c values are within about 3% of each other so that isn't super helpful for choosing a model. The R2c is 10-15% better than the R2 of the fixed effect models. However, the R2m is 10 - 15% lower than the R2 of the fixed effects. I take this to mean accounting for random effect of site explained some of the variance the fixed models were attributing to the environmental variables. 
+
+
+### moose related to EVIamp
+know this is true for TN so try for GM
+
+EVIamp is correlated to gaps, but not to moose densities
+```{r}
+summary(lm(c_agb_env_sites_scale_GM$EVIamp ~ c_agb_env_sites_scale_GM$Moose_new))
+
+summary(lm(c_agb_env_sites_scale_GM$EVIamp ~ c_agb_env_sites_scale_GM$gap))
+
+summary(lm(c_agb_env_sub_scale_GM$EVIamp ~ c_agb_env_sub_scale_GM$Moose_new))
+
+summary(lm(c_agb_env_sub_scale_GM$EVIamp ~ c_agb_env_sub_scale_GM$gap))
+
+```
+
+# TN
+
+## temporarily setTN 05
+
+
+```{r}
+c_agb_env_sites_scale_TN$Moose_new <-replace_na(c_agb_env_sites_scale_TN$Moose_new, "cH")
+
+c_agb_env_sub_scale_TN$Moose_new <-replace_na(c_agb_env_sub_scale_TN$Moose_new, "cH")
+```
+
+
+
+## by site
+
+### null
 
 ```{r}
 #run the model
+
 TN_agb_lm_null <- lm_glm(c_agb_env_sites_scale_TN, "c_m2_site_agb", "1")
 
 # get the summary of the model into a dataframe
@@ -412,7 +595,7 @@ TN_agb_lm_null_summary <- TN_agb_lm_null_summary[,c(5,6,1:4)]
 TN_agb_lm_null_summary
 ```
 
-##### full
+### full
 
 ```{r}
 # make list of all variables to be included in full model
@@ -433,8 +616,7 @@ TN_agb_lm_full_summary <- TN_agb_lm_full_summary[,c(5,6,1:4)]
 TN_agb_lm_full_summary
 ```
 
-
-##### univariate
+### univariate
 
 ```{r}
 # run model with each predictor variable on own
@@ -446,29 +628,32 @@ names(TN_agb_lm_uni) <- full_var # make sure names of objects in list consistent
 
 TN_agb_lm_uni_summary <- lapply(TN_agb_lm_uni, summary)
 
-TN_agb_lm_uni_summary
-
-#thoughts: FHT obviosuly important again. strange that full model had EVImed as sig but univariate has EVIamp as sig (will try diff combos of reduced to explore). 
-
-```
-
-#### summary of uni, null and full
-
-```{r}
 # get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
 
 
 TN_agb_uni_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(TN_agb_lm_uni_summary, coef), as.data.frame), "model"=names(TN_agb_lm_uni_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
 TN_agb_uni_summary_all <- TN_agb_uni_summary_all[,c(5,6,1:4)]
-TN_agb_uni_summary_all
+
+```
+
+### summary of uni, null and full
+
+```{r}
+
 
 # combine summary dataframes for null, full and univariate models
 TN_agb_lm_summary <- rbind(TN_agb_lm_null_summary, TN_agb_lm_full_summary, TN_agb_uni_summary_all) 
 TN_agb_lm_summary <- TN_agb_lm_summary %>% 
   mutate(significance = ifelse(TN_agb_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(TN_agb_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(TN_agb_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(TN_agb_lm_summary$`Pr(>|t|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
+TN_agb_lm_summary
+
+write.csv(TN_agb_lm_summary,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/TN_agb_lm_summary.csv")
 ```
 
-#### compare
+thoughts:FHT still significant in both full and univariate models, and has similar coefficients to the fixed effects model for GM. For TN, the other significant variable is slope, which is positively associated with carbon. Steeper slopes tend to get more solar radiation, which can increase photosynthesis and therefore C uptake. Apparently, increased slope can increase productivity of black spruce dominated stands, whereas it doesn't seem to effect balsam fir stands - Boucher et al 2006. This would help account for the differenct between parks. Steepness has been correlated to species distributions (black spruce do better in a wider range of environmental conditions vs balsam fir). 
+The coefficients for moose are larger in abg only model than total c, but still insig. Also there is a huge difference in the coefficient for high moose between full model and univariate model. The variation in moose must be correlated iwth another variable. There is also a lot of varition (large std error)
+
+### compare AIC and R2
 
 ```{r}
 # see excel "c_lm_model_results.xlsx" for consolidated values
@@ -492,81 +677,219 @@ Modnames_TN_agb_r <- paste(names(TN_agb_models_r)) # make sure names are same as
 # get table
 aic_TN_agb <- as.data.frame(aictab(cand.set = TN_agb_models_r, modnames = Modnames_TN_agb_r, sort = TRUE))
   
-# R2_TN <- as.data.frame(sapply(TN_agb_models_r, R2)) %>% setNames(c("R2")) 
-# R2_TN <- R2_TN %>% 
-#   mutate("Modnames" = rownames(R2_TN))
-# 
-# aic_R2_TN <- full_join(aic_TN, R2_TN)
+R2_TN_agb <- as.data.frame(sapply(TN_agb_models_r, R2)) %>% setNames(c("R2"))
+R2_TN_agb <- R2_TN_agb %>%
+  mutate("Modnames" = rownames(R2_TN_agb))
+
+aic_R2_TN_agb <- full_join(aic_TN_agb, R2_TN_agb)
   
-view(aic_TN_agb) # table of AIC values for null, full and univariate models
+aic_R2_TN_agb # table of AIC values for null, full and univariate models
+
+write.csv(aic_R2_TN_agb,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_TN_agb.csv")
 
 # thoughts: FHT staying strong. strange that EVImed has such high AIC but was sig in full model. AIC for EVIamp agrees with univariate model. 
 ```
 
-##### reduced
-
-
-
-
-#### by subplot
-
-##### null
+### reduced
 
 ```{r}
+names(full_var) <- full_var
+
+# make lists of variables to be tested in reduced models in order
+TN_agb_red_list1 <- within(full_var, rm("LGS"))
+TN_agb_red_list2 <- within(TN_agb_red_list1, rm("ASP"))
+TN_agb_red_list3 <- within(TN_agb_red_list2, rm("EVImed"))
+TN_agb_red_list4 <- within(TN_agb_red_list3, rm("EVIamp"))
+TN_agb_red_list5 <- within(TN_agb_red_list4, rm("Moose_new"))
+TN_agb_red_list6 <- within(TN_agb_red_list5, rm("ELE"))
+TN_agb_red_list7 <- within(TN_agb_red_list3, rm("Moose_new"))
+TN_agb_red_list8 <- within(TN_agb_red_list7, rm("ELE"))
+TN_agb_red_list9 <- within(TN_agb_red_list8, rm("SLO"))
+TN_agb_red_list10 <- within(TN_agb_red_list4, rm("SLO"))
+TN_agb_red_list11 <- within(TN_agb_red_list4, rm("ELE", "SLO"))
+TN_agb_red_list12 <- within(TN_agb_red_list4, rm("ELE"))
+
+# add lists of variables to a metalist
+TN_agb_red_list <- list(TN_agb_red_list1, TN_agb_red_list2, TN_agb_red_list3, TN_agb_red_list4, TN_agb_red_list5, TN_agb_red_list6, TN_agb_red_list7, TN_agb_red_list8, TN_agb_red_list9, TN_agb_red_list10, TN_agb_red_list11, TN_agb_red_list12)
+
+
+# run glm on each combination of variables
+TN_agb_lm_red <- lapply(TN_agb_red_list, lm_glm, df = c_agb_env_sites_scale_TN, c = "c_m2_site_agb")
+
+names(TN_agb_lm_red) <- lapply(TN_agb_red_list, paste0, collapse = " + ") # name each object 
+
+TN_agb_lm_red_summary <- lapply(TN_agb_lm_red, summary) # get summary of each reduced model
+TN_agb_lm_red_summary
+
+Modnames_TN_agb_red_r <- names(TN_agb_lm_red)
+
+# aic for reduced models
+aic_TN_agb_red <- aictab(cand.set = TN_agb_lm_red, modnames = Modnames_TN_agb_red_r, sort = TRUE)
+
+# r2 for reduced models
+R2_TN_agb_red <- as.data.frame(sapply(TN_agb_lm_red, R2)) %>% setNames(c("R2"))
+R2_TN_agb_red <- R2_TN_agb_red %>% mutate("Modnames" = rownames(R2_TN_agb_red))
+
+aic_R2_TN_agb_red <- full_join(aic_TN_agb_red, R2_TN_agb_red)
+
+view(aic_R2_TN_agb_red)
+```
+
+### AIC and R2 for all models
+
+```{r}
+
+# aic for all models
+aic_TN_agb_all <- as.data.frame(aictab(cand.set = c(TN_agb_models_r, TN_agb_lm_red), modnames = names(c(TN_agb_models_r, TN_agb_lm_red)), sort = TRUE))
+
+# r2 for all models
+R2_TN_agb_all <- rbind(R2_TN_agb, R2_TN_agb_red)
+
+aic_R2_TN_agb_all <- full_join(aic_TN_agb_all, R2_TN_agb_all)
+
+# final table of AIC and r2 for TN_agb
+aic_R2_TN_agb_all
+
+# makes sense that the pattern changes for TN when we remove soil C. there is much more difference between gap and mature soil c in TN than GM
+
+write.csv(aic_R2_TN_agb_all,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_TN_agb_all.csv")
+```
+
+thoughts: FHT seems to be the best on it's own for TN. We could get 5% exra explained variance by adding SLO (which was a significant univariate model) and EVIamp, but at the trade off of 2 deltaAIC. Just adding SLO only accounts for about 2% extra explained variance, with a deltaAIC of 1.2
+
+bit more on moose: when trying the reduced models, the coefficient for H moose jumps almost an order of magnitude when I remove EVIamp. I did an anova and they are significantly correlated. The relationship is positive, indicating higher EVIamp at higher moose densisties. This could be because high EVIamp may be associated with gaps (or decisuous stands) and that is where moose like to be. If you see below, gaps significantly related to EVIamp, with mature stands having lower EVIamp (less seasonal change in greeness). Testing the relationship between moose densitites and gaps at each site wouldn't give any info because I sepcifically included even numbers of each moose density at gaps and mature stands. Could look over entire park.
+These patterns hold for subplot models as well.
+
+```{r}
+summary(lm(c_agb_env_sites_scale_TN$EVIamp ~ c_agb_env_sites_scale_TN$Moose_new))
+
+summary(lm(c_agb_env_sites_scale_TN$EVIamp ~ c_agb_env_sites_scale_TN$gap))
+
+```
+
+
+## by subplot
+
+
+
+### is moose and eviamp correlated at subplot level
+```{r}
+summary(lm(c_agb_env_sub_scale_TN$EVIamp ~ c_agb_env_sub_scale_TN$Moose_new))
+
+summary(lm(c_agb_env_sub_scale_TN$EVIamp ~ c_agb_env_sub_scale_TN$gap))
+
+```
+
+### null
+
+```{r}
+
 # fixed effects - very much pseaudoreplication but ran the models out of curiosity
-TN_agb_lm_null_sub <- lm_glm(c_agb_env_sub_scale_TN, "c_m2_subplot_agb", "1")
+TN_agb_lm_null_subfe <- lm_glm(c_agb_env_sub_scale_TN, "c_m2_subplot_agb", "1")
 
-summary(TN_agb_lm_null_sub)
+summary(TN_agb_lm_null_subfe)
 
 # mixed effects
-TN_agb_lm_null_site_sub <- lm_lmer(c_agb_env_sub_scale_TN, "c_m2_subplot_agb", "1")
+TN_agb_lm_null_sub <- lm_lmer(c_agb_env_sub_scale_TN, "c_m2_subplot_agb", "1")
 
-TN_agb_lm_null_site_sub_summary <- summary(TN_agb_lm_null_site_sub)
-r.squaredGLMM(TN_agb_lm_null_site_sub)
+# get the summary of the model into a dataframe
+TN_agb_lm_null_sub_summary <- as.data.frame(summary(TN_agb_lm_null_sub)$coefficients) %>% 
+  mutate(model = "TN_agb_lm_null_sub") 
+TN_agb_lm_null_sub_summary <- TN_agb_lm_null_sub_summary %>% 
+  add_column("predictor" = rownames(TN_agb_lm_null_sub_summary))
+
+# reorder columns so model name first
+TN_agb_lm_null_sub_summary <- TN_agb_lm_null_sub_summary[,c(1,5,2:4)]
+TN_agb_lm_null_sub_summary
 ```
 
-##### full
+### full
 
 ```{r}
 # fixed effects
 
-TN_agb_lm_full_sub <- lm_glm(c_agb_env_sub_scale_TN, "c_m2_subplot_agb", full_var)
-summary(TN_agb_lm_full_sub)
+TN_agb_lm_full_subfe <- lm_glm(c_agb_env_sub_scale_TN, "c_m2_subplot_agb", full_var)
+summary(TN_agb_lm_full_subfe)
 
 # mixed effects
-TN_agb_lm_full_site_sub <- lm_lmer(c_agb_env_sub_scale_TN, "c_m2_subplot_agb", full_var)
+TN_agb_lm_full_sub <- lm_lmer(c_agb_env_sub_scale_TN, "c_m2_subplot_agb", full_var)
 
-summary(TN_agb_lm_full_site_sub)
-r.squaredGLMM(TN_agb_lm_full_site_sub)
+# get the summary of the model into a dataframe
+TN_agb_lm_full_sub_summary <- as.data.frame(summary(TN_agb_lm_full_sub)$coefficients) %>% 
+  mutate(model = "TN_agb_lm_full_sub") 
+TN_agb_lm_full_sub_summary <- TN_agb_lm_full_sub_summary %>% 
+  add_column("predictor" = rownames(TN_agb_lm_full_sub_summary))
+
+# reorder columns so model name first
+TN_agb_lm_full_sub_summary <- TN_agb_lm_full_sub_summary[,c(1,5,2:4)]
+TN_agb_lm_full_sub_summary
 ```
 
-##### univariate
+### univariate
 
 ```{r}
 # fixed effects
 
-TN_agb_lm_uni_sub <- lapply(full_var, lm_glm, df = c_agb_env_sub_scale_TN, c = "c_m2_subplot_agb")
+TN_agb_lm_uni_subfe <- lapply(full_var, lm_glm, df = c_agb_env_sub_scale_TN, c = "c_m2_subplot_agb")
+
+names(TN_agb_lm_uni_subfe) <- full_var
+
+TN_agb_lm_uni_subfe_summary <- lapply(TN_agb_lm_uni_subfe, summary)
+TN_agb_lm_uni_subfe_summary
+
+# mixed effects
+
+TN_agb_lm_uni_sub <- lapply(full_var, lm_lmer, df = c_agb_env_sub_scale_TN, c = "c_m2_subplot_agb")
 
 names(TN_agb_lm_uni_sub) <- full_var
 
 TN_agb_lm_uni_sub_summary <- lapply(TN_agb_lm_uni_sub, summary)
-TN_agb_lm_uni_sub_summary
 
-# mixed effects
+TN_agb_lm_uni_sub_r2 <- lapply(TN_agb_lm_uni_sub, r.squaredGLMM)
 
-TN_agb_lm_uni_site_sub <- lapply(full_var, lm_lmer, df = c_agb_env_sub_scale_TN, c = "c_m2_subplot_agb")
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
 
-names(TN_agb_lm_uni_site_sub) <- full_var
-
-TN_agb_lm_uni_site_sub_summary <- lapply(TN_agb_lm_uni_site_sub, summary)
-
-TN_agb_lm_uni_site_sub_r2 <- lapply(TN_agb_lm_uni_site_sub, r.squaredGLMM)
-TN_agb_lm_uni_site_sub_r2
+TN_agb_uni_sub_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(TN_agb_lm_uni_sub_summary, coef), as.data.frame), "model"=names(TN_agb_lm_uni_sub_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+TN_agb_uni_sub_summary_all <- TN_agb_uni_sub_summary_all[,c(1,5,2:4)]
 ```
 
-#### compare
+### summary of uni, null and full
 
 ```{r}
+
+# combine summary dataframes for null, full and univariate models
+TN_agb_lm_sub_summary <- rbind(TN_agb_lm_null_sub_summary, TN_agb_lm_full_sub_summary, TN_agb_uni_sub_summary_all) 
+
+TN_agb_lm_sub_summary
+
+write.csv(TN_agb_lm_sub_summary,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/TN_agb_lm_sub_summary.csv")
+
+```
+
+thoughts: again can compare coefficients to the fixed effect models on c at site level. FHT has a smaller coefficient in th emixed model , and smaller std dev, for the full model and univariate. For the univariate models, slope also has a smaller coefficient in th emixed model , and smaller std dev. so the sign and relative magnitude of the two significant variables in the fixed effect mdoel stays the same in the mixed models
+
+### compare AIC and R2
+
+```{r}
+TN_agb_models_subfe_r <- list()
+
+TN_agb_models_subfe_r[["TN_agb_lm_null_subfe"]] <- TN_agb_lm_null_subfe
+TN_agb_models_subfe_r[["TN_agb_lm_full_subfe"]] <- TN_agb_lm_full_subfe
+TN_agb_models_subfe_r[[names(TN_agb_lm_uni_subfe)[1]]] <- TN_agb_lm_uni_subfe[[1]]
+TN_agb_models_subfe_r[[names(TN_agb_lm_uni_subfe)[2]]] <- TN_agb_lm_uni_subfe[[2]]
+TN_agb_models_subfe_r[[names(TN_agb_lm_uni_subfe)[3]]] <- TN_agb_lm_uni_subfe[[3]]
+TN_agb_models_subfe_r[[names(TN_agb_lm_uni_subfe)[4]]] <- TN_agb_lm_uni_subfe[[4]]
+TN_agb_models_subfe_r[[names(TN_agb_lm_uni_subfe)[5]]] <- TN_agb_lm_uni_subfe[[5]]
+TN_agb_models_subfe_r[[names(TN_agb_lm_uni_subfe)[6]]] <- TN_agb_lm_uni_subfe[[6]]
+TN_agb_models_subfe_r[[names(TN_agb_lm_uni_subfe)[7]]] <- TN_agb_lm_uni_subfe[[7]]
+TN_agb_models_subfe_r[[names(TN_agb_lm_uni_subfe)[8]]] <- TN_agb_lm_uni_subfe[[8]]
+
+Modnames_TN_agb_subfe_r <- paste(names(TN_agb_models_subfe_r))
+
+# get table
+aic_TN_agb_sub_fe <- aictab(cand.set = TN_agb_models_subfe_r, modnames = Modnames_TN_agb_subfe_r, sort = TRUE) 
+
+
 TN_agb_models_sub_r <- list()
 
 TN_agb_models_sub_r[["TN_agb_lm_null_sub"]] <- TN_agb_lm_null_sub
@@ -583,33 +906,123 @@ TN_agb_models_sub_r[[names(TN_agb_lm_uni_sub)[8]]] <- TN_agb_lm_uni_sub[[8]]
 Modnames_TN_agb_sub_r <- paste(names(TN_agb_models_sub_r))
 
 # get table
-aic_TN_agb_sub_fe <- aictab(cand.set = TN_agb_models_sub_r, modnames = Modnames_TN_agb_sub_r, sort = TRUE) %>% 
-  mutate(R2m = sapply(lapply(TN_agb_models_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-  mutate(R2c = sapply(lapply(TN_agb_models_sub_r, r.squaredGLMM), "[[", 2))
-
-
-TN_agb_models_site_sub_r <- list()
-
-TN_agb_models_site_sub_r[["TN_agb_lm_null_site_sub"]] <- TN_agb_lm_null_site_sub
-TN_agb_models_site_sub_r[["TN_agb_lm_full_site_sub"]] <- TN_agb_lm_full_site_sub
-TN_agb_models_site_sub_r[[names(TN_agb_lm_uni_site_sub)[1]]] <- TN_agb_lm_uni_site_sub[[1]]
-TN_agb_models_site_sub_r[[names(TN_agb_lm_uni_site_sub)[2]]] <- TN_agb_lm_uni_site_sub[[2]]
-TN_agb_models_site_sub_r[[names(TN_agb_lm_uni_site_sub)[3]]] <- TN_agb_lm_uni_site_sub[[3]]
-TN_agb_models_site_sub_r[[names(TN_agb_lm_uni_site_sub)[4]]] <- TN_agb_lm_uni_site_sub[[4]]
-TN_agb_models_site_sub_r[[names(TN_agb_lm_uni_site_sub)[5]]] <- TN_agb_lm_uni_site_sub[[5]]
-TN_agb_models_site_sub_r[[names(TN_agb_lm_uni_site_sub)[6]]] <- TN_agb_lm_uni_site_sub[[6]]
-TN_agb_models_site_sub_r[[names(TN_agb_lm_uni_site_sub)[7]]] <- TN_agb_lm_uni_site_sub[[7]]
-TN_agb_models_site_sub_r[[names(TN_agb_lm_uni_site_sub)[8]]] <- TN_agb_lm_uni_site_sub[[8]]
-
-Modnames_TN_agb_site_sub_r <- paste(names(TN_agb_models_site_sub_r))
-
 # get table
- aic_TN_agb_sub <- aictab(cand.set = TN_agb_models_site_sub_r, modnames = Modnames_TN_agb_site_sub_r, sort = TRUE) 
-#   mutate(R2m = sapply(lapply(TN_agb_models_site_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-#   mutate(R2c = sapply(lapply(TN_agb_models_site_sub_r, r.squaredGLMM), "[[", 2))
-view(aic_TN_agb_sub)
+ aic_TN_agb_sub <- aictab(cand.set = TN_agb_models_sub_r, modnames = Modnames_TN_agb_sub_r, sort = TRUE) 
+
+R2_TN_agb_sub <- as.data.frame(sapply(TN_agb_models_sub_r, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_TN_agb_sub <- R2_TN_agb_sub %>% 
+   mutate("Modnames" = rownames(R2_TN_agb_sub))
+
+aic_R2_TN_agb_sub <- full_join(aic_TN_agb_sub, R2_TN_agb_sub)
+
+aic_R2_TN_agb_sub
+
+write.csv(aic_R2_TN_agb_sub,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_TN_agb_sub.csv")
 ```
 
-##### reduced
+### reduced
+these were based off TN05 being NA so redid below
+
+```{r}
+names(full_var) <- full_var
+
+TN_agb_sub_red_list1 <- within(full_var, rm("EVIamp"))
+TN_agb_sub_red_list2 <- within(TN_agb_sub_red_list1, rm("EVImed"))
+TN_agb_sub_red_list3 <- within(TN_agb_sub_red_list2, rm("LGS"))
+TN_agb_sub_red_list4 <- within(TN_agb_sub_red_list3, rm("ELE"))
+TN_agb_sub_red_list5 <- within(full_var, rm("ELE")) # only remove ELE ad try taking out other things
+TN_agb_sub_red_list6 <- within(TN_agb_sub_red_list5, rm("EVIamp"))
+TN_agb_sub_red_list7 <- within(TN_agb_sub_red_list5, rm("EVImed"))
+TN_agb_sub_red_list8 <- within(TN_agb_sub_red_list7, rm("LGS")) #much worse
+TN_agb_sub_red_list9 <- within(TN_agb_sub_red_list5, rm("SLO"))
+TN_agb_sub_red_list10 <- within(TN_agb_sub_red_list7, rm("SLO"))
+TN_agb_sub_red_list11 <- within(TN_agb_sub_red_list10, rm("Moose_new")) # taking out moose very bad (tried in combo with many variables and always shotthe AIC way up, just didn't include them all in the AIC table)
+TN_agb_sub_red_list12 <- within(TN_agb_sub_red_list10, rm("LGS"))
+TN_agb_sub_red_list13 <- within(TN_agb_sub_red_list10, rm("ASP"))
+TN_agb_sub_red_list14 <- within(TN_agb_sub_red_list10, rm("EVIamp"))
+TN_agb_sub_red_list15 <- within(TN_agb_sub_red_list10, rm("Moose_new"))
+
+TN_agb_sub_red_list <- list(TN_agb_sub_red_list1, TN_agb_sub_red_list2, TN_agb_sub_red_list3, TN_agb_sub_red_list4,  TN_agb_sub_red_list5, TN_agb_sub_red_list6, TN_agb_sub_red_list7, TN_agb_sub_red_list8, TN_agb_sub_red_list9, TN_agb_sub_red_list10, TN_agb_sub_red_list11, TN_agb_sub_red_list12, TN_agb_sub_red_list13, TN_agb_sub_red_list14, TN_agb_sub_red_list15)
+
+TN_agb_sub_lm_red <- lapply(TN_agb_sub_red_list, lm_lmer, df = c_agb_env_sub_scale_TN, c = "c_m2_subplot_agb")
+
+names(TN_agb_sub_lm_red) <- lapply(TN_agb_sub_red_list, paste0, collapse = " + ") # make names of functions the formula not list of "var = var"
+
+TN_agb_sub_lm_red_summary <- lapply(TN_agb_sub_lm_red, summary)
+
+Modnames_TN_agb_sub_red_r <- names(TN_agb_sub_lm_red)
+#this calculates corrected AIC so slightly different values than normal AIC
+
+# table for just reduced models
+aic_TN_agb_sub_red <- aictab(cand.set = TN_agb_sub_lm_red, modnames = Modnames_TN_agb_sub_red_r, sort = TRUE) 
+
+R2_TN_agb_sub_red <- as.data.frame(sapply(TN_agb_sub_lm_red, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_TN_agb_sub_red <- R2_TN_agb_sub_red %>% 
+   mutate("Modnames" = rownames(R2_TN_agb_sub_red))
+
+aic_R2_TN_agb_sub_red <- full_join(aic_TN_agb_sub_red, R2_TN_agb_sub_red)
+
+view(aic_R2_TN_agb_sub_red)
+```
+
+### reduced2 (with Moose TN05 at H)
+ and also the fact that Moose densities are correlated to EVIamp
+
+```{r}
+names(full_var) <- full_var
+
+TN2_agb_sub_red_list1 <- within(full_var, rm("Moose_new"))
+TN2_agb_sub_red_list2 <- within(full_var, rm("EVIamp")) # better to keep EVIamp 
+TN2_agb_sub_red_list3 <- within(TN2_agb_sub_red_list1, rm("ELE"))
+TN2_agb_sub_red_list4 <- within(TN2_agb_sub_red_list3, rm("EVImed"))
+TN2_agb_sub_red_list5 <- within(TN2_agb_sub_red_list4, rm("LGS")) # try taking out differnet ones
+TN2_agb_sub_red_list6 <- within(TN2_agb_sub_red_list4, rm("SLO"))
+TN2_agb_sub_red_list7 <- within(TN2_agb_sub_red_list4, rm("ASP")) # taking out aspect best
+TN2_agb_sub_red_list8 <- within(TN2_agb_sub_red_list4, rm("EVIamp"))
+TN2_agb_sub_red_list9 <- within(TN2_agb_sub_red_list7, rm("SLO"))
+TN2_agb_sub_red_list10 <- within(TN2_agb_sub_red_list7, rm("LGS"))
+TN2_agb_sub_red_list11 <- within(TN2_agb_sub_red_list10, rm("SLO"))
+TN2_agb_sub_red_list12 <- within(TN2_agb_sub_red_list10, rm("EVIamp"))
+
+TN2_agb_sub_red_list <- list(TN2_agb_sub_red_list1, TN2_agb_sub_red_list2, TN2_agb_sub_red_list3, TN2_agb_sub_red_list4, TN2_agb_sub_red_list5, TN2_agb_sub_red_list6, TN2_agb_sub_red_list7, TN2_agb_sub_red_list8, TN2_agb_sub_red_list9, TN2_agb_sub_red_list10, TN2_agb_sub_red_list11, TN2_agb_sub_red_list12)
+
+TN2_agb_sub_lm_red <- lapply(TN2_agb_sub_red_list, lm_lmer, df = c_agb_env_sub_scale_TN, c = "c_m2_subplot_agb")
+
+names(TN2_agb_sub_lm_red) <- lapply(TN2_agb_sub_red_list, paste0, collapse = " + ") # make names of functions the formula not list of "var = var"
+
+TN2_agb_sub_lm_red_summary <- lapply(TN2_agb_sub_lm_red, summary)
+
+Modnames_TN2_agb_sub_red_r <- names(TN2_agb_sub_lm_red)
+#this calculates corrected AIC so slightly different values than normal AIC
+
+# table for just reduced models
+aic_TN2_agb_sub_red <- aictab(cand.set = TN2_agb_sub_lm_red, modnames = Modnames_TN2_agb_sub_red_r, sort = TRUE) 
+
+R2_TN2_agb_sub_red <- as.data.frame(sapply(TN2_agb_sub_lm_red, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_TN2_agb_sub_red <- R2_TN2_agb_sub_red %>% 
+   mutate("Modnames" = rownames(R2_TN2_agb_sub_red))
+
+aic_R2_TN2_agb_sub_red <- full_join(aic_TN2_agb_sub_red, R2_TN2_agb_sub_red)
+
+view(aic_R2_TN2_agb_sub_red)
+```
+
+### AIC and R2 for all models
+
+```{r}
+# table for all models
+aic_TN_agb_sub_all <- aictab(cand.set = c(TN_agb_models_sub_r, TN2_agb_sub_lm_red), modnames = c(Modnames_TN_agb_sub_r, Modnames_TN2_agb_sub_red_r), sort = TRUE) 
+
+R2_TN_agb_sub_all <- rbind(R2_TN_agb_sub, R2_TN2_agb_sub_red)
+
+aic_R2_TN_agb_sub_all <- full_join(aic_TN_agb_sub_all, R2_TN_agb_sub_all)
+
+aic_R2_TN_agb_sub_all
+
+write.csv(aic_R2_TN_agb_sub_all,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_TN_agb_sub_all.csv")
+
+```
+
+thoughts: The best models are very similar to the models based on site which is reassuring, FHT important, with EVIamp and SLO being potential add ons. Seems only FHT truely important. Although, the R2m of a model with only FHT is quite low (~0.189). Overall, similar R2c to the R2 of fixed effect models based on site level C. 
 
 

@@ -2,7 +2,11 @@
 title: "C lm aboveground"
 author: "Emmerson Wilson"
 date: "2024-01-18"
-output: html_document
+output:
+ pdf_document:
+   toc: true
+   toc_depth: 5
+classoption: landscape
 ---
 
 ```{r}
@@ -19,9 +23,9 @@ pacman::p_load(
   
 ```
 
-## data
+# data
 
-### c at sites
+# c at sites
 
 ```{r}
 library(httr)
@@ -39,7 +43,7 @@ c_m2_sites_blw <- read_xlsx(temp_file_blw1)%>%
 c_m2_sites_blw
 ```
 
-### c at subplots
+# c at subplots
 
 ```{r}
 github_link_blw2 <- "https://github.com/emmwilson/C_forecasting_NL/blob/main/final%20carbon%20data/c_m2_subplot_below.xlsx?raw=true"
@@ -54,7 +58,7 @@ c_m2_subplots_blw <- read_xlsx(temp_file_blw2)
 c_m2_subplots_blw
 ```
 
-### environmental variables at sites
+# environmental variables at sites
 
 ```{r}
 github_link3 <- "https://github.com/emmwilson/C_forecasting_NL/blob/main/final%20carbon%20data/env_site_final.xlsx?raw=true"
@@ -104,7 +108,7 @@ c_blw_env_sites_scale_TN["Moose_new"][c_blw_env_sites_scale_TN["Moose_new"] == 4
 
 ```
 
-### environmental variables at each subplot
+# environmental variables at each subplot
 
 ```{r}
 github_link4 <- "https://github.com/emmwilson/C_forecasting_NL/blob/main/final%20carbon%20data/env_subplots_final.xlsx?raw=true"
@@ -156,7 +160,7 @@ c_blw_env_sub_scale_TN["Moose_new"][c_blw_env_sub_scale_TN["Moose_new"] == 4] <-
 
 ```
 
-## model functions
+# model functions
 
 ```{r}
 source("https://github.com/emmwilson/C_forecasting_NL/blob/main/code_for_stats/lmer%20model%20functions.R?raw=true")
@@ -167,12 +171,12 @@ R2 <- function(model){
 ```
 
 
-## GM
+# GM
 
 
-#### by site
+## by site
 
-##### null
+### null
 
 ```{r}
 #run the model
@@ -186,10 +190,10 @@ GM_blw_lm_null_summary <- GM_blw_lm_null_summary %>%
 
 # reorder columns so model name first
 GM_blw_lm_null_summary <- GM_blw_lm_null_summary[,c(5,6,1:4)]
-GM_blw_lm_null_summary
+
 ```
 
-##### full
+### full
 
 ```{r}
 # make list of all variables to be included in full model
@@ -211,7 +215,7 @@ GM_blw_lm_full_summary
 ```
 
 
-##### univariate
+### univariate
 
 ```{r}
 # run model with each predictor variable on own
@@ -229,7 +233,7 @@ GM_blw_lm_uni_summary
 
 ```
 
-#### summary of uni, null and full
+## summary of uni, null and full
 
 ```{r}
 # get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
@@ -245,7 +249,9 @@ GM_blw_lm_summary <- GM_blw_lm_summary %>%
   mutate(significance = ifelse(GM_blw_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(GM_blw_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(GM_blw_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(GM_blw_lm_summary$`Pr(>|t|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
 ```
 
-#### compare
+thoughts: not much to unravel here. nothig explains the variance in below ground carbon well. I could get some soil characteristic rasters, but at a 250 m scale. The Sothe et al 2022 paper that predicted below ground carbon said soil depth was the main explanatory variable for below ground carbon. It also seemed that envionmental variables played a role in predicting below ground (max daily temp, daily precip and solar radiation). Enviornmental data I could only get at 1km resolution. The sothe et al paper did use 1 km rasters and downsampled to 250m.
+
+## compare
 
 ```{r}
 # see excel "c_lm_model_results.xlsx" for consolidated values
@@ -269,81 +275,93 @@ Modnames_GM_blw_r <- paste(names(GM_blw_models_r)) # make sure names are same as
 # get table
 aic_GM_blw <- as.data.frame(aictab(cand.set = GM_blw_models_r, modnames = Modnames_GM_blw_r, sort = TRUE))
   
-# R2_GM <- as.data.frame(sapply(GM_blw_models_r, R2)) %>% setNames(c("R2")) 
-# R2_GM <- R2_GM %>% 
-#   mutate("Modnames" = rownames(R2_GM))
-# 
-# aic_R2_GM <- full_join(aic_GM, R2_GM)
-  
-view(aic_GM_blw) # table of AIC values for null, full and univariate models
+R2_GM_blw <- as.data.frame(sapply(GM_blw_models_r, R2)) %>% setNames(c("R2"))
+R2_GM_blw <- R2_GM_blw %>%
+  mutate("Modnames" = rownames(R2_GM_blw))
 
-# thoughts: nothing seems to explain the variance in below ground carbon better than random. however, I know that gap is significantly correlated with below ground so I feel I'm missing something
+aic_R2_GM_blw <- full_join(aic_GM_blw, R2_GM_blw)
+  
 ```
 
-##### reduced
+### reduced
 
 
 
 
-#### by subplot
 
-##### null
+## by subplot
+
+### null
 
 ```{r}
 # fixed effects - very much pseaudoreplication but ran the models out of curiosity
-GM_blw_lm_null_sub <- lm_glm(c_blw_env_sub_scale_GM, "c_m2_subplot_blw", "1")
+GM_blw_lm_null_subfe <- lm_glm(c_blw_env_sub_scale_GM, "c_m2_subplot_blw", "1")
 
-summary(GM_blw_lm_null_sub)
+summary(GM_blw_lm_null_subfe)
 
 # mixed effects
-GM_blw_lm_null_site_sub <- lm_lmer(c_blw_env_sub_scale_GM, "c_m2_subplot_blw", "1")
+GM_blw_lm_null_sub <- lm_lmer(c_blw_env_sub_scale_GM, "c_m2_subplot_blw", "1")
 
-GM_blw_lm_null_site_sub_summary <- summary(GM_blw_lm_null_site_sub)
-r.squaredGLMM(GM_blw_lm_null_site_sub)
+GM_blw_lm_null_sub_summary <- summary(GM_blw_lm_null_sub)
+r.squaredGLMM(GM_blw_lm_null_sub)
 ```
 
-##### full
+### full
 
 ```{r}
 # fixed effects
 
-GM_blw_lm_full_sub <- lm_glm(c_blw_env_sub_scale_GM, "c_m2_subplot_blw", full_var)
-summary(GM_blw_lm_full_sub)
+GM_blw_lm_full_subfe <- lm_glm(c_blw_env_sub_scale_GM, "c_m2_subplot_blw", full_var)
 
 # mixed effects
-GM_blw_lm_full_site_sub <- lm_lmer(c_blw_env_sub_scale_GM, "c_m2_subplot_blw", full_var)
-
-summary(GM_blw_lm_full_site_sub)
-r.squaredGLMM(GM_blw_lm_full_site_sub)
+GM_blw_lm_full_sub <- lm_lmer(c_blw_env_sub_scale_GM, "c_m2_subplot_blw", full_var)
 ```
 
-##### univariate
+### univariate
 
 ```{r}
 # fixed effects
 
-GM_blw_lm_uni_sub <- lapply(full_var, lm_glm, df = c_blw_env_sub_scale_GM, c = "c_m2_subplot_blw")
+GM_blw_lm_uni_subfe <- lapply(full_var, lm_glm, df = c_blw_env_sub_scale_GM, c = "c_m2_subplot_blw")
+
+names(GM_blw_lm_uni_subfe) <- full_var
+
+GM_blw_lm_uni_subfe_summary <- lapply(GM_blw_lm_uni_subfe, summary)
+
+# mixed effects
+
+GM_blw_lm_uni_sub <- lapply(full_var, lm_lmer, df = c_blw_env_sub_scale_GM, c = "c_m2_subplot_blw")
 
 names(GM_blw_lm_uni_sub) <- full_var
 
 GM_blw_lm_uni_sub_summary <- lapply(GM_blw_lm_uni_sub, summary)
-GM_blw_lm_uni_sub_summary
 
-# mixed effects
+GM_blw_lm_uni_sub_r2 <- lapply(GM_blw_lm_uni_sub, r.squaredGLMM)
 
-GM_blw_lm_uni_site_sub <- lapply(full_var, lm_lmer, df = c_blw_env_sub_scale_GM, c = "c_m2_subplot_blw")
-
-names(GM_blw_lm_uni_site_sub) <- full_var
-
-GM_blw_lm_uni_site_sub_summary <- lapply(GM_blw_lm_uni_site_sub, summary)
-
-GM_blw_lm_uni_site_sub_r2 <- lapply(GM_blw_lm_uni_site_sub, r.squaredGLMM)
-GM_blw_lm_uni_site_sub_r2
 ```
 
-#### compare
+## compare
 
 ```{r}
+GM_blw_models_subfe_r <- list()
+
+GM_blw_models_subfe_r[["GM_blw_lm_null_subfe"]] <- GM_blw_lm_null_subfe
+GM_blw_models_subfe_r[["GM_blw_lm_full_subfe"]] <- GM_blw_lm_full_subfe
+GM_blw_models_subfe_r[[names(GM_blw_lm_uni_subfe)[1]]] <- GM_blw_lm_uni_subfe[[1]]
+GM_blw_models_subfe_r[[names(GM_blw_lm_uni_subfe)[2]]] <- GM_blw_lm_uni_subfe[[2]]
+GM_blw_models_subfe_r[[names(GM_blw_lm_uni_subfe)[3]]] <- GM_blw_lm_uni_subfe[[3]]
+GM_blw_models_subfe_r[[names(GM_blw_lm_uni_subfe)[4]]] <- GM_blw_lm_uni_subfe[[4]]
+GM_blw_models_subfe_r[[names(GM_blw_lm_uni_subfe)[5]]] <- GM_blw_lm_uni_subfe[[5]]
+GM_blw_models_subfe_r[[names(GM_blw_lm_uni_subfe)[6]]] <- GM_blw_lm_uni_subfe[[6]]
+GM_blw_models_subfe_r[[names(GM_blw_lm_uni_subfe)[7]]] <- GM_blw_lm_uni_subfe[[7]]
+GM_blw_models_subfe_r[[names(GM_blw_lm_uni_subfe)[8]]] <- GM_blw_lm_uni_subfe[[8]]
+
+Modnames_GM_blw_subfe_r <- paste(names(GM_blw_models_subfe_r))
+
+# get table
+aic_GM_blw_sub_fe <- aictab(cand.set = GM_blw_models_subfe_r, modnames = Modnames_GM_blw_subfe_r, sort = TRUE)
+
+#mixed effect
 GM_blw_models_sub_r <- list()
 
 GM_blw_models_sub_r[["GM_blw_lm_null_sub"]] <- GM_blw_lm_null_sub
@@ -360,44 +378,38 @@ GM_blw_models_sub_r[[names(GM_blw_lm_uni_sub)[8]]] <- GM_blw_lm_uni_sub[[8]]
 Modnames_GM_blw_sub_r <- paste(names(GM_blw_models_sub_r))
 
 # get table
-aic_GM_blw_sub_fe <- aictab(cand.set = GM_blw_models_sub_r, modnames = Modnames_GM_blw_sub_r, sort = TRUE) %>% 
-  mutate(R2m = sapply(lapply(GM_blw_models_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-  mutate(R2c = sapply(lapply(GM_blw_models_sub_r, r.squaredGLMM), "[[", 2))
+ aic_GM_blw_sub <- aictab(cand.set = GM_blw_models_sub_r, modnames = Modnames_GM_blw_sub_r, sort = TRUE) 
 
+R2_GM_blw_sub <- as.data.frame(sapply(GM_blw_models_sub_r, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_GM_blw_sub <- R2_GM_blw_sub %>% 
+   mutate("Modnames" = rownames(R2_GM_blw_sub))
 
-GM_blw_models_site_sub_r <- list()
-
-GM_blw_models_site_sub_r[["GM_blw_lm_null_site_sub"]] <- GM_blw_lm_null_site_sub
-GM_blw_models_site_sub_r[["GM_blw_lm_full_site_sub"]] <- GM_blw_lm_full_site_sub
-GM_blw_models_site_sub_r[[names(GM_blw_lm_uni_site_sub)[1]]] <- GM_blw_lm_uni_site_sub[[1]]
-GM_blw_models_site_sub_r[[names(GM_blw_lm_uni_site_sub)[2]]] <- GM_blw_lm_uni_site_sub[[2]]
-GM_blw_models_site_sub_r[[names(GM_blw_lm_uni_site_sub)[3]]] <- GM_blw_lm_uni_site_sub[[3]]
-GM_blw_models_site_sub_r[[names(GM_blw_lm_uni_site_sub)[4]]] <- GM_blw_lm_uni_site_sub[[4]]
-GM_blw_models_site_sub_r[[names(GM_blw_lm_uni_site_sub)[5]]] <- GM_blw_lm_uni_site_sub[[5]]
-GM_blw_models_site_sub_r[[names(GM_blw_lm_uni_site_sub)[6]]] <- GM_blw_lm_uni_site_sub[[6]]
-GM_blw_models_site_sub_r[[names(GM_blw_lm_uni_site_sub)[7]]] <- GM_blw_lm_uni_site_sub[[7]]
-GM_blw_models_site_sub_r[[names(GM_blw_lm_uni_site_sub)[8]]] <- GM_blw_lm_uni_site_sub[[8]]
-
-Modnames_GM_blw_site_sub_r <- paste(names(GM_blw_models_site_sub_r))
-
-# get table
- aic_GM_blw_sub <- aictab(cand.set = GM_blw_models_site_sub_r, modnames = Modnames_GM_blw_site_sub_r, sort = TRUE) 
-#   mutate(R2m = sapply(lapply(GM_blw_models_site_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-#   mutate(R2c = sapply(lapply(GM_blw_models_site_sub_r, r.squaredGLMM), "[[", 2))
-view(aic_GM_blw_sub)
-
-# slightly more variance expalined by predictor variables here than in purely fixed effects
+aic_R2_GM_blw_sub <- full_join(aic_GM_blw_sub, R2_GM_blw_sub)
+ 
+ 
+view(aic_R2_GM_blw_sub)
 ```
 
-##### reduced
+thoughts: apparently there is huge amounts of random variation between sites. adding a random effect of site shoots the R2c up to alost 80%
+
+### reduced
 
 
-## TN
+# TN
+
+## temporarily setTN 05
 
 
-#### by site
+```{r}
+c_blw_env_sites_scale_TN$Moose_new <-replace_na(c_blw_env_sites_scale_TN$Moose_new, "cH")
 
-##### null
+c_blw_env_sub_scale_TN$Moose_new <-replace_na(c_blw_env_sub_scale_TN$Moose_new, "cH")
+```
+
+
+## by site
+
+### null
 
 ```{r}
 #run the model
@@ -414,7 +426,7 @@ TN_blw_lm_null_summary <- TN_blw_lm_null_summary[,c(5,6,1:4)]
 TN_blw_lm_null_summary
 ```
 
-##### full
+### full
 
 ```{r}
 # make list of all variables to be included in full model
@@ -436,7 +448,7 @@ TN_blw_lm_full_summary
 ```
 
 
-##### univariate
+### univariate
 
 ```{r}
 # run model with each predictor variable on own
@@ -454,7 +466,7 @@ TN_blw_lm_uni_summary
 
 ```
 
-#### summary of uni, null and full
+## summary of uni, null and full
 
 ```{r}
 # get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
@@ -470,7 +482,7 @@ TN_blw_lm_summary <- TN_blw_lm_summary %>%
   mutate(significance = ifelse(TN_blw_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(TN_blw_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(TN_blw_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(TN_blw_lm_summary$`Pr(>|t|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
 ```
 
-#### compare
+## compare
 
 ```{r}
 # see excel "c_lm_model_results.xlsx" for consolidated values
@@ -494,81 +506,93 @@ Modnames_TN_blw_r <- paste(names(TN_blw_models_r)) # make sure names are same as
 # get table
 aic_TN_blw <- as.data.frame(aictab(cand.set = TN_blw_models_r, modnames = Modnames_TN_blw_r, sort = TRUE))
   
-# R2_TN <- as.data.frame(sapply(TN_blw_models_r, R2)) %>% setNames(c("R2")) 
-# R2_TN <- R2_TN %>% 
-#   mutate("Modnames" = rownames(R2_TN))
-# 
-# aic_R2_TN <- full_join(aic_TN, R2_TN)
-  
-view(aic_TN_blw) # table of AIC values for null, full and univariate models
+R2_TN_blw <- as.data.frame(sapply(TN_blw_models_r, R2)) %>% setNames(c("R2"))
+R2_TN_blw <- R2_TN_blw %>%
+  mutate("Modnames" = rownames(R2_TN_blw))
 
-# thoughts: similar to GM, but some variabels explain the variance slightly better
+aic_R2_TN_blw <- full_join(aic_TN_blw, R2_TN_blw)
 ```
 
-##### reduced
+thoughts: still not much variance explained by predictor variables
+
+### reduced
 
 
 
 
-#### by subplot
+## by subplot
 
-##### null
+### null
 
 ```{r}
 # fixed effects - very much pseaudoreplication but ran the models out of curiosity
-TN_blw_lm_null_sub <- lm_glm(c_blw_env_sub_scale_TN, "c_m2_subplot_blw", "1")
-
-summary(TN_blw_lm_null_sub)
+TN_blw_lm_null_subfe <- lm_glm(c_blw_env_sub_scale_TN, "c_m2_subplot_blw", "1")
 
 # mixed effects
-TN_blw_lm_null_site_sub <- lm_lmer(c_blw_env_sub_scale_TN, "c_m2_subplot_blw", "1")
+TN_blw_lm_null_sub <- lm_lmer(c_blw_env_sub_scale_TN, "c_m2_subplot_blw", "1")
 
-TN_blw_lm_null_site_sub_summary <- summary(TN_blw_lm_null_site_sub)
-r.squaredGLMM(TN_blw_lm_null_site_sub)
+TN_blw_lm_null_sub_summary <- summary(TN_blw_lm_null_sub)
+r.squaredGLMM(TN_blw_lm_null_sub)
 ```
 
-##### full
+### full
 
 ```{r}
 # fixed effects
 
-TN_blw_lm_full_sub <- lm_glm(c_blw_env_sub_scale_TN, "c_m2_subplot_blw", full_var)
+TN_blw_lm_full_subfe <- lm_glm(c_blw_env_sub_scale_TN, "c_m2_subplot_blw", full_var)
+
+# mixed effects
+TN_blw_lm_full_sub <- lm_lmer(c_blw_env_sub_scale_TN, "c_m2_subplot_blw", full_var)
+
 summary(TN_blw_lm_full_sub)
-
-# mixed effects
-TN_blw_lm_full_site_sub <- lm_lmer(c_blw_env_sub_scale_TN, "c_m2_subplot_blw", full_var)
-
-summary(TN_blw_lm_full_site_sub)
-r.squaredGLMM(TN_blw_lm_full_site_sub)
+r.squaredGLMM(TN_blw_lm_full_sub)
 ```
 
-##### univariate
+### univariate
 
 ```{r}
 # fixed effects
 
-TN_blw_lm_uni_sub <- lapply(full_var, lm_glm, df = c_blw_env_sub_scale_TN, c = "c_m2_subplot_blw")
+TN_blw_lm_uni_subfe <- lapply(full_var, lm_glm, df = c_blw_env_sub_scale_TN, c = "c_m2_subplot_blw")
+
+names(TN_blw_lm_uni_subfe) <- full_var
+
+TN_blw_lm_uni_subfe_summary <- lapply(TN_blw_lm_uni_subfe, summary)
+
+# mixed effects
+
+TN_blw_lm_uni_sub <- lapply(full_var, lm_lmer, df = c_blw_env_sub_scale_TN, c = "c_m2_subplot_blw")
 
 names(TN_blw_lm_uni_sub) <- full_var
 
 TN_blw_lm_uni_sub_summary <- lapply(TN_blw_lm_uni_sub, summary)
-TN_blw_lm_uni_sub_summary
 
-# mixed effects
-
-TN_blw_lm_uni_site_sub <- lapply(full_var, lm_lmer, df = c_blw_env_sub_scale_TN, c = "c_m2_subplot_blw")
-
-names(TN_blw_lm_uni_site_sub) <- full_var
-
-TN_blw_lm_uni_site_sub_summary <- lapply(TN_blw_lm_uni_site_sub, summary)
-
-TN_blw_lm_uni_site_sub_r2 <- lapply(TN_blw_lm_uni_site_sub, r.squaredGLMM)
-TN_blw_lm_uni_site_sub_r2
+TN_blw_lm_uni_sub_r2 <- lapply(TN_blw_lm_uni_sub, r.squaredGLMM)
 ```
 
-#### compare
+## compare
 
 ```{r}
+TN_blw_models_subfe_r <- list()
+
+TN_blw_models_subfe_r[["TN_blw_lm_null_subfe"]] <- TN_blw_lm_null_subfe
+TN_blw_models_subfe_r[["TN_blw_lm_full_subfe"]] <- TN_blw_lm_full_subfe
+TN_blw_models_subfe_r[[names(TN_blw_lm_uni_subfe)[1]]] <- TN_blw_lm_uni_subfe[[1]]
+TN_blw_models_subfe_r[[names(TN_blw_lm_uni_subfe)[2]]] <- TN_blw_lm_uni_subfe[[2]]
+TN_blw_models_subfe_r[[names(TN_blw_lm_uni_subfe)[3]]] <- TN_blw_lm_uni_subfe[[3]]
+TN_blw_models_subfe_r[[names(TN_blw_lm_uni_subfe)[4]]] <- TN_blw_lm_uni_subfe[[4]]
+TN_blw_models_subfe_r[[names(TN_blw_lm_uni_subfe)[5]]] <- TN_blw_lm_uni_subfe[[5]]
+TN_blw_models_subfe_r[[names(TN_blw_lm_uni_subfe)[6]]] <- TN_blw_lm_uni_subfe[[6]]
+TN_blw_models_subfe_r[[names(TN_blw_lm_uni_subfe)[7]]] <- TN_blw_lm_uni_subfe[[7]]
+TN_blw_models_subfe_r[[names(TN_blw_lm_uni_subfe)[8]]] <- TN_blw_lm_uni_subfe[[8]]
+
+Modnames_TN_blw_subfe_r <- paste(names(TN_blw_models_subfe_r))
+
+# get table
+aic_TN_blw_sub_fe <- aictab(cand.set = TN_blw_models_subfe_r, modnames = Modnames_TN_blw_subfe_r, sort = TRUE) 
+
+
 TN_blw_models_sub_r <- list()
 
 TN_blw_models_sub_r[["TN_blw_lm_null_sub"]] <- TN_blw_lm_null_sub
@@ -585,35 +609,20 @@ TN_blw_models_sub_r[[names(TN_blw_lm_uni_sub)[8]]] <- TN_blw_lm_uni_sub[[8]]
 Modnames_TN_blw_sub_r <- paste(names(TN_blw_models_sub_r))
 
 # get table
-aic_TN_blw_sub_fe <- aictab(cand.set = TN_blw_models_sub_r, modnames = Modnames_TN_blw_sub_r, sort = TRUE) %>% 
-  mutate(R2m = sapply(lapply(TN_blw_models_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-  mutate(R2c = sapply(lapply(TN_blw_models_sub_r, r.squaredGLMM), "[[", 2))
-
-
-TN_blw_models_site_sub_r <- list()
-
-TN_blw_models_site_sub_r[["TN_blw_lm_null_site_sub"]] <- TN_blw_lm_null_site_sub
-TN_blw_models_site_sub_r[["TN_blw_lm_full_site_sub"]] <- TN_blw_lm_full_site_sub
-TN_blw_models_site_sub_r[[names(TN_blw_lm_uni_site_sub)[1]]] <- TN_blw_lm_uni_site_sub[[1]]
-TN_blw_models_site_sub_r[[names(TN_blw_lm_uni_site_sub)[2]]] <- TN_blw_lm_uni_site_sub[[2]]
-TN_blw_models_site_sub_r[[names(TN_blw_lm_uni_site_sub)[3]]] <- TN_blw_lm_uni_site_sub[[3]]
-TN_blw_models_site_sub_r[[names(TN_blw_lm_uni_site_sub)[4]]] <- TN_blw_lm_uni_site_sub[[4]]
-TN_blw_models_site_sub_r[[names(TN_blw_lm_uni_site_sub)[5]]] <- TN_blw_lm_uni_site_sub[[5]]
-TN_blw_models_site_sub_r[[names(TN_blw_lm_uni_site_sub)[6]]] <- TN_blw_lm_uni_site_sub[[6]]
-TN_blw_models_site_sub_r[[names(TN_blw_lm_uni_site_sub)[7]]] <- TN_blw_lm_uni_site_sub[[7]]
-TN_blw_models_site_sub_r[[names(TN_blw_lm_uni_site_sub)[8]]] <- TN_blw_lm_uni_site_sub[[8]]
-
-Modnames_TN_blw_site_sub_r <- paste(names(TN_blw_models_site_sub_r))
-
 # get table
- aic_TN_blw_sub <- aictab(cand.set = TN_blw_models_site_sub_r, modnames = Modnames_TN_blw_site_sub_r, sort = TRUE) 
-#   mutate(R2m = sapply(lapply(TN_blw_models_site_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-#   mutate(R2c = sapply(lapply(TN_blw_models_site_sub_r, r.squaredGLMM), "[[", 2))
-view(aic_TN_blw_sub)
+ aic_TN_blw_sub <- aictab(cand.set = TN_blw_models_sub_r, modnames = Modnames_TN_blw_sub_r, sort = TRUE) 
 
-# way more variance explained here
+R2_TN_blw_sub <- as.data.frame(sapply(TN_blw_models_sub_r, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_TN_blw_sub <- R2_TN_blw_sub %>% 
+   mutate("Modnames" = rownames(R2_TN_blw_sub))
+
+aic_R2_TN_blw_sub <- full_join(aic_TN_blw_sub, R2_TN_blw_sub)
+
+aic_R2_TN_blw_sub
 ```
 
-##### reduced
+thoughts: again adding random effect of site shoots the R2c to alomst 0.8
+
+### reduced
 
 

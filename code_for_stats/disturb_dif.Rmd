@@ -1,0 +1,426 @@
+---
+title: "disturb vs not"
+author: "Emmerson Wilson"
+date: "2024-02-05"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  cv,
+  lme4,
+  janitor)
+  
+```
+
+# data
+
+## 2022
+```{r}
+#combine individual excel files fror carbon in each pool
+c_2022_dw <- read_xlsx("../final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Deadwood_Field_Data NEW.xlsm", sheet = "DW carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, dw_carbon_9m2))
+c_2022_te <- read_xlsx("../final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, te_carbon_9m2))
+c_2022_gc <- read_xlsx("../final carbon data/Final_Carbon_Data_R/ground_cover_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, gc_carbon_9m2))
+c_2022_hb <- read_xlsx("../final carbon data/Final_Carbon_Data_R/herbaceous_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, hb_carbon_9m2))
+c_2022_ll <- read_xlsx("../final carbon data/Final_Carbon_Data_R/litter_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Park_ID, Site_ID, Ex_Ctrl, Subplot_ID, Site_Subplot_ID, ll_carbon_9m2))
+c_2022_sp <- read_xlsx("../final carbon data/Final_Carbon_Data_R/sapling_carbon.xlsx", sheet = "Sheet 1") %>% dplyr::select(c(Site_Subplot_ID, sp_carbon_9m2))
+#c_2022_sr <- read_xlsx("Final_Carbon_Data_R/shrub_root_carbon.xlsx", sheet = "Sheet 1") because this data came before R fixed the under 30 units I need to calculate on my own
+c_2022_sl <- read_xlsx("../final carbon data/Final_Carbon_Data_R/soil_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, sl_carbon_9m2))
+
+c_2022_tr <- read_xlsx("../final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree root carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, tr_carbon_9m2))
+c_2022_u3 <- read_xlsx("../final carbon data/Final_Carbon_Data_R/under_30_carbon.xlsx", sheet = "Sheet 1") %>%
+  mutate(u3_carbon_9m2 = u3_carbon_9m2/1000000) %>% # convert units
+  dplyr::select(c(Site_Subplot_ID, u3_carbon_9m2))
+c_2022_ws <- read_xlsx("../final carbon data/Final_Carbon_Data_R/woody_shrubs_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, ws_carbon_9m2))
+site_data_2022 <- read_xlsx("../final carbon data/Final_Carbon_Data_R/subplot_disturbacne.xlsx")
+
+c_2022_sr_list <- list(c_2022_u3, c_2022_ws, c_2022_sp)
+c_2022_sr <- c_2022_sr_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
+  replace(is.na(.), 0)
+c_2022_sr$sr_carbon_9m2 <- rowSums(c_2022_sr[, c(2:4)])
+c_2022_sr <- c_2022_sr %>% dplyr::select(c(1,5)) %>%
+  mutate(sr_carbon_9m2 = sr_carbon_9m2*0.25)
+  
+
+c_2022_list <- list(c_2022_dw, c_2022_te, c_2022_gc, c_2022_hb, c_2022_ll, c_2022_sp, c_2022_sr, c_2022_sl, c_2022_tr, c_2022_u3, c_2022_ws)
+
+c_2022 <- c_2022_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
+  dplyr::select(c(1,6:9,2:5,10:16)) %>%
+  replace(is.na(.), 0)
+c_2022$total_c_per_subplot <- rowSums(c_2022[, c(6:16)])
+
+c_2022_mess <- c_2022 %>%
+  left_join(site_data_2022) %>% # add subplot info
+  clean_names() %>%
+  mutate(gap = disturbance) %>% 
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(ss_carbon_9m2 = rowSums(c_2022[, c("sp_carbon_9m2", "ws_carbon_9m2")])) %>% # recategorize pools to match 2023
+  mutate(rt_carbon_9m2 = rowSums(c_2022[, c("tr_carbon_9m2","sr_carbon_9m2")])) %>%
+  mutate(gv_carbon_9m2 = rowSums(c_2022[, c("gc_carbon_9m2", "hb_carbon_9m2", "u3_carbon_9m2")])) %>%
+  mutate(year = 2022) %>% # add year
+  mutate(site_number = as.numeric(site_id))
+c_2022_mess$site_number <- sprintf("%02.f", c_2022_mess$site_number)
+c_2022_mess <- c_2022_mess %>%
+  mutate(site_id = paste0(site_number, "_", "2022")) %>% # distinguish overlapping site numbers by year
+  mutate(subplot_id = substr(subplot_id,2,2)) # remove letter from subplot
+
+```
+
+## 2023
+```{r}
+c_2023 <- read_xlsx("../final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
+  replace(is.na(.), 0) 
+
+site_data <- read_xlsx("../final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+site_data$Site_ID <- sprintf("%02.f", site_data$Site_ID)
+
+c_2023_mess <- c_2023 %>%
+  left_join(site_data)%>%
+  clean_names() %>%
+  mutate(gap = disturbance) %>%
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Wind', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Logging', 'Gap')) %>%
+  mutate(year = 2023) %>% # add year
+  mutate(site_id = paste0(site_id, "_", "2023")) # distinguish overlapping site numbers by year
+  
+```
+
+
+```{r}
+c_2022_compare <- c_2022_mess %>%
+   dplyr::select(c(2:5,18,19,23,6,7,10,13,20:22,17)) # run "C_explore_22_23.qmd" first
+c_2023_compare <- c_2023_mess %>%
+  dplyr::select(c(22,23,25,2,27,38,39,5,7,10,11,13,16,18,21)) %>%
+  replace(is.na(.), 0)
+c_22_23 <- rbind(c_2022_compare, c_2023_compare) %>%
+  mutate(unique_id = paste0(park_id, "_", site_id, "_", subplot_id))
+```
+
+# insect
+
+## GM
+the difference between insect gap exclosures and novel mature stands, to try to get at effect of only insects
+```{r}
+c_22_23_insectGM <- c_22_23 %>% 
+  filter(park_id == "GM") %>% 
+  filter(disturbance == "Insect" | disturbance ==  "Mature") %>% 
+  filter(gap != "Gap" | ex_ctrl != "NA") %>% 
+  filter(gap != "Mature" | ex_ctrl != "EX") %>% 
+  filter(ex_ctrl != "CTRL") %>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  select(-c(dw_carbon_9m2, total_c_per_subplot)) 
+
+# ggplot(c_22_23_insectGM, aes(x=factor(disturbance), y=total_c_per_subplot/9)) +
+#   geom_violin()+
+#   stat_summary(fun.data = "mean_cl_boot", geom = "pointrange")
+
+mean_c_insectGM <- c_22_23_insectGM %>% 
+  group_by(disturbance) %>% 
+  summarize(mean = mean(new_tot/9))
+
+less_c_insectGM <- mean_c_insectGM$mean[2]-mean_c_insectGM$mean[1] # per square meter there is on average 6738 less grams of carbon in a cell that is insect disturbed by only insects (no herbivory) in Gros Morne
+
+less_c_insectGM*(7.976e+7)/1000 # total kg carbon lost by only insects in GM
+```
+
+## TN
+the difference between insect gap exclosures and novel mature stands, to try to get at effect of only insects
+```{r}
+c_22_23_insectTN <-  c_22_23  %>% 
+  filter(park_id == "TN") %>% 
+  filter(disturbance == "Insect" | disturbance ==  "Mature") %>% 
+  filter(gap != "Gap" | ex_ctrl != "NA") %>% 
+  filter(gap != "Mature" | ex_ctrl != "EX") %>% 
+  filter(ex_ctrl != "CTRL")  %>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  select(-c(dw_carbon_9m2, total_c_per_subplot)) 
+
+#ggplot(c_22_23_insectTN, aes(x=factor(disturbance), y=total_c_per_subplot/9)) + 
+  # geom_violin()+
+  # stat_summary(fun.data = "mean_cl_boot", geom = "pointrange")
+
+summary(lm(new_tot ~ disturbance, data = c_22_23_insectTN))
+
+mean_c_insectTN <- c_22_23_insectTN %>% 
+  group_by(disturbance) %>% 
+  summarize(mean = mean(new_tot/9))
+
+less_c_insectTN <- mean_c_insectTN$mean[2]-mean_c_insectTN$mean[1] # per square meter there is on average 18443 less grams of carbon in a cell that is insect disturbed in Terra Nova
+
+less_c_insectTN*(1.3e+7)/1000 # total carbon lost by insects in TN
+```
+
+insect gaps in Terra Nova seem to have less carbon
+
+# moose
+```{r}
+# none of the following code is paired
+
+# c_22_23_moose <- c_22_23 %>% 
+#   filter(ex_ctrl %in% c("CTRL", "EX")) %>% 
+#   filter(site_id != "13_2022")
+# 
+# ggplot(c_22_23_moose, aes(x=factor(ex_ctrl), y=total_c_per_subplot/9)) + 
+#   geom_violin()+
+#   stat_summary(fun.data = "mean_cl_boot", geom = "pointrange")
+# 
+# mean_c_moose <- c_22_23_moose %>% 
+#   group_by(ex_ctrl) %>% 
+#   summarize(mean = mean(total_c_per_subplot/9))
+# 
+# summary(lm(c_22_23_moose$total_c_per_subplot/9 ~ c_22_23_moose$ex_ctrl)) # not statistically significant
+# # maybe different pools?
+# 
+# 
+# pools <- list("dw_carbon_9m2", "te_carbon_9m2", "ll_carbon_9m2", "sl_carbon_9m2", "ss_carbon_9m2", "rt_carbon_9m2", "gv_carbon_9m2")
+# 
+# lm_pool <- function(c, df) {
+#   lm_glm <- summary(lm(formula(paste0("df$", quo_name(c), "~ df$ex_ctrl")), data = df))
+#   eval <- eval(lm_glm$call$formula)
+#   formula1<- eval(eval)
+#   lm_glm$call$formula <- formula1
+#   lm_glm
+# }
+# 
+# pools_moose <- lapply(pools, lm_pool, df = c_22_23_moose) # not even the different pools have different carbon
+# 
+# # try abv and blw
+# c_22_23_moose_abv <- c_22_23_moose %>%
+#   mutate(c_m2_subplot_agb = (total_c_per_subplot-sl_carbon_9m2)/9)
+# c_22_23_moose_blw <- c_22_23_moose %>%
+#   mutate(c_m2_subplot_blw = (sl_carbon_9m2)/9)
+# 
+# summary(lm(c_22_23_moose_abv$c_m2_subplot_agb ~ c_22_23_moose_abv$ex_ctrl)) # almost sig above ground when remove GM_13_2022
+# summary(lm(c_22_23_moose_blw$c_m2_subplot_blw ~ c_22_23_moose_blw$ex_ctrl)) # yep super not important
+```
+
+## paired exclosure control
+
+## GM
+GM exclosures in 2022 only have three subplots
+  make fourth out of average of the three others
+  also need to tell R which sites are paired
+```{r}
+# fourth subplot GM exclosures
+
+c_22_23_mooseGM <- c_22_23 %>% 
+  filter(ex_ctrl %in% c("CTRL", "EX")) %>% 
+  filter(disturbance == "Insect" | disturbance ==  "Mature") %>%
+  filter(site_id != "13_2022") %>% # take out 13 because it is a mature exclosure
+  filter(park_id == "GM") %>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  select(-c(dw_carbon_9m2, total_c_per_subplot)) 
+
+c_cols <- c("dw_carbon_9m2", "te_carbon_9m2", "ll_carbon_9m2", "sl_carbon_9m2", "ss_carbon_9m2", "rt_carbon_9m2", "gv_carbon_9m2", "new_tot") 
+dw_c <- c("dw_carbon_9m2")
+c_col_lessdw <- setdiff(c_cols, dw_c)
+
+# GM_01_2022
+avg_cols_GM01 <- lapply(select(subset(c_22_23_mooseGM, site_id == "01_2022" & ex_ctrl == "EX"), c_col_lessdw), base::mean)
+
+GM_01_2022 <- c(park_id = "GM", site_id = "01_2022", ex_ctrl = "EX", subplot_id = "4", disturbance = "Insect", gap = "Gap", year = 2022, avg_cols_GM01, unique_id = "GM_01_2022_4")
+c_22_23_mooseGM <- rbind(c_22_23_mooseGM, GM_01_2022)
+
+# GM_05_2022
+avg_cols_GM05 <- lapply(select(subset(c_22_23_mooseGM, site_id == "05_2022" & ex_ctrl == "EX"), c_col_lessdw), base::mean)
+
+GM_05_2022 <- c(park_id = "GM", site_id = "05_2022", ex_ctrl = "EX", subplot_id = "4", disturbance = "Insect", gap = "Gap", year = 2022, avg_cols_GM05, unique_id = "GM_05_2022_4")
+c_22_23_mooseGM <- rbind(c_22_23_mooseGM, GM_05_2022)
+
+# GM_13_2022
+# this site has insanely large trees in the ctrl which causes the ctrl to have higher c than exlosure
+# avg_cols_GM13 <- lapply(select(subset(c_22_23_mooseGM, site_id == "13_2022" & ex_ctrl == "EX"), c_cols), base::mean)
+# 
+# GM_13_2022 <- c(park_id = "GM", site_id = "13_2022", ex_ctrl = "EX", subplot_id = "4", disturbance = "Insect", gap = "Gap", year = 2022, avg_cols_GM13, unique_id = "GM_13_2022_4")
+# c_22_23_mooseGM <- rbind(c_22_23_mooseGM, GM_13_2022)
+
+
+# give group id
+c_22_23_mooseGM <- arrange(c_22_23_mooseGM, unique_id) %>% 
+  mutate(pair_id = gl(3,8)) %>% # change 5 to 4 if take out 13_2022
+  group_by(pair_id)
+
+# paired test
+ex_ctrl_pairGM <- t.test(new_tot ~ ex_ctrl, data = c_22_23_mooseGM, paired = TRUE) # very signififcant once I take out GM 13
+
+c_22_23_mooseGM %>%
+  group_by(pair_id) %>%
+  summarise(p.value = t.test(new_tot ~ ex_ctrl, paired = TRUE)$p.value) %>%
+  ungroup()
+
+# for each pool
+
+lm_pool <- function(c, df) {
+  t.test <- t.test(formula(paste0("df$", quo_name(c), "~ df$ex_ctrl")), data = df, paired = TRUE)
+}
+
+pools_mooseGM <- lapply(c_col_lessdw, lm_pool, df = c_22_23_mooseGM)
+pools_mooseGM # soil shrub & sapling and ground veg not sig
+
+# by above and below
+c_22_23_mooseGM_agb <- c_22_23_mooseGM %>%
+  mutate(c_m2_subplot_agb = (new_tot-sl_carbon_9m2))
+c_22_23_mooseGM_blw <- c_22_23_mooseGM %>%
+  mutate(c_m2_subplot_blw = (sl_carbon_9m2))
+
+t.test(c_m2_subplot_agb ~ ex_ctrl, data = c_22_23_mooseGM_agb, paired = TRUE) 
+t.test(c_m2_subplot_blw ~ ex_ctrl, data = c_22_23_mooseGM_blw, paired = TRUE) 
+
+# effect of moose overall
+
+c_22_23_mooseGM2 <- c_22_23 %>% 
+  filter(ex_ctrl %in% c("CTRL", "EX")) %>% 
+  filter(disturbance == "Insect" | disturbance ==  "Mature") %>%
+  filter(site_id != "13_2022") %>% # take out 13 because it is a mature exclosure
+  filter(park_id == "GM") %>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  select(-c(dw_carbon_9m2, total_c_per_subplot)) 
+
+mean_c_mooseGM <- c_22_23_mooseGM2 %>% 
+  ungroup() %>% 
+  group_by(ex_ctrl) %>% 
+  summarize(mean = mean(new_tot/9))
+
+mean_diffGM <- (mean_c_mooseGM$mean[2] - mean_c_mooseGM$mean[1]) # on average effect largely negative
+# is per subplot (which is 9m2) so divide by 9 to get per 1 m2
+
+
+# do I add that to the effect of just insect? I think so: effect of insect + effect of moose in insect
+(less_c_insectGM+mean_diffGM)*(7.976e+7)/1000 # wow over a billion kg
+```
+
+## TN
+```{r}
+
+c_22_23_mooseTN <- c_22_23 %>% 
+  filter(ex_ctrl %in% c("CTRL", "EX"))  %>% 
+  filter(disturbance == "Insect" | disturbance ==  "Mature") %>%
+  filter(site_id != "31_2022" & site_id != "34_2022") %>% # 31 and 34 are mature exclosures
+  filter(park_id == "TN") %>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  select(-c(dw_carbon_9m2, total_c_per_subplot)) 
+
+# give group id
+c_22_23_mooseTN <- arrange(c_22_23_mooseTN, unique_id) %>% 
+  mutate(pair_id = gl(5,8)) %>%
+  group_by(pair_id)
+
+# paired test
+ex_ctrl_pairTN <- t.test(new_tot ~ ex_ctrl, data = c_22_23_mooseTN, paired = TRUE) # not  significantly different
+
+
+# for each pool
+pools_mooseTN <- lapply(c_col_lessdw, lm_pool, df = c_22_23_mooseTN)
+pools_mooseTN # litter and ground veg the only sig different
+
+# by above and below
+c_22_23_mooseTN_agb <- c_22_23_mooseTN %>%
+  mutate(c_m2_subplot_agb = (new_tot-sl_carbon_9m2))
+c_22_23_mooseTN_blw <- c_22_23_mooseTN %>%
+  mutate(c_m2_subplot_blw = (sl_carbon_9m2))
+
+t.test(c_m2_subplot_agb ~ ex_ctrl, data = c_22_23_mooseTN_agb, paired = TRUE) # above not
+t.test(c_m2_subplot_blw ~ ex_ctrl, data = c_22_23_mooseTN_blw, paired = TRUE) # below not
+
+# effect of moose overall
+
+mean_c_mooseTN <- c_22_23_mooseTN %>% 
+  ungroup() %>% 
+  group_by(ex_ctrl) %>% 
+  summarize(mean = mean(new_tot/9))
+
+mean_diffTN <- (mean_c_mooseTN$mean[2] - mean_c_mooseTN$mean[1]) # on average effect is still largely negative. the value is not far off from the value created at GM per m2, but I guess there is just a lot more variation
+# is per subplot (which is 9m2) so divide by 9 to get per 1 m2
+
+# is the effect after a disturbance
+# this could be interpreted as the amount of carbon moose have stopped from returning in an insect disturbed area
+mean_diffTN*(1.3e+7)/1000
+
+# do I add that to the effect of just insect? I think so: effect of insect + effect of moose in insect
+(less_c_insectTN+mean_diffTN)*(1.3e+7)/1000
+# compare this to value if just look at open plots in mature vs insect
+```
+
+
+```{r}
+c_22_23_mooseinsectGM <- c_22_23 %>% 
+  filter(park_id == "GM") %>% 
+  filter(disturbance == "Insect" | disturbance ==  "Mature") %>% 
+  filter(ex_ctrl != "EX")  %>% 
+  filter(gap != "Mature" | ex_ctrl != "CTRL")%>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  select(-c(dw_carbon_9m2)) 
+
+  
+ex_ctrl_pairGM_mi <- t.test(new_tot ~ disturbance, data = c_22_23_mooseinsectGM)
+
+
+mean_c_miGM <- c_22_23_mooseinsectGM %>% 
+  group_by(disturbance) %>% 
+  summarize(mean = mean(new_tot/9))
+
+mean_diffGM_mi <- (mean_c_miGM$mean[2] - mean_c_miGM$mean[1])
+
+mean_diffGM_mi - (less_c_insectGM+mean_diffGM) # per m2 difference between calculating together and seperate
+
+mean_diffGM_mi*(1.3e+7)/1000
+
+# diff between this and caluclating effect of insect and moose seperately
+mean_diffGM_mi*(1.3e+7)/1000 - (less_c_insectGM+mean_diffGM)*(1.3e+7)/1000
+```
+
+```{r}
+c_22_23_mooseinsectTN <- c_22_23 %>% 
+  filter(park_id == "TN") %>% 
+  filter(disturbance == "Insect" | disturbance ==  "Mature") %>% 
+  filter(ex_ctrl != "EX")%>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  select(-c(dw_carbon_9m2)) 
+  
+ex_ctrl_pairTN_mi <- t.test(new_tot ~ disturbance, data = c_22_23_mooseinsectTN)
+
+mean_c_miTN <- c_22_23_mooseinsectTN %>% 
+  group_by(disturbance) %>% 
+  summarize(mean = mean(new_tot/9))
+
+mean_diffTN_mi <- (mean_c_miTN$mean[2] - mean_c_miTN$mean[1])
+
+mean_diffTN_mi - (less_c_insectTN+mean_diffTN) # per m2 difference between calculating together and seperate
+
+mean_diffTN_mi*(1.3e+7)/1000
+
+# diff between this and caluclating effect of insect and moose seperately
+mean_diffTN_mi*(1.3e+7)/1000 - (less_c_insectTN+mean_diffTN)*(1.3e+7)/1000
+```
+
+```{r}
+setdiff(c_22_23_insectGM, select(ungroup(c_22_23_mooseGM), -c(pair_id)))
+
+setdiff(select(c_22_23_mooseinsectGM, -c(total_c_per_subplot)), select(ungroup(c_22_23_mooseGM), -c(pair_id)))
+
+
+setdiff(c_22_23_insectGM, select(c_22_23_mooseinsectGM, -c(total_c_per_subplot)))
+
+
+setdiff(c_22_23_insectTN, select(ungroup(c_22_23_mooseTN), -c(pair_id)))
+
+setdiff(select(c_22_23_mooseinsectTN, -c(total_c_per_subplot)), select(ungroup(c_22_23_mooseTN), -c(pair_id)))
+
+
+setdiff(c_22_23_insectTN, select(c_22_23_mooseinsectTN, -c(total_c_per_subplot)))
+```
+

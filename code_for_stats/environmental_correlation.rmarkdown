@@ -62,6 +62,8 @@ env_subplots <- env_subplots %>%
 GM_env_subplots <- subset(env_subplots, env_subplots$park_id == "GM")
 TN_env_subplots <- subset(env_subplots, env_subplots$park_id == "TN")
 
+env_subplots$ASP <-replace_na(env_subplots$ASP, 0.1)
+
 write.xlsx(env_subplots, file = "../final carbon data/env_subplots_final.xlsx")
 ```
 
@@ -191,27 +193,15 @@ env_site_final <- write.xlsx(env_sites_SPD_print, file = "../final carbon data/e
 
 ### for rasters
 
+stack
+
 ```{r}
-# Terra Nova
-# rename SPC column to name in raster
-dominant_sp_TN_raster <- dominant_sp_TN %>% 
-  rename(SPC_TN = "SPC")
 
-# reclassify values in first column of dominant_sp... to values in second column
-SPD_TN <- classify(SPC_TN, dominant_sp_TN_raster)
-
-#same for Gross Morne
-dominant_sp_GM_raster <- dominant_sp_GM %>% 
-  rename(SPC_GM = "SPC")
-
-SPD_GM <- classify(SPC_GM, dominant_sp_GM_raster)
-
-
-TN_env_list <- list(SPD_TN, FAC_TN, EVIamp_TN, EVImed_TN, FHT_TN, CC10fill_TN, SLO_TN, ELE_TN, ASP_TN, LCT_TN, moose_TN)
+TN_env_list <- list( FAC_TN, EVIamp_TN, EVImed_TN, FHT_TN, CC10fill_TN, SLO_TN, ELE_TN, ASP_TN, LCT_TN, moose_TN, LGS_TN)
 
 TN_env_raster <- rast(TN_env_list)
 
-GM_env_list <- list(SPD_GM, FAC_GM, EVIamp_GM, EVImed_GM, FHT_GM, CC15fill_GM, SLO_GM, ELE_GM, ASP_GM, LCT_GM, moose_GM)
+GM_env_list <- list(FAC_GM, EVIamp_GM, EVImed_GM, FHT_GM, CC15fill_GM, SLO_GM, ELE_GM, ASP_GM, LCT_GM, moose_GM, LGS_GM)
 
 GM_env_raster <- rast(GM_env_list)
 ```

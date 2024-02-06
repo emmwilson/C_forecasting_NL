@@ -255,10 +255,11 @@ ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = park_id)) +
 
 ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = gap)) + 
   geom_boxplot() + theme(legend.title = element_blank())
+
 ggplot(c_22_23, aes(x=factor(gap), y=sl_carbon_9m2, colour = gap)) + 
   geom_boxplot() + theme(legend.title = element_blank())
 
-ggplot(c_22_23, aes(x=factor(year), y=sl_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
+ggplot(c_22_23, aes(x=interaction(gap, park_id, sep=':'), y=sl_carbon_9m2, colour = interaction(gap, park_id, sep=':'))) + 
   geom_boxplot() + theme(legend.title = element_blank())
 
 summary(lm(c_22_23$sl_carbon_9m2 ~ c_22_23$gap))

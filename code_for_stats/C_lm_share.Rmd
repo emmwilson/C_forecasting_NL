@@ -2,7 +2,11 @@
 title: "Complete run through"
 author: "Emmerson Wilson"
 date: "2024-01-18"
-output: html_document
+output:
+ pdf_document:
+   toc: true
+   toc_depth: 5
+classoption: landscape
 ---
 
 ```{r}
@@ -19,9 +23,9 @@ pacman::p_load(
   
 ```
 
-## data
+# data
 
-### c at sites
+# c at sites
 
 ```{r}
 library(httr)
@@ -39,7 +43,7 @@ c_m2_sites <- read_xlsx(temp_file1)%>%
 c_m2_sites
 ```
 
-### c at subplots
+# c at subplots
 
 ```{r}
 github_link2 <- "https://github.com/emmwilson/C_forecasting_NL/blob/main/final%20carbon%20data/c_m2_subplot.xlsx?raw=true"
@@ -54,7 +58,7 @@ c_m2_subplots <- read_xlsx(temp_file2)
 c_m2_subplots
 ```
 
-### environmental variables at sites
+# environmental variables at sites
 
 ```{r}
 github_link3 <- "https://github.com/emmwilson/C_forecasting_NL/blob/main/final%20carbon%20data/env_site_final.xlsx?raw=true"
@@ -93,6 +97,8 @@ c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 2] <- "aL
 c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 3] <- "bH"
 c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 4] <- "cX"
 
+c_env_sites_scale_GM$Moose_new <- as.factor(c_env_sites_scale_GM$Moose_new)
+
 c_env_sites_scale_TN <- c_env_sites_scale %>% 
   filter(park == "TN")
 
@@ -101,10 +107,10 @@ c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 2] <- "bM
 c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 3] <- "cH"
 c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 4] <- "dV"
 
-
+c_env_sites_scale_TN$Moose_new <- as.factor(c_env_sites_scale_TN$Moose_new)
 ```
 
-### environmental variables at each subplot
+# environmental variables at each subplot
 
 ```{r}
 github_link4 <- "https://github.com/emmwilson/C_forecasting_NL/blob/main/final%20carbon%20data/env_subplots_final.xlsx?raw=true"
@@ -120,7 +126,7 @@ env_subplot_final
 
 c_env_subplots <- full_join(c_m2_subplots, env_subplot_final) %>%
   dplyr::select(!c(FAC, CC, CEC_LCT, SPC))
-c_env_subplots$Moose_new <- as.character(c_env_subplots$Moose_new)  
+c_env_subplots$Moose_new <- as.character(c_env_subplots$Moose_new)
 
 #subset by park
 c_env_subplots_GM <- c_env_subplots %>% 
@@ -145,6 +151,7 @@ c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 2] <- "aL"
 c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 3] <- "bH"
 c_env_sub_scale_GM["Moose_new"][c_env_sub_scale_GM["Moose_new"] == 4] <- "cX"
 
+c_env_sub_scale_GM$Moose_new <- as.factor(c_env_sub_scale_GM$Moose_new)
 
 c_env_sub_scale_TN <- c_env_sub_scale %>% 
   filter(park_id == "TN") 
@@ -154,9 +161,10 @@ c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 2] <- "bM"
 c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 3] <- "cH"
 c_env_sub_scale_TN["Moose_new"][c_env_sub_scale_TN["Moose_new"] == 4] <- "dV"
 
+c_env_sub_scale_TN$Moose_new <- as.factor(c_env_sub_scale_TN$Moose_new)
 ```
 
-## model functions
+# model functions
 
 ```{r}
 source("https://github.com/emmwilson/C_forecasting_NL/blob/main/code_for_stats/lmer%20model%20functions.R?raw=true")
@@ -166,12 +174,12 @@ R2 <- function(model){
 }
 ```
 
-## GM
+# GM
 
 
-#### by site
+## by site
 
-##### null
+### null
 
 ```{r}
 #run the model
@@ -188,7 +196,7 @@ GM_lm_null_summary <- GM_lm_null_summary[,c(5,6,1:4)]
 GM_lm_null_summary
 ```
 
-##### full
+### full
 
 ```{r}
 # make list of all variables to be included in full model
@@ -209,7 +217,7 @@ GM_lm_full_summary <- GM_lm_full_summary[,c(5,6,1:4)]
 GM_lm_full_summary
 ```
 
-##### univariate
+### univariate
 
 ```{r}
 # run model with each predictor variable on own
@@ -227,7 +235,7 @@ GM_lm_uni_summary
 
 ```
 
-#### summary of uni, null and full
+## summary of uni, null and full
 
 ```{r}
 # get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
@@ -244,7 +252,7 @@ GM_lm_summary <- GM_lm_summary %>%
 ```
 
 
-#### compare
+## compare
 
 ```{r}
 # see excel "c_lm_model_results.xlsx" for consolidated values
@@ -267,19 +275,22 @@ Modnames_GM_r <- paste(names(GM_models_r)) # make sure names are same as model n
 
 # get table
 aic_GM <- as.data.frame(aictab(cand.set = GM_models_r, modnames = Modnames_GM_r, sort = TRUE))
-  
-# R2_GM <- as.data.frame(sapply(GM_models_r, R2)) %>% setNames(c("R2")) 
-# R2_GM <- R2_GM %>% 
-#   mutate("Modnames" = rownames(R2_GM))
-# 
-# aic_R2_GM <- full_join(aic_GM, R2_GM)
-  
-view(aic_GM) # table of AIC values for null, full and univariate models
+
+# try to add R2 to AIC table
+R2_GM <- as.data.frame(sapply(GM_models_r, R2)) %>% setNames(c("R2"))
+R2_GM <- R2_GM %>% 
+   mutate("Modnames" = rownames(R2_GM))
+R2_GM
+aic_GM
+
+aic_R2_GM <- full_join(aic_GM, R2_GM)
+
+view(aic_R2_GM) # table of AIC values for null, full and univariate models
 
 # thoughts: FHT staying strong. strange that EVImed has such high AIC but was sig in full model. AIC for EVIamp agrees with univariate model. 
 ```
 
-##### reduced
+### reduced
 
 dropping one variable at a time, based on combination of significance in full model and AIC of univariate model. If values conflicting try removing two different variables and compare
 
@@ -300,7 +311,7 @@ GM_red_list8 <- within(GM_red_list7, rm("EVImed"))
 GM_red_list9 <- within(GM_red_list7, rm("EVIamp")) 
 
 # add lists of variables to a metalist
-GM_red_list <- list("FHT", GM_red_list1, GM_red_list2, GM_red_list3, GM_red_list4, GM_red_list5, GM_red_list6, GM_red_list7, GM_red_list8, GM_red_list9)
+GM_red_list <- list(GM_red_list1, GM_red_list2, GM_red_list3, GM_red_list4, GM_red_list5, GM_red_list6, GM_red_list7, GM_red_list8, GM_red_list9)
 
 
 # run glm on each combination of variables
@@ -313,82 +324,110 @@ GM_lm_red_summary
 
 Modnames_GM_red_r <- names(GM_lm_red)
 
+# aic for reduced models
 aic_GM_red <- as.data.frame(aictab(cand.set = GM_lm_red, modnames = Modnames_GM_red_r, sort = TRUE))
 
-# R2_GM_red <- as.data.frame(sapply(GM_lm_red, R2)) %>% setNames(c("R2")) 
-# R2_GM_red <- R2_GM_red %>% 
-#   mutate("Modnames" = rownames(R2_GM_red))
-# 
-# aic_R2_GM_red <- full_join(aic_GM_red, R2_GM_red)
-# 
-# 
-# # add reduced, univariate, full, and null models then get aic values
-# aic_GM_all <- as.data.frame(aictab(cand.set = c(GM_models_r, GM_lm_red), modnames = c(Modnames_GM_r, Modnames_GM_red_r), sort = TRUE))
-# 
-# aic_R2_GM_all <- left_join(aic_GM_all, rbind(R2_GM_red, R2_GM), by = "Modnames")
-# 
-# view(aic_R2_GM_all) #compares AIC of all models tested
+# r2 for reduced models
+R2_GM_red<- as.data.frame(sapply(GM_lm_red, R2)) %>% setNames(c("R2"))
+R2_GM_red <- R2_GM_red %>% mutate("Modnames" = rownames(R2_GM_red))
+
+aic_R2_GM_red <- full_join(aic_GM_red, R2_GM_red)
+
+view(aic_R2_GM_red)
+
+# aic for all models
+aic_GM_all <- as.data.frame(aictab(cand.set = c(GM_models_r, GM_lm_red), modnames = names(c(GM_models_r, GM_lm_red)), sort = TRUE))
+
+# r2 for all models
+R2_GM_all <- rbind(R2_GM, R2_GM_red)
+
+aic_R2_GM_all <- full_join(aic_GM_all, R2_GM_all)
+
+# final table of AIC and r2 for GM
+view(aic_R2_GM_all)
+
 ```
 
-#### by subplot
+## by subplot
 
-##### null
+### null
 
 ```{r}
 # fixed effects - very much pseaudoreplication but ran the models out of curiosity
-GM_lm_null_sub <- lm_glm(c_env_sub_scale_GM, "c_m2_subplot", "1")
+GM_lm_null_subfe <- lm_glm(c_env_sub_scale_GM, "c_m2_subplot", "1")
 
-summary(GM_lm_null_sub)
+summary(GM_lm_null_subfe)
 
 # mixed effects
-GM_lm_null_site_sub <- lm_lmer(c_env_sub_scale_GM, "c_m2_subplot", "1")
+GM_lm_null_sub <- lm_lmer(c_env_sub_scale_GM, "c_m2_subplot", "1")
 
-GM_lm_null_site_sub_summary <- summary(GM_lm_null_site_sub)
-r.squaredGLMM(GM_lm_null_site_sub)
+GM_lm_null_sub_summary <- summary(GM_lm_null_sub)
+r.squaredGLMM(GM_lm_null_sub)
 ```
 
-##### full
+### full
 
 ```{r}
 # fixed effects
 
-GM_lm_full_sub <- lm_glm(c_env_sub_scale_GM, "c_m2_subplot", full_var)
+GM_lm_full_subfe <- lm_glm(c_env_sub_scale_GM, "c_m2_subplot", full_var)
+summary(GM_lm_full_subfe)
+
+# mixed effects
+GM_lm_full_sub <- lm_lmer(c_env_sub_scale_GM, "c_m2_subplot", full_var)
+
 summary(GM_lm_full_sub)
-
-# mixed effects
-GM_lm_full_site_sub <- lm_lmer(c_env_sub_scale_GM, "c_m2_subplot", full_var)
-
-summary(GM_lm_full_site_sub)
-r.squaredGLMM(GM_lm_full_site_sub)
+r.squaredGLMM(GM_lm_full_sub)
 ```
 
-##### univariate
+### univariate
 
 ```{r}
 # fixed effects
 
-GM_lm_uni_sub <- lapply(full_var, lm_glm, df = c_env_sub_scale_GM, c = "c_m2_subplot")
+GM_lm_uni_subfe <- lapply(full_var, lm_glm, df = c_env_sub_scale_GM, c = "c_m2_subplot")
+
+names(GM_lm_uni_subfe) <- full_var
+
+GM_lm_uni_subfe_summary <- lapply(GM_lm_uni_subfe, summary)
+GM_lm_uni_subfe_summary
+
+# mixed effects
+
+GM_lm_uni_sub <- lapply(full_var, lm_lmer, df = c_env_sub_scale_GM, c = "c_m2_subplot")
 
 names(GM_lm_uni_sub) <- full_var
 
 GM_lm_uni_sub_summary <- lapply(GM_lm_uni_sub, summary)
-GM_lm_uni_sub_summary
 
-# mixed effects
-
-GM_lm_uni_site_sub <- lapply(full_var, lm_lmer, df = c_env_sub_scale_GM, c = "c_m2_subplot")
-
-names(GM_lm_uni_site_sub) <- full_var
-
-GM_lm_uni_site_sub_summary <- lapply(GM_lm_uni_site_sub, summary)
-
-GM_lm_uni_site_sub_r2 <- lapply(GM_lm_uni_site_sub, r.squaredGLMM)
-GM_lm_uni_site_sub_r2s
+GM_lm_uni_sub_r2 <- lapply(GM_lm_uni_sub, r.squaredGLMM)
+GM_lm_uni_sub_r2
 ```
 
-#### compare
+## compare
 
 ```{r}
+GM_models_subfe_r <- list()
+
+GM_models_subfe_r[["GM_lm_null_subfe"]] <- GM_lm_null_subfe
+GM_models_subfe_r[["GM_lm_full_subfe"]] <- GM_lm_full_subfe
+GM_models_subfe_r[[names(GM_lm_uni_subfe)[1]]] <- GM_lm_uni_subfe[[1]]
+GM_models_subfe_r[[names(GM_lm_uni_subfe)[2]]] <- GM_lm_uni_subfe[[2]]
+GM_models_subfe_r[[names(GM_lm_uni_subfe)[3]]] <- GM_lm_uni_subfe[[3]]
+GM_models_subfe_r[[names(GM_lm_uni_subfe)[4]]] <- GM_lm_uni_subfe[[4]]
+GM_models_subfe_r[[names(GM_lm_uni_subfe)[5]]] <- GM_lm_uni_subfe[[5]]
+GM_models_subfe_r[[names(GM_lm_uni_subfe)[6]]] <- GM_lm_uni_subfe[[6]]
+GM_models_subfe_r[[names(GM_lm_uni_subfe)[7]]] <- GM_lm_uni_subfe[[7]]
+GM_models_subfe_r[[names(GM_lm_uni_subfe)[8]]] <- GM_lm_uni_subfe[[8]]
+
+Modnames_GM_subfe_r <- paste(names(GM_models_subfe_r))
+
+# get table
+aic_GM_sub_fe <- aictab(cand.set = GM_models_subfe_r, modnames = Modnames_GM_subfe_r, sort = TRUE)
+  # mutate(R2m = sapply(lapply(GM_models_subfe_r, r.squaredGLMM), "[[", 1)) %>% 
+  # mutate(R2c = sapply(lapply(GM_models_subfe_r, r.squaredGLMM), "[[", 2))
+
+
 GM_models_sub_r <- list()
 
 GM_models_sub_r[["GM_lm_null_sub"]] <- GM_lm_null_sub
@@ -405,34 +444,18 @@ GM_models_sub_r[[names(GM_lm_uni_sub)[8]]] <- GM_lm_uni_sub[[8]]
 Modnames_GM_sub_r <- paste(names(GM_models_sub_r))
 
 # get table
-aic_GM_sub_fe <- aictab(cand.set = GM_models_sub_r, modnames = Modnames_GM_sub_r, sort = TRUE) %>% 
-  mutate(R2m = sapply(lapply(GM_models_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-  mutate(R2c = sapply(lapply(GM_models_sub_r, r.squaredGLMM), "[[", 2))
+ aic_GM_sub <- aictab(cand.set = GM_models_sub_r, modnames = Modnames_GM_sub_r, sort = TRUE) 
+ 
+R2_GM_sub <- as.data.frame(sapply(GM_models_sub_r, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_GM_sub <- R2_GM_sub %>% 
+   mutate("Modnames" = rownames(R2_GM_sub))
+
+aic_R2_GM_sub <- full_join(aic_GM_sub, R2_GM_sub)
 
 
-GM_models_site_sub_r <- list()
-
-GM_models_site_sub_r[["GM_lm_null_site_sub"]] <- GM_lm_null_site_sub
-GM_models_site_sub_r[["GM_lm_full_site_sub"]] <- GM_lm_full_site_sub
-GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[1]]] <- GM_lm_uni_site_sub[[1]]
-GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[2]]] <- GM_lm_uni_site_sub[[2]]
-GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[3]]] <- GM_lm_uni_site_sub[[3]]
-GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[4]]] <- GM_lm_uni_site_sub[[4]]
-GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[5]]] <- GM_lm_uni_site_sub[[5]]
-GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[6]]] <- GM_lm_uni_site_sub[[6]]
-GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[7]]] <- GM_lm_uni_site_sub[[7]]
-GM_models_site_sub_r[[names(GM_lm_uni_site_sub)[8]]] <- GM_lm_uni_site_sub[[8]]
-
-Modnames_GM_site_sub_r <- paste(names(GM_models_site_sub_r))
-
-# get table
- aic_GM_sub <- aictab(cand.set = GM_models_site_sub_r, modnames = Modnames_GM_site_sub_r, sort = TRUE) 
-#   mutate(R2m = sapply(lapply(GM_models_site_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-#   mutate(R2c = sapply(lapply(GM_models_site_sub_r, r.squaredGLMM), "[[", 2))
-view(aic_GM_sub)
 ```
 
-##### reduced
+### reduced
 
 ```{r eval=FALSE, include=FALSE}
 names(full_var) <- full_var
@@ -448,7 +471,7 @@ GM_sub_red_list8 <- within(GM_sub_red_list6, rm("LGS"))
 GM_sub_red_list9 <- within(GM_sub_red_list8, rm("ASP")) # bad
 GM_sub_red_list10 <- within(GM_sub_red_list8, rm("EVImed"))
 
-GM_sub_red_list <- list(full_var, "FHT", GM_sub_red_list1, GM_sub_red_list2, GM_sub_red_list3, GM_sub_red_list4, GM_sub_red_list5, GM_sub_red_list6, GM_sub_red_list7, GM_sub_red_list8, GM_sub_red_list9, GM_sub_red_list10)
+GM_sub_red_list <- list(GM_sub_red_list1, GM_sub_red_list2, GM_sub_red_list3, GM_sub_red_list4, GM_sub_red_list5, GM_sub_red_list6, GM_sub_red_list7, GM_sub_red_list8, GM_sub_red_list9, GM_sub_red_list10)
 
 GM_sub_lm_red <- lapply(GM_sub_red_list, lm_lmer, df = c_env_sub_scale_GM, c = "c_m2_subplot")
 
@@ -462,22 +485,37 @@ Modnames_GM_sub_red_r <- names(GM_sub_lm_red)
 
 # table for just reduced models
 aic_GM_sub_red <- aictab(cand.set = GM_sub_lm_red, modnames = Modnames_GM_sub_red_r, sort = TRUE) 
-  # mutate(R2m = sapply(lapply(GM_sub_lm_red, r.squaredGLMM), "[[", 1)) %>% 
-  # mutate(R2c = sapply(lapply(GM_sub_lm_red, r.squaredGLMM), "[[", 2))
+
+R2_GM_sub_red <- as.data.frame(sapply(GM_sub_lm_red, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_GM_sub_red <- R2_GM_sub_red %>% 
+   mutate("Modnames" = rownames(R2_GM_sub_red))
+
+aic_R2_GM_sub_red <- full_join(aic_GM_sub_red, R2_GM_sub_red)
 
 # table for all models
-aic_GM_sub_all <- aictab(cand.set = c(GM_models_site_sub_r, GM_sub_lm_red), modnames = c(Modnames_GM_site_sub_r, Modnames_GM_sub_red_r), sort = TRUE) 
-  # mutate(R2m = sapply(lapply(c(GM_models_site_sub_r, GM_sub_lm_red), r.squaredGLMM), "[[", 1)) %>% 
-  # mutate(R2c = sapply(lapply(c(GM_models_site_sub_r, GM_sub_lm_red), r.squaredGLMM), "[[", 2))
+aic_GM_sub_all <- aictab(cand.set = c(GM_models_sub_r, GM_sub_lm_red), modnames = c(Modnames_GM_sub_r, Modnames_GM_sub_red_r), sort = TRUE) 
 
-view(aic_GM_sub_all)
+R2_GM_sub_all <- rbind(R2_GM_sub, R2_GM_sub_red)
+
+aic_R2_GM_sub_all <- full_join(aic_GM_sub_all, R2_GM_sub_all)
+
+view(aic_R2_GM_sub_all)
 ```
 
-## TN
+# TN
 
-#### by site
+# temporarily setTN 05
 
-##### null
+```{r}
+c_env_sites_scale_TN$Moose_new <-replace_na(c_env_sites_scale_TN$Moose_new, "cH")
+
+c_env_sub_scale_TN$Moose_new <-replace_na(c_env_sub_scale_TN$Moose_new, "cH")
+```
+
+
+## by site
+
+### null
 
 ```{r}
 TN_lm_null <- lm_glm(c_env_sites_scale_TN, "c_m2_site", "1")
@@ -494,7 +532,7 @@ TN_lm_null_summary <- TN_lm_null_summary[,c(5,6,1:4)]
 TN_lm_null_summary
 ```
 
-##### full
+### full
 
 ```{r}
 
@@ -513,7 +551,7 @@ TN_lm_full_summary
 # thoughts: forest height important again. This time EVIamp also sig in full model.
 ```
 
-##### univariate
+### univariate
 
 ```{r}
 
@@ -527,7 +565,7 @@ TN_lm_uni_summary
 
 ```
 
-#### summary of uni, null and full
+## summary of uni, null and full
 
 ```{r}
 # get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
@@ -543,7 +581,7 @@ TN_lm_summary <- TN_lm_summary %>%
   mutate(significance = ifelse(TN_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(TN_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(TN_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(TN_lm_summary$`Pr(>|t|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
 ```
 
-#### compare
+## compare
 
 ```{r}
 # see excel "c_lm_model_results.xlsx" for consolidated values
@@ -567,10 +605,21 @@ Modnames_TN_r <- paste(names(TN_models_r))
 aic_TN <- aictab(cand.set = TN_models_r, modnames = Modnames_TN_r, sort = TRUE)  
   # mutate(R2 = lapply(TN_models_r, R2))
 view(aic_TN)
+
+R2_TN <- as.data.frame(sapply(TN_models_r, R2)) %>% setNames(c("R2"))
+R2_TN <- R2_TN %>% 
+   mutate("Modnames" = rownames(R2_TN))
+R2_TN
+aic_TN
+
+aic_R2_TN <- full_join(aic_TN, R2_TN)
+
+view(aic_R2_TN) # table of AIC values for null, full and univariate models
+
 # thoughts: FHT important again. also, even though moose univariate model is the worst AIC, it is actually important for reduced models (see below)
 ```
 
-##### reduced
+### reduced
 
 ```{r eval=FALSE, include=FALSE}
 
@@ -589,7 +638,7 @@ TN_red_list9 <- within(TN_red_list6, rm("Moose_new")) # taking out moose doesn't
 TN_red_list10 <- within(TN_red_list8, rm("Moose_new"))
 TN_red_list11 <- within(TN_red_list8, rm("EVIamp"))
 
-TN_red_list <- list("FHT", TN_red_list1, TN_red_list2, TN_red_list3, TN_red_list4, TN_red_list6, TN_red_list7, TN_red_list8, TN_red_list9, TN_red_list10, TN_red_list11)
+TN_red_list <- list(TN_red_list1, TN_red_list2, TN_red_list3, TN_red_list4, TN_red_list6, TN_red_list7, TN_red_list8, TN_red_list9, TN_red_list10, TN_red_list11)
 
 TN_lm_red <- lapply(TN_red_list, lm_glm, df = c_env_sites_scale_TN, c = "c_m2_site")
 names(TN_lm_red) <- lapply(TN_red_list, paste0, collapse = " + ") 
@@ -599,74 +648,103 @@ TN_lm_red_summary
 
 Modnames_TN_red_r <- names(TN_lm_red)
 
-aic_TN_red <- aictab(cand.set = TN_lm_red, modnames = Modnames_TN_red_r, sort = TRUE) %>% #this calculates corrected AIC so slightly different values than normal AIC
-  mutate(R2 = lapply(TN_lm_red, R2))
+aic_TN_red <- aictab(cand.set = TN_lm_red, modnames = Modnames_TN_red_r, sort = TRUE) 
 
 aic_TN_all <- aictab(cand.set = c(TN_models_r, TN_lm_red), modnames = c(Modnames_TN_r, Modnames_TN_red_r), sort = TRUE) 
  # mutate(R2 = lapply(c(TN_models_r, TN_lm_red), R2))
 
+R2_TN_red <- as.data.frame(sapply(TN_lm_red, R2)) %>% setNames(c("R2"))
+R2_TN_red <- R2_TN_red %>% 
+   mutate("Modnames" = rownames(R2_TN_red))
+R2_TN_all <- rbind(R2_TN, R2_TN_red)
+
+aic_R2_TN_all <- full_join(aic_TN_all, R2_TN_all)
+
+view(aic_R2_TN_all) # table of AIC values for null, full and univariate models
+
+
 # EVIamp is only sig as long as moose AND LGS are in the model, if either are taken away EVIamp becomes insig
 
-view(aic_TN_all)
 ```
 
-#### by subplot
+## by subplot
 
-##### null
+### null
 
 ```{r}
 # fixed effects
 
-TN_lm_null_sub <- lm_glm(c_env_sub_scale_TN, "c_m2_subplot", "1")
+TN_lm_null_subfe <- lm_glm(c_env_sub_scale_TN, "c_m2_subplot", "1")
 
 # mixed effects
-TN_lm_null_site_sub <- lm_lmer(c_env_sub_scale_TN, "c_m2_subplot", "1")
+TN_lm_null_sub <- lm_lmer(c_env_sub_scale_TN, "c_m2_subplot", "1")
 
 ```
 
-##### full
+### full
 
 ```{r}
 # fixed effects
 
-TN_lm_full_sub <- lm_glm(c_env_sub_scale_TN, "c_m2_subplot", full_var)
+TN_lm_full_subfe <- lm_glm(c_env_sub_scale_TN, "c_m2_subplot", full_var)
+summary(TN_lm_full_subfe)
+
+# mixed effects
+TN_lm_full_sub <- lm_lmer(c_env_sub_scale_TN, "c_m2_subplot", full_var)
+
 summary(TN_lm_full_sub)
-
-# mixed effects
-TN_lm_full_site_sub <- lm_lmer(c_env_sub_scale_TN, "c_m2_subplot", full_var)
-
-summary(TN_lm_full_site_sub)
-r.squaredGLMM(TN_lm_full_site_sub)
+r.squaredGLMM(TN_lm_full_sub)
 ```
 
-##### univariate
+### univariate
 
 ```{r}
 # fixed effects
 
-TN_lm_uni_sub <- lapply(full_var, lm_glm, df = c_env_sub_scale_TN, c = "c_m2_subplot")
+TN_lm_uni_subfe <- lapply(full_var, lm_glm, df = c_env_sub_scale_TN, c = "c_m2_subplot")
+
+names(TN_lm_uni_subfe) <- full_var
+
+
+TN_lm_uni_subfe_summary <- lapply(TN_lm_uni_subfe, summary)
+TN_lm_uni_subfe_summary
+
+# mixed effects
+
+TN_lm_uni_sub <- lapply(full_var, lm_lmer, df = c_env_sub_scale_TN, c = "c_m2_subplot")
 
 names(TN_lm_uni_sub) <- full_var
 
-
 TN_lm_uni_sub_summary <- lapply(TN_lm_uni_sub, summary)
-TN_lm_uni_sub_summary
 
-# mixed effects
-
-TN_lm_uni_site_sub <- lapply(full_var, lm_lmer, df = c_env_sub_scale_TN, c = "c_m2_subplot")
-
-names(TN_lm_uni_site_sub) <- full_var
-
-TN_lm_uni_site_sub_summary <- lapply(TN_lm_uni_site_sub, summary)
-
-TN_lm_uni_site_sub_r2 <- lapply(TN_lm_uni_site_sub, r.squaredGLMM)
-TN_lm_uni_site_sub_r2
+TN_lm_uni_sub_r2 <- lapply(TN_lm_uni_sub, r.squaredGLMM)
+TN_lm_uni_sub_r2
 ```
 
-#### compare
+## compare
 
 ```{r}
+TN_models_subfe_r <- list()
+
+TN_models_subfe_r[["TN_lm_null_subfe"]] <- TN_lm_null_subfe
+TN_models_subfe_r[["TN_lm_full_subfe"]] <- TN_lm_full_subfe
+TN_models_subfe_r[[names(TN_lm_uni_subfe)[1]]] <- TN_lm_uni_subfe[[1]]
+TN_models_subfe_r[[names(TN_lm_uni_subfe)[2]]] <- TN_lm_uni_subfe[[2]]
+TN_models_subfe_r[[names(TN_lm_uni_subfe)[3]]] <- TN_lm_uni_subfe[[3]]
+TN_models_subfe_r[[names(TN_lm_uni_subfe)[4]]] <- TN_lm_uni_subfe[[4]]
+TN_models_subfe_r[[names(TN_lm_uni_subfe)[5]]] <- TN_lm_uni_subfe[[5]]
+TN_models_subfe_r[[names(TN_lm_uni_subfe)[6]]] <- TN_lm_uni_subfe[[6]]
+TN_models_subfe_r[[names(TN_lm_uni_subfe)[7]]] <- TN_lm_uni_subfe[[7]]
+TN_models_subfe_r[[names(TN_lm_uni_subfe)[8]]] <- TN_lm_uni_subfe[[8]]
+
+
+Modnames_TN_subfe_r <- paste(names(TN_models_subfe_r))
+
+# get table
+aic_TN_sub_fe <- aictab(cand.set = TN_models_subfe_r, modnames = Modnames_TN_subfe_r, sort = TRUE)
+
+# for mixed effects
+
 TN_models_sub_r <- list()
 
 TN_models_sub_r[["TN_lm_null_sub"]] <- TN_lm_null_sub
@@ -684,43 +762,21 @@ TN_models_sub_r[[names(TN_lm_uni_sub)[8]]] <- TN_lm_uni_sub[[8]]
 Modnames_TN_sub_r <- paste(names(TN_models_sub_r))
 
 # get table
-aic_TN_sub_fe <- aictab(cand.set = TN_models_sub_r, modnames = Modnames_TN_sub_r, sort = TRUE)%>% 
-  mutate(R2m = sapply(lapply(TN_models_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-  mutate(R2c = sapply(lapply(TN_models_sub_r, r.squaredGLMM), "[[", 2))
-
-
-
-TN_models_site_sub_r <- list()
-
-TN_models_site_sub_r[["TN_lm_null_site_sub"]] <- TN_lm_null_site_sub
-TN_models_site_sub_r[["TN_lm_full_site_sub"]] <- TN_lm_full_site_sub
-TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[1]]] <- TN_lm_uni_site_sub[[1]]
-TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[2]]] <- TN_lm_uni_site_sub[[2]]
-TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[3]]] <- TN_lm_uni_site_sub[[3]]
-TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[4]]] <- TN_lm_uni_site_sub[[4]]
-TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[5]]] <- TN_lm_uni_site_sub[[5]]
-TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[6]]] <- TN_lm_uni_site_sub[[6]]
-TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[7]]] <- TN_lm_uni_site_sub[[7]]
-TN_models_site_sub_r[[names(TN_lm_uni_site_sub)[8]]] <- TN_lm_uni_site_sub[[8]]
-
-
-Modnames_TN_site_sub_r <- paste(names(TN_models_site_sub_r))
-
-# get table
-aic_TN_sub <- aictab(cand.set = TN_models_site_sub_r, modnames = Modnames_TN_site_sub_r, sort = TRUE) 
-  # mutate(R2m = sapply(lapply(TN_models_site_sub_r, r.squaredGLMM), "[[", 1)) %>% 
-  # mutate(R2c = sapply(lapply(TN_models_site_sub_r, r.squaredGLMM), "[[", 2))
+aic_TN_sub <- aictab(cand.set = TN_models_sub_r, modnames = Modnames_TN_sub_r, sort = TRUE) 
 view(aic_TN_sub)
+
+R2_TN_sub<- as.data.frame(sapply(TN_models_sub_r, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_TN_sub <- R2_TN_sub %>% mutate("Modnames" = rownames(R2_TN_sub))
 ```
 
-##### reduced
+### reduced
 
 ```{r eval=FALSE, include=FALSE}
 names(full_var) <- full_var
 
 TN_sub_red_list1 <- within(full_var, rm("ELE"))
 
-TN_sub_red_list <- list(full_var, "FHT", TN_sub_red_list1)
+TN_sub_red_list <- list(full_var, TN_sub_red_list1)
 
 TN_sub_lm_red <- lapply(TN_sub_red_list, lm_lmer, df = c_env_sub_scale_TN, c = "c_m2_subplot")
 names(TN_sub_lm_red) <- lapply(TN_sub_red_list, paste0, collapse = " + ") 
@@ -731,12 +787,20 @@ TN_sub_lm_red_summary
 Modnames_TN_sub_red_r <- names(TN_sub_lm_red)
 
 aic_TN_sub_red <- aictab(cand.set = TN_sub_lm_red, modnames = Modnames_TN_sub_red_r, sort = TRUE) 
-  # mutate(R2m = sapply(lapply(TN_sub_lm_red, r.squaredGLMM), "[[", 1)) %>% 
-  # mutate(R2c = sapply(lapply(TN_sub_lm_red, r.squaredGLMM), "[[", 2))
 
-aic_TN_sub_all <- aictab(cand.set = c(TN_models_site_sub_r, TN_sub_lm_red), modnames = c(Modnames_TN_site_sub_r, Modnames_TN_sub_red_r), sort = TRUE)  
-  # mutate(R2m = sapply(lapply(c(TN_models_site_sub_r, TN_sub_lm_red), r.squaredGLMM), "[[", 1)) %>% 
-  # mutate(R2c = sapply(lapply(c(TN_models_site_sub_r, TN_sub_lm_red), r.squaredGLMM), "[[", 2))
+R2_TN_sub_red<- as.data.frame(sapply(TN_sub_lm_red, r.squaredGLMM)) %>% t() %>%  as.data.frame() %>% setNames(c("R2m", "R2c"))
+R2_TN_sub_red <- R2_TN_sub_red %>% mutate("Modnames" = rownames(R2_TN_sub_red))
+
+# table for all models
+aic_TN_sub_all <- aictab(cand.set = c(TN_models_sub_r, TN_sub_lm_red), modnames = c(Modnames_TN_sub_r, Modnames_TN_sub_red_r), sort = TRUE) 
+
+
+
+R2_TN_sub_all <- rbind(R2_TN_sub, R2_TN_sub_red)
+
+aic_R2_TN_sub_all <- full_join(aic_TN_sub_all, R2_TN_sub_all)
+
+view(aic_R2_TN_sub_all)
 
 view(aic_TN_sub_all)
 ```
