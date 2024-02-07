@@ -41,6 +41,8 @@ req_blw1 <- GET(github_link_blw1,
 c_m2_sites_blw <- read_xlsx(temp_file_blw1)%>% 
   rename(unique_id = "id")
 c_m2_sites_blw
+
+unlink(temp_file_blw1)
 ```
 
 # c at subplots
@@ -56,6 +58,8 @@ req_blw2 <- GET(github_link_blw2,
            write_disk(path = temp_file_blw2))
 c_m2_subplots_blw <- read_xlsx(temp_file_blw2)  
 c_m2_subplots_blw
+
+unlink(temp_file_blw2)
 ```
 
 # environmental variables at sites
@@ -71,6 +75,8 @@ req3 <- GET(github_link3,
            write_disk(path = temp_file3))
 env_site_final <- read_xlsx(temp_file3)
 env_site_final
+
+unlink(temp_file3)
 
 c_blw_env_sites <- full_join(c_m2_sites_blw, env_site_final) %>%
   dplyr::select(!c(FAC, CC, CEC_LCT, dominant))
@@ -121,6 +127,8 @@ req4 <- GET(github_link4,
            write_disk(path = temp_file4))
 env_subplot_final <- read_xlsx(temp_file4)
 env_subplot_final
+
+unlink(temp_file4)
 
 c_blw_env_subplots <- full_join(c_m2_subplots_blw, env_subplot_final) %>%
   dplyr::select(!c(FAC, CC, CEC_LCT, SPC))
@@ -390,7 +398,7 @@ aic_R2_GM_blw_sub <- full_join(aic_GM_blw_sub, R2_GM_blw_sub)
 view(aic_R2_GM_blw_sub)
 ```
 
-thoughts: apparently there is huge amounts of random variation between sites. adding a random effect of site shoots the R2c up to alost 80%
+thoughts: apparently there is huge amounts of random variation between sites. adding a random effect of site shoots the R2c up to almost 80%
 
 ### reduced
 

@@ -92,12 +92,10 @@ LCT_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 
 names(LCT_TN) <- "LCT_TN"
 LGS_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_LGS_TN_filled.tif")
 names(LGS_TN) <- "LGS_TN"
-moose_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/moose_surveys/rasterized/clipped/TN_Moose_Sampling_Unit2015_clip.tif")
+moose_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/moose_surveys/TN_2020/NP_moose2020_TN_clip.tif")
 names(moose_TN) <- "moose_TN"
 
-values(moose_TN)[values(moose_TN) == 1] <- "2"
-values(moose_TN)[values(moose_TN) == 2] <- "3"
-values(moose_TN)[values(moose_TN) == 3] <- "1"
+moose_TN[] = ifelse(moose_TN[]==1, 3, ifelse(moose_TN[]==2, 1, ifelse(moose_TN[]==3, 2, 4)))
 
 
 SPC_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_SPC_GM.tif")
@@ -122,12 +120,10 @@ LCT_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 
 names(LCT_GM) <- "LCT_GM"
 LGS_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_LGS_GM_filled.tif")
 names(LGS_GM) <- "LGS_GM"
-moose_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/moose_surveys/rasterized/clipped/GM_Pre-Stratification_2015_clip.tif")
+moose_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/moose_surveys/GM_2017/NP_moose2017_GM_clip.tif")
 names(moose_GM) <- "moose_GM"
 
-values(moose_GM)[values(moose_GM) == 1] <- "2"
-values(moose_GM)[values(moose_GM) == 3] <- "1"
-values(moose_GM)[values(moose_GM) == 4] <- "3"
+moose_GM[] = ifelse(moose_GM[]==1, 2, ifelse(moose_GM[]==2, 1, ifelse(moose_GM[]==3, 3, 1)))
 
 
 ```
@@ -225,18 +221,44 @@ values(ASP_TN) <- abs(180 - values(ASP_TN))
 ASP_TN[is.na(ASP_TN[])] <- 0.01
 ```
 
+## make individual moose layers
+
+```{r}
+moose_TNl <- moose_TN
+moose_TNm <- moose_TN
+moose_TNh <- moose_TN
+moose_TNl[moose_TNl[] != 1 ] <- NA
+moose_TNm[moose_TNm[] != 2 ] <- NA
+moose_TNm[moose_TNm[] == 2 ] <- 1
+moose_TNh[moose_TNh[] != 3 ] <- NA
+moose_TNh[moose_TNh[] == 3 ] <- 1
+
+moose_GMl <- moose_GM
+moose_GMh <- moose_GM
+moose_GMx <- moose_GM
+moose_GMl[moose_GMl[] != 1 ] <- NA
+moose_GMh[moose_GMh[] != 2 ] <- NA
+moose_GMh[moose_GMh[] == 2 ] <- 1
+moose_GMx[moose_GMx[] != 3 ] <- NA
+moose_GMx[moose_GMx[] == 3 ] <- 1
+```
+
+
 ## stack rasters
 
 
 ```{r}
 
-TN_env_list <- list( FAC_TN, EVIamp_TN, EVImed_TN, FHT_TN, CC10fill_TN, SLO_TN, ELE_TN, ASP_TN, LCT_TN, moose_TN, LGS_TN)
+TN_env_list <- list(FHT_TN, EVIamp_TN, EVImed_TN, SLO_TN, ELE_TN, ASP_TN, LGS_TN, moose_TN, moose_TNl, moose_TNm, moose_TNh)
 
 TN_env_raster <- rast(TN_env_list)
 
-GM_env_list <- list(FAC_GM, EVIamp_GM, EVImed_GM, FHT_GM, CC15fill_GM, SLO_GM, ELE_GM, ASP_GM, LCT_GM, moose_GM, LGS_GM)
+GM_env_list <- list(FHT_GM, EVIamp_GM, EVImed_GM, SLO_GM, ELE_GM, ASP_GM, LGS_GM, moose_GM, moose_GMl, moose_GMh, moose_GMx)
 
 GM_env_raster <- rast(GM_env_list)
+
+writeRaster(GM_env_raster, filename="GM_env_raster.tif", overwrite=TRUE)
+writeRaster(TN_env_raster, filename="TN_env_raster.tif", overwrite=TRUE)
 ```
 
 ## correlation

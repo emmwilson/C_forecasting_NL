@@ -41,6 +41,8 @@ req1 <- GET(github_link1,
 c_m2_sites <- read_xlsx(temp_file1)%>% 
   rename(unique_id = "id")
 c_m2_sites
+
+unlink(temp_file1)
 ```
 
 # c at subplots
@@ -56,6 +58,8 @@ req2 <- GET(github_link2,
            write_disk(path = temp_file2))
 c_m2_subplots <- read_xlsx(temp_file2)  
 c_m2_subplots
+
+unlink(temp_file2)
 ```
 
 # environmental variables at sites
@@ -71,6 +75,8 @@ req3 <- GET(github_link3,
            write_disk(path = temp_file3))
 env_site_final <- read_xlsx(temp_file3)
 env_site_final
+
+unlink(temp_file3)
 
 c_env_sites <- full_join(c_m2_sites, env_site_final) %>%
   dplyr::select(!c(FAC, CC, CEC_LCT, dominant))
@@ -123,6 +129,8 @@ req4 <- GET(github_link4,
            write_disk(path = temp_file4))
 env_subplot_final <- read_xlsx(temp_file4)
 env_subplot_final
+
+unlink(temp_file4)
 
 c_env_subplots <- full_join(c_m2_subplots, env_subplot_final) %>%
   dplyr::select(!c(FAC, CC, CEC_LCT, SPC))

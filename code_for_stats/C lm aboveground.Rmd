@@ -40,6 +40,8 @@ req_agb1 <- GET(github_link_agb1,
            write_disk(path = temp_file_agb1))
 c_m2_sites_agb <- read_xlsx(temp_file_agb1)%>% 
   rename(unique_id = "id")
+
+unlink(temp_file_agb1)
 ```
 
 ## c at subplots
@@ -54,6 +56,8 @@ req_agb2 <- GET(github_link_agb2,
            # write result to disk
            write_disk(path = temp_file_agb2))
 c_m2_subplots_agb <- read_xlsx(temp_file_agb2)  
+
+unlink(temp_file_agb2)
 ```
 
 ## environmental variables at sites
@@ -68,6 +72,8 @@ req3 <- GET(github_link3,
            # write result to disk
            write_disk(path = temp_file3))
 env_site_final <- read_xlsx(temp_file3)
+
+unlink(temp_file3)
 
 c_agb_env_sites <- full_join(c_m2_sites_agb, env_site_final) %>%
   dplyr::select(!c(FAC, CC, CEC_LCT, dominant))
@@ -118,6 +124,7 @@ req4 <- GET(github_link4,
            write_disk(path = temp_file4))
 env_subplot_final <- read_xlsx(temp_file4)
 
+unlink(temp_file4)
 
 c_agb_env_subplots <- full_join(c_m2_subplots_agb, env_subplot_final) %>%
   dplyr::select(!c(FAC, CC, CEC_LCT, SPC))
@@ -543,12 +550,17 @@ aic_R2_GM_agb_sub_all
 write.csv(aic_R2_GM_agb_sub_all,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_GM_agb_sub_all.csv")
 ```
 
-thoughts: FHT, EVIamp, EVImed and LGS all make the top models. There is the addition of aspect in the top models, the AIC gets much higher if aspect gets removed (model 10 is the best model without aspect and its deltaAIC is 20). I think I need to change the way aspect is included, right now 360 is the furthest away from 0 (north), when in reality that is the closest you can get to north. I would expect the relationship between C and aspect to be unimodal but the model is constrained to linear. If we change it to true distance from 0, N would always be 0, S would be +180 and -180, E would be +90 and W would be -90. Do you think that works?
+thoughts: FHT, EVIamp, EVImed and LGS all make the top models. 
+
+There was the addition of aspect in the top models before I updated ASP (used to be between 0 and 360), the AIC got much higher if aspect gets removed (model 10 was the best model without aspect and its deltaAIC was 20). I think I needed to change the way aspect was included, when I first included aspect 360 was the furthest away from 0 (north), when in reality that is the closest you can get to north. I would expect the relationship between C and aspect to be unimodal but the model is constrained to linear. If we change it to absolute number of degrees from 0, N would always be 0, S would be 180, E  and W would be 90. Do you think that works?
+
+*models above run with abs(180 - ASP) which is basically just saying the number of degrees from south. this makes ASP less important
+
 All the models' R2c values are within about 3% of each other so that isn't super helpful for choosing a model. The R2c is 10-15% better than the R2 of the fixed effect models. However, the R2m is 10 - 15% lower than the R2 of the fixed effects. I take this to mean accounting for random effect of site explained some of the variance the fixed models were attributing to the environmental variables. 
 
 
 ### moose related to EVIamp
-know this is true for TN so try for GM
+know this is true for TN so trying for GM
 
 EVIamp is correlated to gaps, but not to moose densities
 ```{r}
@@ -757,7 +769,7 @@ write.csv(aic_R2_TN_agb_all,"/Users/emmersonEmmerson/Documents/Master's/C_foreca
 
 thoughts: FHT seems to be the best on it's own for TN. We could get 5% exra explained variance by adding SLO (which was a significant univariate model) and EVIamp, but at the trade off of 2 deltaAIC. Just adding SLO only accounts for about 2% extra explained variance, with a deltaAIC of 1.2
 
-bit more on moose: when trying the reduced models, the coefficient for H moose jumps almost an order of magnitude when I remove EVIamp. I did an anova and they are significantly correlated. The relationship is positive, indicating higher EVIamp at higher moose densisties. This could be because high EVIamp may be associated with gaps (or decisuous stands) and that is where moose like to be. If you see below, gaps significantly related to EVIamp, with mature stands having lower EVIamp (less seasonal change in greeness). Testing the relationship between moose densitites and gaps at each site wouldn't give any info because I sepcifically included even numbers of each moose density at gaps and mature stands. Could look over entire park.
+bit more on moose: when trying the reduced models, the coefficient for H moose jumps almost an order of magnitude when I remove EVIamp. I did an anova and they are significantly correlated. The relationship is positive, indicating higher EVIamp at higher moose densisties. This could be because high EVIamp may be associated with gaps (or deciduous stands) and that is where moose like to be. If you see below, gaps significantly related to EVIamp, with mature stands having lower EVIamp (less seasonal change in greeness). Testing the relationship between moose densitites and gaps at each site wouldn't give any info because I sepcifically included even numbers of sites at each moose density in gaps and mature stands. Could look over entire park.
 These patterns hold for subplot models as well.
 
 ```{r}

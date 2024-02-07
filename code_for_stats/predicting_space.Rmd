@@ -1,0 +1,24 @@
+---
+title: "predicting_space"
+author: "Emmerson Wilson"
+date: "2024-02-07"
+output: html_document
+---
+
+```{r}
+GM_env_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/GM_env_raster.tif") # stack of enviornmental variables' rasters
+TN_env_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/TN_env_raster.tif") # stack of enviornmental variables' rasters
+
+clip_GM <- vect("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/final_mask_layer_GM.shp") # masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+clip_TN <- vect("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/final_mask_layer_TN.shp")# masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+
+plot(clip_GM) #check
+plot(clip_TN) #check
+
+GM_env_rast_clipmask <- crop(GM_env_rast, clip_GM, mask=TRUE)
+plot(GM_env_rast_clipmask$EVIamp_GM) #check
+
+TN_env_rast_clipmask <- crop(TN_env_rast, clip_TN, mask=TRUE)
+plot(TN_env_rast_clipmask$EVIamp_TN) #check
+```
+
