@@ -64,7 +64,7 @@ TN_env_subplots <- subset(env_subplots, env_subplots$park_id == "TN")
 
 env_subplots$ASP <-replace_na(env_subplots$ASP, 0.1)
 
-write.xlsx(env_subplots, file = "../final carbon data/env_subplots_final.xlsx")
+
 ```
 
 ### from entire parks
@@ -179,21 +179,54 @@ GM_env_sites <- subset(env_sites_SPD, env_sites_SPD$park == "GM")
 TN_env_sites <- subset(env_sites_SPD, env_sites_SPD$park == "TN")
 ```
 
-### fix na ASP
+
+## fix aspect to 180
+
+### for sites
 
 ```{r}
+env_sites_SPD_print <- env_sites_SPD_print %>% 
+  mutate(ASP = abs(180 - ASP))    # should it be absolute value of distance from 0 (which would ignore E to W). if we dont take absolute value the same problem is created just with south being repeated on eitehr end of the range
+
+### fix na ASP
 env_sites_SPD_print$ASP <-replace_na(env_sites_SPD_print$ASP, 0.1)
 ```
+
+### for subplots
+
+```{r}
+env_subplots <- env_subplots %>% 
+  mutate(ASP = abs(180 - ASP))    # should it be absolute value of distance from 0 (which would ignore E to W). if we dont take absolute value the same problem is created just with south being repeated on eitehr end of the range
+
+### fix na ASP
+env_subplots$ASP <-replace_na(env_subplots$ASP, 0.1)
+```
+
 
 ### export process variables
 
 ```{r}
+write.xlsx(env_subplots, file = "../final carbon data/env_subplots_final.xlsx")
 env_site_final <- write.xlsx(env_sites_SPD_print, file = "../final carbon data/env_site_final.xlsx")
 ```
 
 ### for rasters
 
-stack
+```{r}
+values(ASP_GM) <- abs(180 - values(ASP_GM))
+
+### fix na ASP
+ASP_GM[is.na(ASP_GM[])] <- 0.01
+
+# TN
+values(ASP_TN) <- abs(180 - values(ASP_TN))
+
+### fix na ASP
+ASP_TN[is.na(ASP_TN[])] <- 0.01
+```
+
+## stack rasters
+
 
 ```{r}
 
