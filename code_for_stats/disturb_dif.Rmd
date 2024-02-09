@@ -424,3 +424,44 @@ setdiff(select(c_22_23_mooseinsectTN, -c(total_c_per_subplot)), select(ungroup(c
 setdiff(c_22_23_insectTN, select(c_22_23_mooseinsectTN, -c(total_c_per_subplot)))
 ```
 
+# diff in excl ctrl vs EVIamp
+Either way...could you do the following figure. First, compute abovegroud C in exclosure - aboveground C in control (for each pair). Then maybe just plot that difference for each pair against EVIamp (on y-axis)...or in table? I predict (based on your findings and comment in the markdowns) that we will see higher EVIamp at sites with larger, positive difference in Ex-Ctl.
+
+```{r}
+
+
+#bring in environmental data
+env_subplots_GM <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/to use/env_subplots_GM_final.xlsx") %>% # environmental data from Gros Morne subplots
+  rename(CC = "CC15fill")
+
+env_subplots_TN <- read_xlsx("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/Sites_and_subplots/env_var/xlsx/to use/env_subplots_TN_final.xlsx") %>% #environmental data from Terra Nova subplots
+    rename(CC = "CC10fill")
+
+env_subplots <- dplyr::bind_rows(env_subplots_TN, env_subplots_GM) 
+
+# make the difference daatframe
+c_22_23_moose_diff <- bind_rows(c_22_23_mooseTN, c_22_23_mooseGM) %>% 
+  select(park_id, pair_id, subplot_id, ex_ctrl, new_tot) %>% 
+  pivot_wider(names_from = ex_ctrl, values_from = new_tot) %>% 
+  mutate(diff = EX - CTRL)%>% 
+  rename("exC" = EX, "ctrlC" = CTRL)
+
+c_22_23_moose <- rbind(c_22_23_mooseGM, c_22_23_mooseTN)
+
+moose_pair_ex <- inner_join(env_subplots, select(c_22_23_moose, pair_id, site_id, park_id), multiple = "first") %>% 
+  select(park_id, subplot_id, ex_ctrl, pair_id, EVIamp)
+moose_pair_ex$ex_ctrl <- moose_pair_ex$ex_ctrl %>%
+  replace_na("CTRL")
+moose_pair_ex <- moose_pair_ex %>% 
+  pivot_wider(names_from = ex_ctrl, values_from = EVIamp) %>% 
+  mutate(avgEVIamp = (EX+CTRL)/2) %>% 
+  rename("exEVIamp" = EX, "ctrlEVIamp" = CTRL)
+
+ex_ctrl_EVIC <- merge(moose_pair_ex, c_22_23_moose_diff)
+
+ggplot(ex_ctrl_EVIC, aes(diff, avgEVIamp)) +
+  geom_point()
+
+```
+
+

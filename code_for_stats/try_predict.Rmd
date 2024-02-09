@@ -1,0 +1,166 @@
+---
+title: "try_predict"
+author: "Emmerson Wilson"
+date: "2024-02-05"
+output: html_document
+---
+
+trying out predict() function. see how categorical data is handled.
+*if moose isn't in any models then probably don't have to worry
+
+use model of GM above ground, log(c) ~ FHT + EVIamp + EVImed + LGS + Moose_new
+
+# model
+```{r}
+library(terra)
+library(tidyverse)
+
+GM_var <- list("FHT", "EVImed", "EVIamp", "LGS")
+
+GM_model <- lm_glm(GM_var, df = c_agb_env_sites_scale_GM, c = "c_m2_site_agb")
+plot(GM_model)
+model.frame(GM_model)
+summary(GM_model)
+
+
+crop_extent <- vect("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/AOI/GM_subset_for_predict.shp")
+GM_env_raster_crop <- crop(GM_env_raster, crop_extent) # need to run "environmental_correlation.Rmd" first
+values(GM_env_raster_crop_scale) <- scale(values(GM_env_raster_crop))
+
+
+names(GM_env_raster_crop) <-  c("FAC_GM", "EVIamp", "EVImed", "FHT", "CC15fill_GM", "SLO", "ELE", "ASP", "LCT_GM", "Moose_new", "LGS")
+
+plot(GM_env_raster_crop$FHT)
+plot(GM_env_raster_crop$EVIamp)
+plot(GM_env_raster_crop$EVImed)
+plot(GM_env_raster_crop$LGS)
+
+GM_predict <- terra::predict(GM_env_raster_crop, GM_model) # pretty sure predict returns the untransformed values of c *actually it returns the log(c) BUT here I was suing the unscaled environmental variables!
+GM_predict0 <- GM_predict
+GM_predict0y <- GM_predict
+
+GM_predict0[GM_predict0[] < 0 ] = NA
+
+GM_predict0y[GM_predict0y[] > 0 ] = NA
+
+plot(GM_predict)
+plot(GM_predict0)
+plot(GM_predict0y) # only a handfull of places that it thinks shoudl be below 0, and I'm pretty sure the EVIampis higher than any of my sites so is clipped out in actual area predicting to - likely because high up so get lots of snow and changes in greeness
+```
+
+# model lmer
+```{r}
+GM_var <- list("FHT", "EVImed", "EVIamp", "LGS")
+
+GM_modelm <- lm_lmer(GM_var, df = c_agb_env_sub_scale_GM, c = "c_m2_subplot_agb")
+plot(GM_modelm)
+model.frame(GM_modelm)
+summary(GM_modelm)
+
+GM_predictm <- terra::predict(GM_env_raster_crop, GM_modelm, re.form= ~ 0)
+# only way I can get it to work is by making re.form = ~ 0, but this takes away randome variation of site? or predict at the population level? soemthing defenitley happens because the prediction sare different for glm vs lmer
+
+plot(GM_predictm) # slightly constrains the values of C
+
+
+GM_predictm0 <- GM_predictm
+GM_predictm0y <- GM_predictm
+
+GM_predictm0[GM_predictm0[] < 0 ] = NA
+
+GM_predictm0y[GM_predictm0y[] > 0 ] = NA
+
+plot(GM_predictm0)
+plot(GM_predictm0y)
+```
+
+
+
+# try with actual predict space
+```{r}
+GM_env_raster_masked <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/GM_env_raster_masked.tif")
+names(GM_env_raster_masked) <-  c( "FHT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx")
+
+GM_env_raster_masked_scale <- GM_env_raster_masked
+values(GM_env_raster_masked_scale) <- scale(values(GM_env_raster_masked), center = F)
+
+GM_var <- list("FHT", "EVImed", "EVIamp", "LGS")
+
+source("https://github.com/emmwilson/C_forecasting_NL/blob/main/code_for_stats/lmer%20model%20functions.R?raw=true")
+GM_model <- lm_glm(GM_var, df = c_agb_env_sites_scale_GM, c = "c_m2_site_agb") # need to run c_lmer_aboveground.Tmd first
+summary(GM_model)
+
+GM_predict <- terra::predict(GM_env_raster_masked_scale, GM_model, re.form= ~ 0)
+GM_predict_transform <- GM_predict
+values(GM_predict_transform) <- exp(values(GM_predict))*30 # value is c per m2 so can multiply by 30 to get absloute estimate of carbon (not densityt)
+plot(GM_predict_transform, background = "lightblue") 
+
+GM_predict_transform60000y <- GM_predict_transform
+GM_predict_transform60000y [GM_predict_transform60000y [] < 700000  ] = NA # doesn't actually exist *not sure why legend says it does
+
+GM_predict_transform60000n <- GM_predict_transform
+
+GM_predict_transform60000n [GM_predict_transform60000n [] > 750000  ] = NA
+
+hist(GM_predict_transform60000n)
+hist(GM_predict_transform60000y) # all samples are NA so there are no values above 700000, try with lower and lower values
+GM_predict_transformhighest <- GM_predict_transform
+GM_predict_transformhighest [GM_predict_transformhighest [] < 500000  ] = NA # 3 cells above 500000
+hist(GM_predict_transformhighest)
+
+
+writeRaster(GM_predict_transformhighest, filename="trypredict_where_is_large.tif", overwrite=TRUE)
+writeRaster(GM_predict_transform, filename="trypredict.tif", overwrite=TRUE)
+
+
+
+
+
+plot(GM_env_raster_masked$EVIamp) # something went wrong with the clipping out ranges of env var we dont have at sampling sites (some are still included in the final raster) going to start from scratch
+GM_env_raster_maskedEVIamp <- GM_env_raster_masked$EVIamp
+GM_env_raster_maskedEVIamp[GM_env_raster_maskedEVIamp[] <= 5700 ] = NA
+plot(GM_env_raster_maskedEVIamp)
+
+plot(GM_env_raster_masked$FHT)
+GM_env_raster_maskedFHT <- GM_env_raster_masked$FHT
+GM_env_raster_maskedFHT[GM_env_raster_maskedFHT[] <= 12 ] = NA
+plot(GM_env_raster_maskedFHT)
+
+
+plot(GM_env_raster_masked$EVImed)
+GM_env_raster_maskedEVImed <- GM_env_raster_masked$EVImed
+GM_env_raster_maskedEVImed[GM_env_raster_maskedEVImed[] <= 6400 ] = NA
+plot(GM_env_raster_maskedEVImed)
+
+plot(GM_env_raster_masked$LGS)
+GM_env_raster_maskedLGS <- GM_env_raster_masked$LGS
+GM_env_raster_maskedLGS[GM_env_raster_maskedLGS[] <= 147 ] = NA
+plot(GM_env_raster_maskedLGS)
+
+GM_predict0 <- GM_predict
+GM_predict0y <- GM_predict
+
+GM_predict0[GM_predict0[] < 0 ] = NA
+
+GM_predict0y[GM_predict0y[] > 0 ] = NA
+
+plot(GM_env_raster_masked$FHT)
+plot(GM_env_raster_masked$EVIamp)
+plot(GM_env_raster_masked$EVImed)
+plot(GM_env_raster_masked$LGS)
+plot(GM_predict0)
+plot(GM_predict0y)
+
+
+
+
+plot(GM_env_raster_maskedEVIamp)
+plot(GM_env_raster_maskedLGS)
+plot(GM_env_raster_maskedEVImed)
+plot(GM_env_raster_maskedFHT)
+
+
+
+# when put this over QGIS it seems to under estimate at shaddowed slopess - because EVImed drastically underetimates in shaddows (Shadows and large variation in local zenith angles decrease the accuracy of the GLanCE product in regions with complex topography, especially at high latitudes.)
+```
+

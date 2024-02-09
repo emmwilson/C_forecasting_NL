@@ -6,19 +6,33 @@ output: html_document
 ---
 
 ```{r}
+library(terra)
+```
+
+
+```{r}
 GM_env_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/GM_env_raster.tif") # stack of enviornmental variables' rasters
 TN_env_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/TN_env_raster.tif") # stack of enviornmental variables' rasters
 
-clip_GM <- vect("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/final_mask_layer_GM.shp") # masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
-clip_TN <- vect("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/final_mask_layer_TN.shp")# masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+clip_GM_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/attempt 2/GM_predict_mask.tif") # masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+clip_TN_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/attempt 2/TN_predict_mask.tif")# masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
 
-plot(clip_GM) #check
-plot(clip_TN) #check
+plot(clip_GM_rast) #check
+plot(clip_TN_rast) #check
 
-GM_env_rast_clipmask <- crop(GM_env_rast, clip_GM, mask=TRUE)
-plot(GM_env_rast_clipmask$EVIamp_GM) #check
+GM_env_rast_masked <- crop(GM_env_rast, clip_GM_rast, mask=TRUE) # this part isn't taking out the proper cells *had to make the mask a raster
+plot(GM_env_rast_masked$FHT_GM) #check
 
-TN_env_rast_clipmask <- crop(TN_env_rast, clip_TN, mask=TRUE)
-plot(TN_env_rast_clipmask$EVIamp_TN) #check
+TN_env_rast_masked <- crop(TN_env_rast, clip_TN_rast, mask=TRUE)
+plot(TN_env_rast_masked$EVIamp_TN) #check
+
+
+# save
+writeRaster(GM_env_rast_masked, filename="GM_env_raster_masked.tif", overwrite=TRUE)
+writeRaster(TN_env_rast_masked, filename="TN_env_raster_masked.tif", overwrite=TRUE)
+
+
+GM_env_rast
+clip_GM
 ```
 
