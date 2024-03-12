@@ -212,6 +212,8 @@ GM_agb_lm_full_summary <- GM_agb_lm_full_summary %>%
 
 GM_agb_lm_full_summary <- GM_agb_lm_full_summary[,c(5,6,1:4)]
 GM_agb_lm_full_summary
+
+summary(GM_agb_lm_full)
 ```
 
 ### univariate
@@ -346,7 +348,7 @@ R2_GM_agb_all <- rbind(R2_GM_agb, R2_GM_agb_red)
 aic_R2_GM_agb_all <- full_join(aic_GM_agb_all, R2_GM_agb_all)
 
 # final table of AIC and r2 for GM_agb
-aic_R2_GM_agb_all
+view(aic_R2_GM_agb_all)
 
 write.csv(aic_R2_GM_agb_all,"/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/prelim results lm/aic_R2_GM_agb_all.csv")
 ```
@@ -760,7 +762,7 @@ R2_TN_agb_all <- rbind(R2_TN_agb, R2_TN_agb_red)
 aic_R2_TN_agb_all <- full_join(aic_TN_agb_all, R2_TN_agb_all)
 
 # final table of AIC and r2 for TN_agb
-aic_R2_TN_agb_all
+view(aic_R2_TN_agb_all)
 
 # makes sense that the pattern changes for TN when we remove soil C. there is much more difference between gap and mature soil c in TN than GM
 

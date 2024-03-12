@@ -1,0 +1,149 @@
+---
+title: "7) Predictions"
+author: "Emmerson Wilson"
+date: "2024-03-07"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# import training datasets
+```{r}
+# made in 5) c lm total.Rmd
+GM_c_env <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
+TN_c_env <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
+```
+
+# import environmental rasters
+```{r}
+GM_env_raster_masked <- rast("data created/GM_env_raster_masked.tif")
+names(GM_env_raster_masked) <-  c( "SPC", "FAC", "FHT", "CC", "LCT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx") # name layers
+
+#remove unwanted layers
+GM_env_raster_masked <- subset(GM_env_raster_masked, c(3,6:12))
+
+
+TN_env_raster_masked <- rast("data created/TN_env_raster_masked.tif")
+names(TN_env_raster_masked) <-  c( "SPC", "FAC", "FHT", "CC", "LCT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newm",  "Moose_newh") # name layers
+
+TN_env_raster_masked <- subset(TN_env_raster_masked, c(3,6:12))
+```
+
+## scale variables
+```{r}
+# make rasters with proper dimensions to write over
+GM_env_raster_masked_scale <- GM_env_raster_masked
+GM_env_raster_masked_nm <- subset(GM_env_raster_masked, c(1:7)) # remove moose from stack of rasters to be scaled
+
+TN_env_raster_masked_scale <- TN_env_raster_masked
+TN_env_raster_masked_nm <- subset(TN_env_raster_masked, c(1:7))
+
+# need to bring in unscale environmental data, so we can scale it and use the saved attributes (RMS) for each variable
+env_for_scale_GM <- read_xlsx("data created/c_m2_site.xlsx") %>%
+  full_join(read_xlsx("data created/env_sites_final.xlsx")) %>% 
+  filter(park_id == "GM") %>% 
+  dplyr::select(!c(FAC, SPC, CC, CEC_LCT)) %>% 
+  dplyr::select(c(11:13, 16, 15, 14, 18)) # make sure in same order as raster stack
+
+env_for_scale_TN <- read_xlsx("data created/c_m2_site.xlsx") %>%
+  full_join(read_xlsx("data created/env_sites_final.xlsx")) %>% 
+  filter(park_id == "TN") %>% 
+  dplyr::select(!c(FAC, SPC, CC, CEC_LCT)) %>% 
+  dplyr::select(c(11:13, 16, 15, 14, 18))
+
+envscale_GM <- attr(scale(env_for_scale_GM, center = F), "scaled:scale") # scale and save the values each variable was scaled by
+envscale_TN <- attr(scale(env_for_scale_TN, center = F), "scaled:scale") 
+
+# rescale GM
+for (i in 1:nlyr(GM_env_raster_masked_nm)){
+  sub <- subset(GM_env_raster_masked_nm,i)
+  GM_env_raster_masked_scale[[sub@cpp$names]] <- terra::scale(sub, center = FALSE, scale = envscale_GM[[i]])
+  }
+
+# rescale TN
+for (i in 1:nlyr(TN_env_raster_masked_nm)){
+  sub <- subset(TN_env_raster_masked_nm,i)
+  TN_env_raster_masked_scale[[sub@cpp$names]] <- terra::scale(sub, center = FALSE, scale = envscale_TN[[i]])
+  }
+```
+
+
+# import glm function
+```{r}
+source("4) glm function.R")
+```
+
+# predict
+
+## GM
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+GM_var <- list("FHT", "EVImed")
+
+# run best model
+GM_model_tot <- lm_glm(GM_var, df = subset(GM_c_env), c = "c_m2_site")
+
+# predict
+GM_predict_tot <- terra::predict(GM_env_raster_masked_scale, GM_model_tot)
+
+# transform predictions
+GM_predict_tot_transform <- GM_predict_tot
+values(GM_predict_tot_transform) <- exp(values(GM_predict_tot))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+#plot(GM_predict_tot_transform, background = "lightblue") 
+
+# export
+#writeRaster(GM_predict_tot_transform, filename="data created/GM_predict_tot.tif", overwrite=TRUE)
+```
+
+## TN
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+TN_var <- list("FHT", "SLO", "EVIamp")
+
+# run best model
+TN_model_tot <- lm_glm(TN_var, df = subset(TN_c_env), c = "c_m2_site")
+
+# predict
+TN_predict_tot <- terra::predict(TN_env_raster_masked_scale, TN_model_tot)
+
+# transform predictions
+TN_predict_tot_transform <- TN_predict_tot
+values(TN_predict_tot_transform) <- exp(values(TN_predict_tot))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+#plot(TN_predict_tot_transform, background = "lightblue") 
+
+# export
+#writeRaster(TN_predict_tot_transform, filename="data created/TN_predict_tot.tif", overwrite=TRUE)
+
+max(values(GM_predict_tot_transform, na.rm = T))
+max(values(TN_predict_tot_transform, na.rm = T))
+
+min(values(GM_predict_tot_transform, na.rm = T))
+min(values(TN_predict_tot_transform, na.rm = T))
+
+mean(values(GM_predict_tot_transform, na.rm = T))
+mean(values(TN_predict_tot_transform, na.rm = T))
+
+sum(values(GM_predict_tot_transform, na.rm = T))
+sum(values(TN_predict_tot_transform, na.rm = T))
+
+```
+
+
+
+
+

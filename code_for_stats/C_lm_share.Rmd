@@ -512,7 +512,7 @@ view(aic_R2_GM_sub_all)
 
 # TN
 
-# temporarily setTN 05
+# temporarily set TN 05
 
 ```{r}
 c_env_sites_scale_TN$Moose_new <-replace_na(c_env_sites_scale_TN$Moose_new, "cH")
@@ -812,3 +812,155 @@ view(aic_R2_TN_sub_all)
 
 view(aic_TN_sub_all)
 ```
+
+
+# see if gap related to FHT
+```{r}
+anova(lm(c_m2_site ~ gap, c_env_sites_scale_GM)) 
+anova(lm(FHT ~ gap, c_env_sites_scale_GM)) # yes
+anova(lm(EVIamp ~ gap, c_env_sites_scale_GM)) # yes
+anova(lm(EVImed ~ gap, c_env_sites_scale_GM)) # no
+
+anova(lm(c_m2_site ~ gap, c_env_sites_scale_TN)) 
+anova(lm(FHT ~ gap, c_env_sites_scale_TN)) # yes
+anova(lm(EVIamp ~ gap, c_env_sites_scale_TN)) # yes
+anova(lm(EVImed ~ gap, c_env_sites_scale_TN)) # no
+
+ggplot(c_env_sites_scale_GM, aes(gap, FHT)) +
+  geom_boxplot()
+
+ggplot(c_env_sites_scale_TN, aes(gap, FHT)) +
+  geom_boxplot()
+
+ggplot(c_env_sites_scale_GM, aes(gap, EVIamp)) +
+  geom_boxplot()
+
+ggplot(c_env_sites_scale_TN, aes(gap, EVIamp)) +
+  geom_boxplot()
+
+
+# FHT and EVIamp combined related to gap?
+c_env_sites_scale_gap <- c_env_sites_scale
+c_env_sites_scale_gap$gap[c_env_sites_scale_gap$gap == "Gap"] <- 0
+c_env_sites_scale_gap$gap[c_env_sites_scale_gap$gap == "Mature"] <- 1
+
+anova(lm(gap ~ FHT, c_env_sites_scale_gap))
+anova(lm(gap ~ EVIamp, c_env_sites_scale_gap))
+anova(lm(gap ~ FHT + EVIamp, c_env_sites_scale_gap))
+anova(lm(gap ~ FHT*EVIamp, c_env_sites_scale_gap))
+summary(glm(as.numeric(gap) ~ FHT+SLO, subset(c_env_sites_scale_gap, park_id == "TN"), family = binomial(link = "logit")))
+
+try_predict_gap <- glm(as.numeric(gap) ~ FHT + EVIamp, subset(c_env_sites_scale_gap, park_id == "GM", c_m2_site < 100000), family = binomial(link = "logit"))
+summary(try_predict_gap)
+
+ggplot(subset(c_env_sites_scale), aes(FHT, log(c_m2_site), fill = park_id))+
+  geom_point(aes(shape = gap)) +
+  geom_smooth(method = "lm", aes(colour = gap)) 
+
+ggplot(subset(c_env_sites_scale), aes(EVImed, log(c_m2_site), fill = park_id))+
+  geom_point(aes(shape = gap)) +
+  geom_smooth(method = "lm", aes(colour = gap)) 
+ggplot(subset(c_env_sites_scale), aes(EVIamp, log(c_m2_site), fill = park_id))+
+  geom_point(aes(shape = gap)) +
+  geom_smooth(method = "lm", aes(colour = gap))
+
+ggplot(subset(c_env_sites_scale), aes(FHT, log(c_m2_site), colour = park_id))+
+  geom_point(aes(shape = gap)) +
+  geom_smooth(method = "lm") 
+
+ggplot(subset(c_env_sites_scale), aes(EVImed, log(c_m2_site), colour = park_id))+
+  geom_point(aes(shape = gap)) +
+  geom_smooth(method = "lm") 
+ggplot(subset(c_env_sites_scale), aes(EVIamp, log(c_m2_site), colour = park_id))+
+  geom_point(aes(shape = gap)) +
+  geom_smooth(method = "lm")
+
+
+c_env_sites_scale_noout <- c_env_sites_scale %>% 
+  filter(c_m2_site <= 140000)
+
+
+AICc(lm(log(c_m2_site) ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale_noout, park_id == "GM")))
+AICc(lm(log(c_m2_site) ~ FHT + EVImed, subset(c_env_sites_scale_noout, park_id == "GM")))
+AICc(lm(log(c_m2_site) ~ FHT*EVImed, subset(c_env_sites_scale_noout, park_id == "GM")))
+AICc(lm(log(c_m2_site) ~ FHT*EVImed+EVIamp, subset(c_env_sites_scale_noout, park_id == "GM")))
+AICc(lm(log(c_m2_site) ~ FHT + EVImed, subset(c_env_sites_scale_noout, park_id == "TN")))
+AICc(lm(log(c_m2_site) ~ FHT + EVImed+EVIamp, subset(c_env_sites_scale_noout, park_id == "TN")))
+AICc(lm(log(c_m2_site) ~ FHT*EVImed, subset(c_env_sites_scale_noout, park_id == "TN")))
+AICc(lm(log(c_m2_site) ~ FHT + EVIamp, subset(c_env_sites_scale_noout, park_id == "TN")))
+
+
+AICc(glm(c_m2_site ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT*EVImed, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT*EVImed+EVIamp, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT + EVIamp, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+
+lm(log(c_m2_site) ~ EVImed, subset(c_env_sites_scale, park_id == "GM")) #plotting EVImed against c has a negative relationship but:
+
+# plot the residuals of fitting FHT against EVImed
+plot(subset(c_env_sites_scale, park_id == "GM")$EVImed,lm(log(c_m2_site) ~ FHT, subset(c_env_sites_scale, park_id == "GM"))$residuals)
+plot(subset(c_env_sites_scale, park_id == "TN")$EVImed,lm(log(c_m2_site) ~ FHT, subset(c_env_sites_scale, park_id == "TN"))$residuals)
+
+plot(glm(c_m2_site ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+plot(lm(log(c_m2_site) ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "GM")))
+
+plot(glm(c_m2_site ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "TN"), family = Gamma(link = "log")))
+plot(lm(log(c_m2_site) ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "TN")))
+```
+
+## compare gamma vs log
+
+### GM
+```{r}
+AICc(glm(c_m2_site ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT + EVIamp, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+
+confint(glm(c_m2_site ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+
+AICc(lm(log(c_m2_site) ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "GM")))
+AICc(lm(log(c_m2_site) ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "GM")))
+AICc(lm(log(c_m2_site) ~ FHT + EVIamp, subset(c_env_sites_scale, park_id == "GM")))
+AICc(lm(log(c_m2_site) ~ FHT, subset(c_env_sites_scale, park_id == "GM")))
+
+confint(lm(log(c_m2_site) ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "GM")))
+
+summary(glm(c_m2_site ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+summary(glm(c_m2_site ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+summary(glm(c_m2_site ~ FHT + EVIamp, subset(c_env_sites_scale, park_id == "GM"), family = Gamma(link = "log")))
+
+summary(lm(log(c_m2_site) ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "GM")))
+summary(lm(log(c_m2_site) ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "GM")))
+summary(lm(log(c_m2_site) ~ FHT + EVIamp, subset(c_env_sites_scale, park_id == "GM")))
+
+```
+
+### TN
+```{r}
+AICc(glm(c_m2_site ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "TN"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "TN"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT + EVIamp, subset(c_env_sites_scale, park_id == "TN"), family = Gamma(link = "log")))
+AICc(glm(c_m2_site ~ FHT, subset(c_env_sites_scale, park_id == "TN"), family = Gamma(link = "log")))
+
+AICc(lm(log(c_m2_site) ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "TN")))
+AICc(lm(log(c_m2_site) ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "TN")))
+AICc(lm(log(c_m2_site) ~ FHT + EVIamp, subset(c_env_sites_scale, park_id == "TN")))
+AICc(lm(log(c_m2_site) ~ FHT, subset(c_env_sites_scale, park_id == "TN")))
+
+
+summary(glm(c_m2_site ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "TN"), family = Gamma(link = "log")))
+summary(glm(c_m2_site ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "TN"), family = Gamma(link = "log")))
+summary(glm(c_m2_site ~ FHT + EVIamp, subset(c_env_sites_scale, park_id == "TN"), family = Gamma(link = "log")))
+summary(glm(c_m2_site ~ FHT, subset(c_env_sites_scale, park_id == "TN"), family = Gamma(link = "log")))
+
+summary(lm(log(c_m2_site) ~ FHT + EVImed + EVIamp, subset(c_env_sites_scale, park_id == "TN")))
+summary(lm(log(c_m2_site) ~ FHT + EVImed, subset(c_env_sites_scale, park_id == "TN")))
+summary(lm(log(c_m2_site) ~ FHT + EVIamp, subset(c_env_sites_scale, park_id == "TN")))
+summary(lm(log(c_m2_site) ~ FHT , subset(c_env_sites_scale, park_id == "TN")))
+
+
+
+```
+

@@ -1,0 +1,360 @@
+---
+title: "c lm agb"
+author: "Emmerson Wilson"
+date: "2024-03-04"
+output: html_document
+---
+
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  readxl,
+  cv,
+  lme4,
+  AICcmodavg,
+  MASS)
+options(tinytex.verbose = TRUE) 
+```
+
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# data
+
+## carbon 
+```{r}
+c_agb_m2_sites <- read_xlsx("data created/c_m2_site_above.xlsx")
+```
+
+## environmental data
+```{r}
+env_site_final <- read_xlsx("data created/env_sites_final.xlsx")
+```
+
+## join env and c data
+```{r}
+c_agb_env_sites <- full_join(c_agb_m2_sites, env_site_final) %>%
+  dplyr::select(!c(FAC, SPC, CC, CEC_LCT)) # remvoe unwated columns
+```
+
+#### scale
+```{r}
+#scale predictor variables (but don't center around 0)
+c_agb_env_sites_scale <- c_agb_env_sites
+
+c_agb_env_sites_scale[c(11:16, 18)] <- scale(c_agb_env_sites_scale[c(11:16, 18)], center = F) # select continuous variabes to scale
+```
+
+#### make moose characters not numbers
+```{r}
+c_agb_env_sites_scale$Moose_new <- as.character(c_agb_env_sites_scale$Moose_new) # make moose categories characters
+
+c_agb_env_sites_scale_GM <- c_agb_env_sites_scale %>% 
+  filter(park == "GM")
+
+c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 1] <- "aL"
+c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 2] <- "aL"
+c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 3] <- "bH"
+c_agb_env_sites_scale_GM["Moose_new"][c_agb_env_sites_scale_GM["Moose_new"] == 4] <- "cX"
+
+c_agb_env_sites_scale_GM$Moose_new <- as.factor(c_agb_env_sites_scale_GM$Moose_new)
+
+c_agb_env_sites_scale_TN <- c_agb_env_sites_scale %>% 
+  filter(park == "TN")
+
+c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 1] <- "aL"
+c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 2] <- "bM"
+c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 3] <- "cH"
+c_agb_env_sites_scale_TN["Moose_new"][c_agb_env_sites_scale_TN["Moose_new"] == 4] <- "dV"
+
+c_agb_env_sites_scale_TN$Moose_new <- as.factor(c_agb_env_sites_scale_TN$Moose_new)
+```
+
+# model functions
+
+```{r}
+source("4) glm function.R") # function to run glms
+
+R2 <- function(model){
+  with(summary(model), 1 - deviance/null.deviance) # function for R2
+}
+```
+
+
+# GM
+
+### null
+
+```{r}
+#run the model
+GM_agb_lm_null <- lm_glm(c_agb_env_sites_scale_GM, "c_m2_site_agb", "1")
+
+# get the summary of the model into a dataframe
+GM_agb_lm_null_summary <- as.data.frame(summary(GM_agb_lm_null)$coefficients) %>% 
+  mutate(model = "GM_agb_lm_null") 
+GM_agb_lm_null_summary <- GM_agb_lm_null_summary %>% 
+  add_column("predictor" = rownames(GM_agb_lm_null_summary))
+
+# reorder columns so model name first
+GM_agb_lm_null_summary <- GM_agb_lm_null_summary[,c(5,6,1:4)]
+GM_agb_lm_null_summary
+```
+
+### full
+
+```{r}
+# make list of all variables to be included in full model
+full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS", "Moose_new")
+
+# run the model
+GM_agb_lm_full <- lm_glm(c_agb_env_sites_scale_GM, "c_m2_site_agb", full_var)
+
+# add summary of model to dataframe
+GM_agb_lm_full_summary <- as.data.frame(summary(GM_agb_lm_full)$coefficients) %>% 
+  mutate(model = "GM_agb_lm_full") 
+GM_agb_lm_full_summary <- GM_agb_lm_full_summary %>% 
+  add_column("predictor" = rownames(GM_agb_lm_full_summary))
+
+GM_agb_lm_full_summary <- GM_agb_lm_full_summary[,c(5,6,1:4)]
+GM_agb_lm_full_summary
+
+summary(GM_agb_lm_full)
+
+```
+
+### univariate
+
+```{r}
+# run model with each predictor variable on own
+GM_agb_lm_uni <- lapply(full_var, lm_glm, df = c_agb_env_sites_scale_GM, c = "c_m2_site_agb")
+
+names(GM_agb_lm_uni) <- full_var # make sure names of objects in list consistent
+
+GM_agb_lm_uni_summary <- lapply(GM_agb_lm_uni, summary)
+
+GM_agb_lm_uni_summary
+
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
+
+GM_agb_uni_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(GM_agb_lm_uni_summary, coef), as.data.frame), "model"=names(GM_agb_lm_uni_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+GM_agb_uni_summary_all <- GM_agb_uni_summary_all[,c(5,6,1:4)]
+GM_agb_uni_summary_all
+```
+
+### reduced
+```{r}
+# find possible reduced model to add to 
+# need to input full model not through function 
+GM_agb_lm_full2 <- glm(formula = log(c_m2_site_agb) ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_agb_env_sites_scale_GM) 
+
+GM_agb_lm_red <- step(GM_agb_lm_full2, direction = "backward", trace = F)
+
+
+GM_agb_lm_red_summary <- as.data.frame(summary(GM_agb_lm_red)$coefficients) %>% 
+  mutate(model = "GM_agb_lm_red") 
+GM_agb_lm_red_summary <- GM_agb_lm_red_summary %>% 
+  add_column("predictor" = rownames(GM_agb_lm_red_summary))
+
+GM_agb_lm_red_summary <- GM_agb_lm_red_summary[,c(5,6,1:4)]
+GM_agb_lm_red_summary
+
+
+# assess reduced model for uninformative parameters
+# EVIamp least important so test removal
+
+GM_agb_lm_red2 <- glm(formula = log(c_m2_site_agb) ~ FHT + EVImed, data = c_agb_env_sites_scale_GM)
+
+GM_agb_lm_red2_summary <- as.data.frame(summary(GM_agb_lm_red2)$coefficients) %>% 
+  mutate(model = "GM_agb_lm_red2") 
+GM_agb_lm_red2_summary <- GM_agb_lm_red2_summary %>% 
+  add_column("predictor" = rownames(GM_agb_lm_red2_summary))
+
+GM_agb_lm_red2_summary <- GM_agb_lm_red2_summary[,c(5,6,1:4)]
+GM_agb_lm_red2_summary
+
+# step 1: difference in AICc
+GM_agb_lm_red_comp <- list()
+GM_agb_lm_red_comp[["GM_agb_lm_red"]] <- GM_agb_lm_red
+GM_agb_lm_red_comp[["GM_agb_lm_red2"]] <- GM_agb_lm_red2
+
+aictab(cand.set = GM_agb_lm_red_comp, sort = TRUE)
+# <2
+
+# step 2: difference in # parameters: 1
+
+# step 3: ranking: more parsimonious above
+
+# step 4: log likelihoods: very similar
+
+# step 5: confidence interval of coefficient overlap 0:
+confint(GM_agb_lm_red)
+# yes
+# so uninformative
+# only include red2 (FHT + EVImed) in next steps
+
+```
+
+
+
+## summary of uni, null and full
+
+```{r}
+# combine summary dataframes for null, full and univariate models
+GM_agb_lm_summary <- rbind(GM_agb_lm_null_summary, GM_agb_lm_full_summary, GM_agb_uni_summary_all, GM_agb_lm_red2_summary) 
+GM_agb_lm_summary <- GM_agb_lm_summary %>% 
+  mutate(significance = ifelse(GM_agb_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(GM_agb_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(GM_agb_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(GM_agb_lm_summary$`Pr(>|t|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
+```
+
+## compare
+
+```{r}
+# add univariate, null and full models into a list
+GM_agb_models_r <- list()
+
+GM_agb_models_r[["GM_agb_lm_null"]] <- GM_agb_lm_null
+GM_agb_models_r[["GM_agb_lm_full"]] <- GM_agb_lm_full
+GM_agb_models_r[[names(GM_agb_lm_uni)[1]]] <- GM_agb_lm_uni[[1]]
+GM_agb_models_r[[names(GM_agb_lm_uni)[2]]] <- GM_agb_lm_uni[[2]]
+GM_agb_models_r[[names(GM_agb_lm_uni)[3]]] <- GM_agb_lm_uni[[3]]
+GM_agb_models_r[[names(GM_agb_lm_uni)[4]]] <- GM_agb_lm_uni[[4]]
+GM_agb_models_r[[names(GM_agb_lm_uni)[5]]] <- GM_agb_lm_uni[[5]]
+GM_agb_models_r[[names(GM_agb_lm_uni)[6]]] <- GM_agb_lm_uni[[6]]
+GM_agb_models_r[[names(GM_agb_lm_uni)[7]]] <- GM_agb_lm_uni[[7]]
+GM_agb_models_r[[names(GM_agb_lm_uni)[8]]] <- GM_agb_lm_uni[[8]]
+GM_agb_models_r[["GM_agb_lm_red2"]] <- GM_agb_lm_red2
+
+Modnames_GM_agb_r <- paste(names(GM_agb_models_r)) # make sure names are same as model name
+
+# get table
+aic_GM_agb <- as.data.frame(aictab(cand.set = GM_agb_models_r, modnames = Modnames_GM_agb_r, sort = TRUE))
+
+#add R2 to AIC table
+R2_GM_agb <- as.data.frame(sapply(GM_agb_models_r, R2)) %>% setNames(c("R2"))
+R2_GM_agb <- R2_GM_agb %>% 
+   mutate("Modnames" = rownames(R2_GM_agb))
+
+aic_R2_GM_agb <- full_join(aic_GM_agb, R2_GM_agb) # table of AIC values for null, full and univariate models
+```
+
+# TN
+
+temporarily set TN 05
+
+```{r}
+c_agb_env_sites_scale_TN$Moose_new <-replace_na(c_agb_env_sites_scale_TN$Moose_new, "cH")
+```
+
+### null
+
+```{r}
+TN_agb_lm_null <- lm_glm(c_agb_env_sites_scale_TN, "c_m2_site_agb", "1")
+
+summary(TN_agb_lm_null)
+
+# make into data frame that can be combined with other models'
+TN_agb_lm_null_summary <- as.data.frame(summary(TN_agb_lm_null)$coefficients) %>% 
+  mutate(model = "TN_agb_lm_null") 
+TN_agb_lm_null_summary <- TN_agb_lm_null_summary %>% 
+  add_column("predictor" = rownames(TN_agb_lm_null_summary))
+
+TN_agb_lm_null_summary <- TN_agb_lm_null_summary[,c(5,6,1:4)]
+TN_agb_lm_null_summary
+```
+
+### full
+
+```{r}
+
+TN_agb_lm_full <- lm_glm(c_agb_env_sites_scale_TN, "c_m2_site_agb", full_var)
+
+summary(TN_agb_lm_full)
+
+TN_agb_lm_full_summary <- as.data.frame(summary(TN_agb_lm_full)$coefficients) %>% 
+  mutate(model = "TN_agb_lm_full") 
+TN_agb_lm_full_summary <- TN_agb_lm_full_summary %>% 
+  add_column("predictor" = rownames(TN_agb_lm_full_summary))
+
+TN_agb_lm_full_summary <- TN_agb_lm_full_summary[,c(5,6,1:4)]
+TN_agb_lm_full_summary
+```
+
+### univariate
+
+```{r}
+
+TN_agb_lm_uni <- lapply(full_var, lm_glm, df = c_agb_env_sites_scale_TN, c = "c_m2_site_agb")
+
+names(TN_agb_lm_uni) <- full_var
+
+TN_agb_lm_uni_summary <- lapply(TN_agb_lm_uni, summary)
+TN_agb_lm_uni_summary
+
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
+
+TN_agb_uni_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(TN_agb_lm_uni_summary, coef), as.data.frame), "model"=names(TN_agb_lm_uni_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+TN_agb_uni_summary_all <- TN_agb_uni_summary_all[,c(5,6,1:4)]
+TN_agb_uni_summary_all
+```
+### reduced
+```{r}
+# find possible reduced model to add to 
+# need to input full model not through function 
+TN_agb_lm_full2 <- glm(formula = log(c_m2_site_agb) ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_agb_env_sites_scale_TN) 
+
+TN_agb_lm_red <- step(TN_agb_lm_full2, direction = "backward", trace = F)
+
+# only includes FHT so don't need a reduced model
+```
+
+
+## summary of uni, null and full
+
+```{r}
+# combine summary dataframes for null, full and univariate models
+TN_agb_lm_summary <- rbind(TN_agb_lm_null_summary, TN_agb_lm_full_summary, TN_agb_uni_summary_all) 
+TN_agb_lm_summary <- TN_agb_lm_summary %>% 
+  mutate(significance = ifelse(TN_agb_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(TN_agb_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(TN_agb_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(TN_agb_lm_summary$`Pr(>|t|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
+```
+
+## compare
+
+```{r}
+# see excel "c_lm_model_results.xlsx" for consolidated values
+
+TN_agb_models_r <- list()
+
+TN_agb_models_r[["TN_agb_lm_null"]] <- TN_agb_lm_null
+TN_agb_models_r[["TN_agb_lm_full"]] <- TN_agb_lm_full
+TN_agb_models_r[[names(TN_agb_lm_uni)[1]]] <- TN_agb_lm_uni[[1]]
+TN_agb_models_r[[names(TN_agb_lm_uni)[2]]] <- TN_agb_lm_uni[[2]]
+TN_agb_models_r[[names(TN_agb_lm_uni)[3]]] <- TN_agb_lm_uni[[3]]
+TN_agb_models_r[[names(TN_agb_lm_uni)[4]]] <- TN_agb_lm_uni[[4]]
+TN_agb_models_r[[names(TN_agb_lm_uni)[5]]] <- TN_agb_lm_uni[[5]]
+TN_agb_models_r[[names(TN_agb_lm_uni)[6]]] <- TN_agb_lm_uni[[6]]
+TN_agb_models_r[[names(TN_agb_lm_uni)[7]]] <- TN_agb_lm_uni[[7]]
+TN_agb_models_r[[names(TN_agb_lm_uni)[8]]] <- TN_agb_lm_uni[[8]]
+
+Modnames_TN_agb_r <- paste(names(TN_agb_models_r))
+
+# get table
+aic_TN_agb <- aictab(cand.set = TN_agb_models_r, modnames = Modnames_TN_agb_r, sort = TRUE)  
+
+R2_TN_agb <- as.data.frame(sapply(TN_agb_models_r, R2)) %>% setNames(c("R2"))
+R2_TN_agb <- R2_TN_agb %>% 
+   mutate("Modnames" = rownames(R2_TN_agb))
+R2_TN_agb
+aic_TN_agb
+
+aic_R2_TN_agb <- full_join(aic_TN_agb, R2_TN_agb) # table of AIC values for null, full and univariate models
+```
+
+
+
+
+
+
+

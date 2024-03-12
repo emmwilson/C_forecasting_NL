@@ -4,6 +4,16 @@ author: "Emmerson Wilson"
 date: "2024-02-05"
 output: html_document
 ---
+```{r}
+library(terra)
+library(tidyverse)
+```
+
+```{r}
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats")
+```
+
+
 
 trying out predict() function. see how categorical data is handled.
 *if moose isn't in any models then probably don't have to worry
@@ -11,11 +21,8 @@ trying out predict() function. see how categorical data is handled.
 use model of GM above ground, log(c) ~ FHT + EVIamp + EVImed + LGS + Moose_new
 
 # model
-```{r}
-library(terra)
-library(tidyverse)
+```{r eval=FALSE, include=FALSE}
 
-GM_var <- list("FHT", "EVImed", "EVIamp", "LGS")
 
 GM_model <- lm_glm(GM_var, df = c_agb_env_sites_scale_GM, c = "c_m2_site_agb")
 plot(GM_model)
@@ -49,7 +56,7 @@ plot(GM_predict0y) # only a handfull of places that it thinks shoudl be below 0,
 ```
 
 # model lmer
-```{r}
+```{r eval=FALSE, include=FALSE}
 GM_var <- list("FHT", "EVImed", "EVIamp", "LGS")
 
 GM_modelm <- lm_lmer(GM_var, df = c_agb_env_sub_scale_GM, c = "c_m2_subplot_agb")
@@ -75,24 +82,34 @@ plot(GM_predictm0y)
 ```
 
 
-
 # try with actual predict space
-```{r}
-GM_env_raster_masked <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/GM_env_raster_masked.tif")
+```{r eval=FALSE, include=FALSE}
+
+
+
+GM_env_raster_masked <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/tifs for predicting/GM_env_raster_masked.tif")
 names(GM_env_raster_masked) <-  c( "FHT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx")
 
 GM_env_raster_masked_scale <- GM_env_raster_masked
 values(GM_env_raster_masked_scale) <- scale(values(GM_env_raster_masked), center = F)
+
+f <- paste0("GM_env_scaled", names(GM_env_raster_masked), ".tif")
+writeRaster(GM_env_raster_masked_scale, f, overwrite=TRUE)
 
 GM_var <- list("FHT", "EVImed", "EVIamp", "LGS")
 
 source("https://github.com/emmwilson/C_forecasting_NL/blob/main/code_for_stats/lmer%20model%20functions.R?raw=true")
 GM_model <- lm_glm(GM_var, df = c_agb_env_sites_scale_GM, c = "c_m2_site_agb") # need to run c_lmer_aboveground.Tmd first
 summary(GM_model)
+GM_model$coefficients[1]
+GM_model$coefficients[2]
+GM_model$coefficients[3]
+GM_model$coefficients[4]
+GM_model$coefficients[5]
 
-GM_predict <- terra::predict(GM_env_raster_masked_scale, GM_model, re.form= ~ 0)
+GM_predict <- terra::predict(GM_env_raster_masked_scale, GM_model) # raster calculator gives pretty much the same results (slightly off because precision in R's print is not enough)
 GM_predict_transform <- GM_predict
-values(GM_predict_transform) <- exp(values(GM_predict))*30 # value is c per m2 so can multiply by 30 to get absloute estimate of carbon (not densityt)
+values(GM_predict_transform) <- exp(values(GM_predict))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
 plot(GM_predict_transform, background = "lightblue") 
 
 GM_predict_transform60000y <- GM_predict_transform
@@ -109,58 +126,263 @@ GM_predict_transformhighest [GM_predict_transformhighest [] < 500000  ] = NA # 3
 hist(GM_predict_transformhighest)
 
 
-writeRaster(GM_predict_transformhighest, filename="trypredict_where_is_large.tif", overwrite=TRUE)
-writeRaster(GM_predict_transform, filename="trypredict.tif", overwrite=TRUE)
-
-
-
-
-
-plot(GM_env_raster_masked$EVIamp) # something went wrong with the clipping out ranges of env var we dont have at sampling sites (some are still included in the final raster) going to start from scratch
-GM_env_raster_maskedEVIamp <- GM_env_raster_masked$EVIamp
-GM_env_raster_maskedEVIamp[GM_env_raster_maskedEVIamp[] <= 5700 ] = NA
-plot(GM_env_raster_maskedEVIamp)
-
-plot(GM_env_raster_masked$FHT)
-GM_env_raster_maskedFHT <- GM_env_raster_masked$FHT
-GM_env_raster_maskedFHT[GM_env_raster_maskedFHT[] <= 12 ] = NA
-plot(GM_env_raster_maskedFHT)
-
-
-plot(GM_env_raster_masked$EVImed)
-GM_env_raster_maskedEVImed <- GM_env_raster_masked$EVImed
-GM_env_raster_maskedEVImed[GM_env_raster_maskedEVImed[] <= 6400 ] = NA
-plot(GM_env_raster_maskedEVImed)
-
-plot(GM_env_raster_masked$LGS)
-GM_env_raster_maskedLGS <- GM_env_raster_masked$LGS
-GM_env_raster_maskedLGS[GM_env_raster_maskedLGS[] <= 147 ] = NA
-plot(GM_env_raster_maskedLGS)
-
-GM_predict0 <- GM_predict
-GM_predict0y <- GM_predict
-
-GM_predict0[GM_predict0[] < 0 ] = NA
-
-GM_predict0y[GM_predict0y[] > 0 ] = NA
-
-plot(GM_env_raster_masked$FHT)
-plot(GM_env_raster_masked$EVIamp)
-plot(GM_env_raster_masked$EVImed)
-plot(GM_env_raster_masked$LGS)
-plot(GM_predict0)
-plot(GM_predict0y)
-
-
-
-
-plot(GM_env_raster_maskedEVIamp)
-plot(GM_env_raster_maskedLGS)
-plot(GM_env_raster_maskedEVImed)
-plot(GM_env_raster_maskedFHT)
-
-
-
-# when put this over QGIS it seems to under estimate at shaddowed slopess - because EVImed drastically underetimates in shaddows (Shadows and large variation in local zenith angles decrease the accuracy of the GLanCE product in regions with complex topography, especially at high latitudes.)
+writeRaster(GM_predict_transformhighest, filename="tifs for predicting/trypredict_where_is_large.tif", overwrite=TRUE)
+writeRaster(GM_predict_transform, filename="tifs for predicting/trypredict.tif", overwrite=TRUE)
 ```
+
+# tentative results for presentation
+
+using just FHT for presentation
+
+
+## GM
+problem when I include EVImed - it is highly impacted by shadows
+so there is a site with an extremely low EVImed but it is actually a very lush green place it is just in the shadow of a mountain. EVImed is commonly where huge underestimates and overestimates of carbon happen. I only have one site with a very low EVImed and one with a very high EVImed
+```{r}
+GM_env_raster_masked <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/tifs for predicting/GM_env_raster_masked.tif")
+names(GM_env_raster_masked) <-  c( "FHT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx")
+
+GM_env_raster_masked_scale <- GM_env_raster_masked
+values(GM_env_raster_masked_scale) <- scale(values(GM_env_raster_masked), center = F) # wrong scaled values
+
+
+f <- paste0("GM_env_scaled", names(GM_env_raster_masked), ".tif")
+writeRaster(GM_env_raster_masked_scale, f, overwrite=TRUE) #export the scaled environmental variable rasters to check predictions usig ratser calculator in qgis
+
+source("https://github.com/emmwilson/C_forecasting_NL/blob/main/code_for_stats/lmer%20model%20functions.R?raw=true")
+
+
+
+#trying to predict gap?
+try_predict_gap_GM <- glm(as.numeric(gap) ~ FHT + EVIamp, subset(c_env_sites_scale_gap, park_id == "GM"), family = binomial(link = "logit"))
+try_predict_gap2_GM <- glm(as.numeric(gap) ~ FHT, subset(c_env_sites_scale_gap, park_id == "GM"), family = binomial(link = "logit"))
+try_predict_gap3_GM <- glm(as.numeric(gap) ~ EVIamp, subset(c_env_sites_scale_gap, park_id == "GM"), family = binomial(link = "logit"))
+summary(glm(as.numeric(gap) ~ EVImed, subset(c_env_sites_scale_gap, park_id == "TN"), family = binomial(link = "logit")))
+
+summary(try_predict_gap_GM)
+AICc(try_predict_gap_GM) # defenitely this
+AICc(try_predict_gap2_GM)
+AICc(try_predict_gap3_GM)
+
+try_predict_gap1 <- terra::predict(GM_env_raster_masked_scale, try_predict_gap)
+values(try_predict_gap1) <- 1 / (1 + exp(-values(try_predict_gap1)))
+writeRaster(try_predict_gap1,filename="/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/tifs for predicting/try_predict_gap1.tif")
+
+try_predict_gap_TN <- glm(as.numeric(gap) ~ FHT + EVIamp, subset(c_env_sites_scale_gap, park_id == "TN"), family = binomial(link = "logit"))
+try_predict_gap2_TN <- glm(as.numeric(gap) ~ FHT, subset(c_env_sites_scale_gap, park_id == "TN"), family = binomial(link = "logit"))
+try_predict_gap3_TN <- glm(as.numeric(gap) ~ EVIamp, subset(c_env_sites_scale_gap, park_id == "TN"), family = binomial(link = "logit"))
+
+summary(try_predict_gap_TN)
+AICc(try_predict_gap_TN) # definitely this
+AICc(try_predict_gap2_TN)
+AICc(try_predict_gap3_TN)
+
+```
+
+
+### total
+```{r}
+GM_var_tot <- list("FHT")
+
+GM_model_tot <- lm_glm(GM_var_tot, df = c_env_sites_scale_GM, c = "c_m2_site") # need to run c_lmer_share.Tmd first
+summary(GM_model_tot)
+GM_model_tot$coefficients[1]
+GM_model_tot$coefficients[2]
+GM_model_tot$coefficients[3] # print to check predictions in ratsre calculator qgis
+
+GM_predict_tot <- terra::predict(GM_env_raster_masked_scale, GM_model_tot)
+GM_predict_tot[GM_predict_tot==NaN] <- NA
+GM_predict_tot_transform <- GM_predict_tot
+values(GM_predict_tot_transform) <- exp(values(GM_predict_tot))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
+plot(GM_predict_tot_transform, background = "lightblue") 
+
+writeRaster(GM_predict_tot_transform, filename="tifs for predicting/GM_predict_tot.tif", overwrite=TRUE)
+```
+
+
+### agb
+```{r}
+GM_var_agb <- list("FHT")
+
+GM_model_agb <- lm_glm(GM_var_agb, df = c_agb_env_sites_scale_GM, c = "c_m2_site_agb") # need to run c_lmer_aboveground.Tmd first
+summary(GM_model_agb)
+GM_model_agb$coefficients[1]
+GM_model_agb$coefficients[2]
+GM_model_agb$coefficients[3] # print to check predictions in ratsre calculator qgis
+
+GM_predict_agb <- terra::predict(GM_env_raster_masked_scale, GM_model_agb)
+GM_predict_agb[GM_predict_agb==NaN] <- NA
+GM_predict_agb_transform <- GM_predict_agb
+values(GM_predict_agb_transform) <- exp(values(GM_predict_agb))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
+plot(GM_predict_agb_transform, background = "lightblue") 
+
+writeRaster(GM_predict_agb_transform, filename="tifs for predicting/GM_predict_agb.tif", overwrite=TRUE)
+
+
+
+hist(GM_predict_agb_transform)
+
+GM_predict_agb_transformhigh <- GM_predict_agb_transform
+GM_predict_agb_transformhigh [GM_predict_agb_transformhigh [] < 4000000  ] = NA
+plot(GM_predict_agb_transformhigh)
+
+
+#just fht to compare to range in TN
+GM_var_agb2 <- list("FHT")
+
+GM_model_agb2 <- lm_glm(GM_var_agb2, df = c_agb_env_sites_scale_GM, c = "c_m2_site_agb") # need to run c_lmer_aboveground.Rmd first
+summary(GM_model_agb2)
+GM_model_agb2$coefficients[1]
+GM_model_agb2$coefficients[2]
+GM_model_agb2$coefficients[3] # print to check predictions in ratsre calculator qgis
+
+GM_predict_agb2 <- terra::predict(GM_env_raster_masked_scale, GM_model_agb2)
+GM_predict_agb2[GM_predict_agb2==NaN] <- NA
+GM_predict_agb2_transform <- GM_predict_agb2
+values(GM_predict_agb2_transform) <- exp(values(GM_predict_agb2))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
+plot(GM_predict_agb2_transform, background = "lightblue") 
+
+writeRaster(GM_predict_agb2_transform, filename="tifs for predicting/GM_predict_agb2.tif", overwrite=TRUE)
+```
+
+### blw
+```{r}
+GM_var_blw <- list(1)
+
+GM_model_blw <- lm_glm(GM_var_blw, df = c_blw_env_sites_scale_GM, c = "c_m2_site_blw") # need to run c_lmer_aboveground.Tmd first
+summary(GM_model_blw)
+GM_model_blw$coefficients[1]
+GM_model_blw$coefficients[2]
+GM_model_blw$coefficients[3] # print to check predictions in ratsre calculator qgis
+
+GM_predict_blw <- terra::predict(GM_env_raster_masked_scale, GM_model_blw)
+GM_predict_blw_transform <- GM_predict_blw
+values(GM_predict_blw_transform) <- exp(values(GM_predict_blw))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
+plot(GM_predict_blw_transform, background = "lightblue") 
+
+writeRaster(GM_predict_blw_transform, filename="tifs for predicting/GM_predict_blw.tif", overwrite=TRUE)
+
+# with random effects of site
+
+GM_var_blwr <- list("EVIamp")
+
+GM_model_blwr <- lm_lmer(GM_var_blwr, df = c_blw_env_sub_scale_GM, c = "c_m2_subplot_blw") # need to run c_lmer_aboveground.Tmd first
+summary(GM_model_blwr)
+
+GM_predict_blwr <- terra::predict(GM_env_raster_masked_scale, GM_model_blwr, re.form= ~ 0)
+GM_predict_blwr[GM_predict_blwr==NaN] <- NA
+GM_predict_blwr_transform <- GM_predict_blwr
+values(GM_predict_blwr_transform) <- exp(values(GM_predict_blwr))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
+plot(GM_predict_blwr_transform, background = "lightblue") 
+
+writeRaster(GM_predict_blwr_transform, filename="tifs for predicting/GM_predict_blwr.tif", overwrite=TRUE)
+```
+
+
+## TN
+```{r}
+TN_env_raster_masked <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/tifs for predicting/TN_env_raster_masked.tif")
+names(TN_env_raster_masked) <-  c( "FHT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx")
+
+TN_env_raster_masked_scale <- TN_env_raster_masked
+values(TN_env_raster_masked_scale) <- scale(values(TN_env_raster_masked), center = F)
+
+fTN <- paste0("tifs for predicting/TN_env_scaled", names(TN_env_raster_masked), ".tif")
+writeRaster(TN_env_raster_masked_scale, fTN, overwrite=TRUE) #expot the scaled environmental variable rasters to check predictions usig ratser calculator in qgis
+
+```
+
+
+### total
+```{r}
+TN_var_tot <- list("FHT")
+
+TN_model_tot <- lm_glm(TN_var_tot, df = c_env_sites_scale_TN, c = "c_m2_site") # need to run c_lmer_aboveground.Tmd first
+summary(TN_model_tot)
+TN_model_tot$coefficients[1]
+TN_model_tot$coefficients[2]
+TN_model_tot$coefficients[3] # print to check predictions in ratsre calculator qgis
+
+TN_predict_tot <- terra::predict(TN_env_raster_masked_scale, TN_model_tot)
+TN_predict_tot[TN_predict_tot==NaN] <- NA
+TN_predict_tot_transform <- TN_predict_tot
+values(TN_predict_tot_transform) <- exp(values(TN_predict_tot))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
+plot(TN_predict_tot_transform, background = "lightblue") 
+
+writeRaster(TN_predict_tot_transform, filename="tifs for predicting/TN_predict_tot.tif", overwrite=TRUE)
+```
+
+
+### agb
+```{r}
+TN_var_agb <- list("FHT")
+
+TN_model_agb <- lm_glm(TN_var_agb, df = c_agb_env_sites_scale_TN, c = "c_m2_site_agb") # need to run c_lmer_aboveground.Tmd first
+summary(TN_model_agb)
+TN_model_agb$coefficients[1]
+TN_model_agb$coefficients[2]# print to check predictions in ratsre calculator qgis
+
+TN_predict_agb <- terra::predict(TN_env_raster_masked_scale, TN_model_agb)
+
+TN_predict_agb_transform <- TN_predict_agb
+values(TN_predict_agb_transform) <- exp(values(TN_predict_agb))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
+plot(TN_predict_agb_transform, background = "lightblue") 
+
+writeRaster(TN_predict_agb_transform, filename="tifs for predicting/TN_predict_agb.tif", overwrite=TRUE)
+
+
+
+
+```
+
+### blw
+```{r}
+TN_var_blw <- list(1)
+
+TN_model_blw <- lm_glm(TN_var_blw, df = c_blw_env_sites_scale_TN, c = "c_m2_site_blw") # need to run c_lmer_aboveground.Tmd first
+summary(TN_model_blw)
+TN_model_blw$coefficients[1]
+TN_model_blw$coefficients[2]
+TN_model_blw$coefficients[3] # print to check predictions in ratsre calculator qgis
+
+TN_predict_blw <- terra::predict(TN_env_raster_masked_scale, TN_model_blw)
+TN_predict_blw[TN_predict_blw==NaN] <- NA
+TN_predict_blw_transform <- TN_predict_blw
+values(TN_predict_blw_transform) <- exp(values(TN_predict_blw))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
+plot(TN_predict_blw_transform, background = "lightblue") 
+
+writeRaster(TN_predict_blw_transform, filename="tifs for predicting/TN_predict_blw.tif", overwrite=TRUE)
+
+# with random effects of site
+
+TN_var_blwr <- list("EVIamp")
+
+TN_model_blwr <- lm_lmer(TN_var_blwr, df = c_blw_env_sub_scale_TN, c = "c_m2_subplot_blw") # need to run c_lmer_aboveground.Tmd first
+summary(TN_model_blwr)
+
+TN_predict_blwr <- terra::predict(TN_env_raster_masked_scale, TN_model_blwr, re.form= ~ 0)
+TN_predict_blwr[TN_predict_blwr==NaN] <- NA
+TN_predict_blwr_transform <- TN_predict_blwr
+values(TN_predict_blwr_transform) <- exp(values(TN_predict_blwr))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt)
+plot(TN_predict_blwr_transform, background = "lightblue") 
+
+writeRaster(TN_predict_blwr_transform, filename="tifs for predicting/TN_predict_blwr.tif", overwrite=TRUE)
+```
+
+# stats for presentation
+```{r}
+global(GM_predict_agb2_transform, "mean", na.rm=TRUE) #only show predictions with FHT for now
+global(TN_predict_agb_transform, "mean", na.rm=TRUE)
+
+global(GM_predict_agb2_transform, "sum", na.rm=TRUE)
+global(TN_predict_agb_transform, "sum", na.rm=TRUE)
+
+global(GM_predict_agb2_transform, "max", na.rm=TRUE)
+global(TN_predict_agb_transform, "max", na.rm=TRUE)
+
+global(GM_predict_agb2_transform, "min", na.rm=TRUE)
+global(TN_predict_agb_transform, "min", na.rm=TRUE)
+
+```
+
 

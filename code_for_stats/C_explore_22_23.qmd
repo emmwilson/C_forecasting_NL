@@ -116,11 +116,28 @@ c_2023_compat <- c_2023_mess %>%
 c_22_23 <- rbind(c_2022_compat, c_2023_compat) %>%
   mutate(unique_id = paste0(park_id, "_", site_id, "_", subplot_id))
 
+c_22_23_site <- c_22_23 %>% 
+  group_by(park_id, site_id, ex_ctrl) %>% 
+  summarize(site_c = sum(total_c_per_subplot), tree_c = sum(te_carbon_9m2))
+
 # compare total C bw years
 summary(c_2022_compat$total_c_per_subplot)[[4]]
 summary(c_2023_compat$total_c_per_subplot)[[4]]
 sum(c_2022_compat$total_c_per_subplot)
 sum(c_2023_compat$total_c_per_subplot)
+
+ggplot(c_22_23, aes(x=factor(park_id), y=total_c_per_subplot)) + 
+  geom_violin()+
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = park_id))
+
+gr_c_22_23 <- group_by(c_22_23, park_id)
+summarize(gr_c_22_23, mean = mean(total_c_per_subplot-sl_carbon_9m2))
+
+ggplot(c_22_23, aes(x=factor(park_id), y=(total_c_per_subplot-sl_carbon_9m2))) + 
+  geom_boxplot()
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               aes(colour = park_id))
 
 ggplot(c_22_23, aes(x=factor(year), y=total_c_per_subplot, fill = park_id)) + 
   geom_violin()+

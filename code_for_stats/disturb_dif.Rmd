@@ -97,6 +97,7 @@ c_2023_mess <- c_2023 %>%
   mutate(year = 2023) %>% # add year
   mutate(site_id = paste0(site_id, "_", "2023")) # distinguish overlapping site numbers by year
   
+
 ```
 
 
@@ -108,6 +109,8 @@ c_2023_compare <- c_2023_mess %>%
   replace(is.na(.), 0)
 c_22_23 <- rbind(c_2022_compare, c_2023_compare) %>%
   mutate(unique_id = paste0(park_id, "_", site_id, "_", subplot_id))
+
+length(unique(subset(c_22_23, year == "2022")$site_id))
 ```
 
 # insect
@@ -124,17 +127,33 @@ c_22_23_insectGM <- c_22_23 %>%
   mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
   select(-c(dw_carbon_9m2, total_c_per_subplot)) 
 
+# test sig
+insectGM_sig <- summary(lm(new_tot ~ as.factor(gap), data = c_22_23_insectGM))
+
+# box plot
+ggplot(c_22_23_insectGM, aes(x=factor(disturbance), y=new_tot/9)) +
+  geom_boxplot()
+
 # ggplot(c_22_23_insectGM, aes(x=factor(disturbance), y=total_c_per_subplot/9)) +
 #   geom_violin()+
 #   stat_summary(fun.data = "mean_cl_boot", geom = "pointrange")
 
 mean_c_insectGM <- c_22_23_insectGM %>% 
   group_by(disturbance) %>% 
-  summarize(mean = mean(new_tot/9))
+  summarize(mean = mean(new_tot/9), min = min(new_tot/9), max = max(new_tot/9))
 
-less_c_insectGM <- mean_c_insectGM$mean[2]-mean_c_insectGM$mean[1] # per square meter there is on average 6738 less grams of carbon in a cell that is insect disturbed by only insects (no herbivory) in Gros Morne
+less_c_insectGM <- mean_c_insectGM$mean[2]-mean_c_insectGM$mean[1] 
+min_c_insectGM <- mean_c_insectGM$min[2]-mean_c_insectGM$min[1] 
+max_c_insectGM <- mean_c_insectGM$max[2]-mean_c_insectGM$max[1] 
+less_c_insectGM
+min_c_insectGM
+max_c_insectGM
+# per square meter there is on average 6738 less grams of carbon in a cell that is insect disturbed by only insects (no herbivory) in Gros Morne
+
 
 less_c_insectGM*(7.976e+7)/1000 # total kg carbon lost by only insects in GM
+min_c_insectGM*(7.976e+7)/1000 # right now this area is from whole park (not just area I'm predicting to) - need to know where defoliation happening (is ok for terra nova)
+max_c_insectGM*(7.976e+7)/1000
 ```
 
 ## TN
@@ -149,6 +168,10 @@ c_22_23_insectTN <-  c_22_23  %>%
   mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
   select(-c(dw_carbon_9m2, total_c_per_subplot)) 
 
+ # test sig
+insectTN_sig <- summary(lm(new_tot ~ as.factor(gap), data = c_22_23_insectTN))
+
+
 #ggplot(c_22_23_insectTN, aes(x=factor(disturbance), y=total_c_per_subplot/9)) + 
   # geom_violin()+
   # stat_summary(fun.data = "mean_cl_boot", geom = "pointrange")
@@ -157,7 +180,14 @@ summary(lm(new_tot ~ disturbance, data = c_22_23_insectTN))
 
 mean_c_insectTN <- c_22_23_insectTN %>% 
   group_by(disturbance) %>% 
-  summarize(mean = mean(new_tot/9))
+  summarize(mean = mean(new_tot/9), min = min(new_tot/9), max = max(new_tot/9) )
+
+less_c_insectTN <- mean_c_insectTN$mean[2]-mean_c_insectTN$mean[1] 
+min_c_insectTN <- mean_c_insectTN$min[2]-mean_c_insectTN$min[1] 
+max_c_insectTN <- mean_c_insectTN$max[2]-mean_c_insectTN$max[1] 
+less_c_insectTN
+min_c_insectTN
+max_c_insectTN
 
 less_c_insectTN <- mean_c_insectTN$mean[2]-mean_c_insectTN$mean[1] # per square meter there is on average 18443 less grams of carbon in a cell that is insect disturbed in Terra Nova
 
@@ -250,12 +280,46 @@ c_22_23_mooseGM <- rbind(c_22_23_mooseGM, GM_05_2022)
 
 
 # give group id
-c_22_23_mooseGM <- arrange(c_22_23_mooseGM, unique_id) %>% 
+c_22_23_mooseGM_site <- arrange(c_22_23_mooseGM, unique_id) %>% 
   mutate(pair_id = gl(3,8)) %>% # change 5 to 4 if take out 13_2022
-  group_by(pair_id)
+  group_by(pair_id) %>% # give group id
+  group_by(pair_id, site_id,ex_ctrl) %>% 
+  summarize(mean_new_tot = mean(new_tot)) # averaged at site
+
+c_22_23_mooseGM <- arrange(c_22_23_mooseGM, unique_id) %>% 
+  mutate(pair_id = gl(3,8))  # change 5 to 4 if take out 13_2022
 
 # paired test
-ex_ctrl_pairGM <- t.test(new_tot ~ ex_ctrl, data = c_22_23_mooseGM, paired = TRUE) # very signififcant once I take out GM 13
+ex_ctrl_pairGM <- t.test(new_tot ~ ex_ctrl, data = c_22_23_mooseGM_site, paired = TRUE) #  signififcant once I take out GM 13
+y <- subset(c_22_23_mooseGM_id, ex_ctrl == "EX")
+x <- subset(c_22_23_mooseGM_id, ex_ctrl == "CTRL")
+d = y$mean_new_tot - x$mean_new_tot
+shapiro.test(d)
+
+summary(lm(new_tot ~ ex_ctrl, c_22_23_mooseGM))
+
+ex_ctrl_fit = lmer(c_22_23_mooseGM,
+    formula = log(new_tot) ~ ex_ctrl + (1|pair_id)
+    #, REML = F #because we want to compare models on likelihood
+#, family = Gamma(link = "log")
+)
+#next, compute a model where the effect of status is not estimated
+random_fit = lmer(c_22_23_mooseGM,
+    formula = log(new_tot) ~ (1|pair_id)
+    #, REML = F #because we want to compare models on likelihood
+#, family = gamma(link = "log")
+)
+#compute the AIC-corrected log-base-2 likelihood ratio (a.k.a. "bits" of evidence)
+(AIC(random_fit)-AIC(ex_ctrl_fit))*log2(exp(1))
+
+anova(random_fit,ex_ctrl_fit)
+library(lmtest)
+lrtest(ex_ctrl_fit, random_fit)
+
+plot(density(residuals(ex_ctrl_fit)))
+plot(ex_ctrl_fit)
+qqnorm(residuals(ex_ctrl_fit))
+qqline(residuals(ex_ctrl_fit))
 
 c_22_23_mooseGM %>%
   group_by(pair_id) %>%
@@ -280,7 +344,12 @@ c_22_23_mooseGM_blw <- c_22_23_mooseGM %>%
 t.test(c_m2_subplot_agb ~ ex_ctrl, data = c_22_23_mooseGM_agb, paired = TRUE) 
 t.test(c_m2_subplot_blw ~ ex_ctrl, data = c_22_23_mooseGM_blw, paired = TRUE) 
 
-# effect of moose overall
+# effect of moose overall by t.test 95% CI
+(ex_ctrl_pairGM$estimate/9)*(7.976e+7)/1000
+(ex_ctrl_pairGM$conf.int[1]/9)*(7.976e+7)/1000
+(ex_ctrl_pairGM$conf.int[2]/9)*(7.976e+7)/1000
+
+# effect of moose overall by mean of groups total
 
 c_22_23_mooseGM2 <- c_22_23 %>% 
   filter(ex_ctrl %in% c("CTRL", "EX")) %>% 
@@ -293,11 +362,20 @@ c_22_23_mooseGM2 <- c_22_23 %>%
 mean_c_mooseGM <- c_22_23_mooseGM2 %>% 
   ungroup() %>% 
   group_by(ex_ctrl) %>% 
-  summarize(mean = mean(new_tot/9))
+  summarize(mean = mean(new_tot/9), min = min(new_tot/9), max = max(new_tot/9))
 
 mean_diffGM <- (mean_c_mooseGM$mean[2] - mean_c_mooseGM$mean[1]) # on average effect largely negative
 # is per subplot (which is 9m2) so divide by 9 to get per 1 m2
 
+min_diffGM <- (mean_c_mooseGM$min[2] - mean_c_mooseGM$min[1])
+max_diffGM <- (mean_c_mooseGM$max[2] - mean_c_mooseGM$max[1])
+mean_diffGM
+min_diffGM
+max_diffGM
+
+mean_diffGM*(7.976e+7)/1000
+min_diffGM*(7.976e+7)/1000
+max_diffGM*(7.976e+7)/1000
 
 # do I add that to the effect of just insect? I think so: effect of insect + effect of moose in insect
 (less_c_insectGM+mean_diffGM)*(7.976e+7)/1000 # wow over a billion kg
@@ -312,16 +390,47 @@ c_22_23_mooseTN <- c_22_23 %>%
   filter(site_id != "31_2022" & site_id != "34_2022") %>% # 31 and 34 are mature exclosures
   filter(park_id == "TN") %>% 
   mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
-  select(-c(dw_carbon_9m2, total_c_per_subplot)) 
+  select(-c(dw_carbon_9m2, total_c_per_subplot)) %>%    
+  arrange(unique_id) %>% 
+  mutate(pair_id = gl(5,8)) # give group id
+ c_22_23_mooseTN_site <- c_22_23_mooseTN %>%  
+  group_by(pair_id, site_id,ex_ctrl) %>% 
+  summarize(mean_new_tot = mean(new_tot))
 
-# give group id
-c_22_23_mooseTN <- arrange(c_22_23_mooseTN, unique_id) %>% 
-  mutate(pair_id = gl(5,8)) %>%
-  group_by(pair_id)
+c_diff_TN_moose <- c_22_23_mooseTN %>% 
+  ungroup() %>% 
+  select(!c(site_id)) %>% 
+  group_by(pair_id) %>% 
+  pivot_wider(names_from = ex_ctrl, values_from = mean_new_tot) %>% 
+  mutate(diff = EX - CTRL)
 
 # paired test
-ex_ctrl_pairTN <- t.test(new_tot ~ ex_ctrl, data = c_22_23_mooseTN, paired = TRUE) # not  significantly different
+ex_ctrl_pairTN <- t.test(log(mean_new_tot) ~ ex_ctrl, data = c_22_23_mooseTN_site, paired = TRUE) # not  significantly different
 
+# check assumptions
+y <- subset(c_22_23_mooseTN, ex_ctrl == "EX")
+x <- subset(c_22_23_mooseTN, ex_ctrl == "CTRL")
+d = y$mean_new_tot - x$mean_new_tot
+shapiro.test(d)
+plot(density(na.omit(d)))
+qqnorm(d)
+qqline(d, datax = FALSE, distribution = qnorm, probs = c(0.25, 0.75))
+
+ex_ctrl_fit = lmer(c_22_23_mooseTN,
+    formula = log(new_tot) ~ ex_ctrl + (1|pair_id)
+    #, REML = F #because we want to compare models on likelihood
+#, family = Gamma(link = "log")
+)
+#next, compute a model where the effect of status is not estimated
+random_fit = lmer(c_22_23_mooseTN,
+    formula = log(new_tot) ~ (1|pair_id)
+    #, REML = F #because we want to compare models on likelihood
+#, family = gamma(link = "log")
+)
+#compute the AIC-corrected log-base-2 likelihood ratio (a.k.a. "bits" of evidence)
+(AIC(random_fit)-AIC(ex_ctrl_fit))*log2(exp(1))
+
+lrtest(ex_ctrl_fit, random_fit)
 
 # for each pool
 pools_mooseTN <- lapply(c_col_lessdw, lm_pool, df = c_22_23_mooseTN)
@@ -336,25 +445,68 @@ c_22_23_mooseTN_blw <- c_22_23_mooseTN %>%
 t.test(c_m2_subplot_agb ~ ex_ctrl, data = c_22_23_mooseTN_agb, paired = TRUE) # above not
 t.test(c_m2_subplot_blw ~ ex_ctrl, data = c_22_23_mooseTN_blw, paired = TRUE) # below not
 
-# effect of moose overall
+# effect of moose overall using 95% ci
+
+(ex_ctrl_pairTN$estimate/9)*(1.3e+7)/1000
+(ex_ctrl_pairTN$conf.int[1]/9)*(1.3e+7)/1000
+(ex_ctrl_pairTN$conf.int[2]/9)*(1.3e+7)/1000
+
+# effect of moose using means
+mean_c_mooseTN2 <- c_22_23_mooseTN %>% 
+  ungroup() %>% 
+  group_by(ex_ctrl, site_id) %>% 
+  summarize(mean = mean(new_tot/9), min = min(new_tot/9), max = max(new_tot/9))
 
 mean_c_mooseTN <- c_22_23_mooseTN %>% 
   ungroup() %>% 
   group_by(ex_ctrl) %>% 
-  summarize(mean = mean(new_tot/9))
+  summarize(mean = mean(new_tot/9), min = min(new_tot/9), max = max(new_tot/9))
 
-mean_diffTN <- (mean_c_mooseTN$mean[2] - mean_c_mooseTN$mean[1]) # on average effect is still largely negative. the value is not far off from the value created at GM per m2, but I guess there is just a lot more variation
+mean_diffTN <- (mean_c_mooseTN$mean[2] - mean_c_mooseTN$mean[1])
+min_diffTN <- (mean_c_mooseTN$min[2] - mean_c_mooseTN$min[1])
+max_diffTN <- (mean_c_mooseTN$max[2] - mean_c_mooseTN$max[1])# on average effect is still largely negative. the value is not far off from the value created at GM per m2, but I guess there is just a lot more variation
+mean_diffTN
+min_diffTN
+max_diffTN
 # is per subplot (which is 9m2) so divide by 9 to get per 1 m2
 
 # is the effect after a disturbance
 # this could be interpreted as the amount of carbon moose have stopped from returning in an insect disturbed area
 mean_diffTN*(1.3e+7)/1000
+min_diffTN*(1.3e+7)/1000
+max_diffTN*(1.3e+7)/1000
 
 # do I add that to the effect of just insect? I think so: effect of insect + effect of moose in insect
 (less_c_insectTN+mean_diffTN)*(1.3e+7)/1000
 # compare this to value if just look at open plots in mature vs insect
 ```
 
+
+## both parks
+```{r}
+c_22_23_mooseTNGM <- rbind(c_22_23_mooseTN, c_22_23_mooseGM)
+ex_ctrl_fit = lmer(c_22_23_mooseTNGM,
+    formula = log(new_tot) ~ ex_ctrl + (1|pair_id)
+    #, REML = F #because we want to compare models on likelihood
+#, family = Gamma(link = "log")
+)
+#next, compute a model where the effect of status is not estimated
+random_fit = lmer(c_22_23_mooseTNGM,
+    formula = log(new_tot) ~ (1|pair_id)
+    #, REML = F #because we want to compare models on likelihood
+#, family = gamma(link = "log")
+)
+#compute the AIC-corrected log-base-2 likelihood ratio (a.k.a. "bits" of evidence)
+(AIC(random_fit)-AIC(ex_ctrl_fit))*log2(exp(1))
+
+anova(random_fit,ex_ctrl_fit)
+library(lmtest)
+lrtest(ex_ctrl_fit, random_fit)
+
+```
+
+
+#mi
 
 ```{r}
 c_22_23_mooseinsectGM <- c_22_23 %>% 
@@ -371,16 +523,26 @@ ex_ctrl_pairGM_mi <- t.test(new_tot ~ disturbance, data = c_22_23_mooseinsectGM)
 
 mean_c_miGM <- c_22_23_mooseinsectGM %>% 
   group_by(disturbance) %>% 
-  summarize(mean = mean(new_tot/9))
+  summarize(mean = mean(new_tot/9), min = min(new_tot/9), max = max(new_tot/9), median = median(new_tot/9))
 
-mean_diffGM_mi <- (mean_c_miGM$mean[2] - mean_c_miGM$mean[1])
+mean_diffGMmi <- (mean_c_miGM$mean[2] - mean_c_miGM$mean[1])
+min_diffGMmi <- (mean_c_miGM$min[2] - mean_c_miGM$min[1])
+max_diffGMmi <- (mean_c_miGM$max[2] - mean_c_miGM$max[1])
+med_diffGMmi <- (mean_c_miGM$median[2] - mean_c_miGM$median[1])
+mean_diffGMmi
+min_diffGMmi
+max_diffGMmi
+med_diffGMmi
 
-mean_diffGM_mi - (less_c_insectGM+mean_diffGM) # per m2 difference between calculating together and seperate
+mean_diffGMmi - (less_c_insectGM+mean_diffGM) # per m2 difference between calculating together and seperate
 
-mean_diffGM_mi*(1.3e+7)/1000
+mean_diffGMmi*(7.976e+7)/1000
+min_diffGMmi*(7.976e+7)/1000
+max_diffGMmi*(7.976e+7)/1000
+med_diffGMmi*(7.976e+7)/1000
 
 # diff between this and caluclating effect of insect and moose seperately
-mean_diffGM_mi*(1.3e+7)/1000 - (less_c_insectGM+mean_diffGM)*(1.3e+7)/1000
+mean_diffGMmi*(1.3e+7)/1000 - (less_c_insectGM+mean_diffGM)*(1.3e+7)/1000
 ```
 
 ```{r}
@@ -395,13 +557,23 @@ ex_ctrl_pairTN_mi <- t.test(new_tot ~ disturbance, data = c_22_23_mooseinsectTN)
 
 mean_c_miTN <- c_22_23_mooseinsectTN %>% 
   group_by(disturbance) %>% 
-  summarize(mean = mean(new_tot/9))
+  summarize(mean = mean(new_tot/9), min = min(new_tot/9), max = max(new_tot/9), median = median(new_tot/9))
 
-mean_diffTN_mi <- (mean_c_miTN$mean[2] - mean_c_miTN$mean[1])
+mean_diffTNmi <- (mean_c_miTN$mean[2] - mean_c_miTN$mean[1])
+min_diffTNmi <- (mean_c_miTN$min[2] - mean_c_miTN$min[1])
+max_diffTNmi <- (mean_c_miTN$max[2] - mean_c_miTN$max[1])
+med_diffTNmi <- (mean_c_miTN$median[2] - mean_c_miTN$median[1])
+mean_diffTNmi
+min_diffTNmi
+max_diffTNmi
+med_diffTNmi
 
 mean_diffTN_mi - (less_c_insectTN+mean_diffTN) # per m2 difference between calculating together and seperate
 
-mean_diffTN_mi*(1.3e+7)/1000
+mean_diffTNmi*(1.3e+7)/1000
+min_diffTNmi*(1.3e+7)/1000
+max_diffTNmi*(1.3e+7)/1000
+med_diffTNmi*(1.3e+7)/1000
 
 # diff between this and caluclating effect of insect and moose seperately
 mean_diffTN_mi*(1.3e+7)/1000 - (less_c_insectTN+mean_diffTN)*(1.3e+7)/1000
@@ -459,9 +631,54 @@ moose_pair_ex <- moose_pair_ex %>%
 
 ex_ctrl_EVIC <- merge(moose_pair_ex, c_22_23_moose_diff)
 
-ggplot(ex_ctrl_EVIC, aes(diff, avgEVIamp)) +
+ggplot(ex_ctrl_EVIC, aes(diff, avgEVIamp, colour = pair_id)) +
   geom_point()
 
 ```
 
+
+# box plots for update
+```{r}
+
+
+c_22_23_insectGMTN <- rbind(c_22_23_insectGM, c_22_23_insectTN)
+c_22_23_insectGMTN$disturbance[c_22_23_insectGMTN$disturbance == 'Insect'] <- 'Insect (EXCL)'
+
+c_22_23_mooseGMTN <- rbind(c_22_23_mooseTN, c_22_23_mooseGM)
+c_22_23_mooseGMTN$ex_ctrl[c_22_23_mooseGMTN$ex_ctrl == 'EX'] <- 'Insect (EXCL)'
+c_22_23_mooseGMTN$ex_ctrl[c_22_23_mooseGMTN$ex_ctrl == 'CTRL'] <- 'Insect (CTRL)'
+
+c_22_23_mooseinsectGMTN <- rbind(c_22_23_mooseinsectGM , c_22_23_mooseinsectTN)
+c_22_23_mooseinsectGMTN$disturbance[c_22_23_mooseinsectGMTN$disturbance == 'Insect'] <- 'Insect (open or EXCL)'
+
+insectGMTN_boxplot <- ggplot(c_22_23_insectGMTN, aes(x=factor(park_id), y=log(new_tot/9), colour = disturbance)) +
+  geom_boxplot() +
+  labs(y = "log(Total Carbon) (g/m2)", x = "Park", colour = "Stand type") +
+  scale_color_manual(values = c("#D55E00","#009E73"))+
+  theme_classic()
+insectGMTN_boxplot
+jpeg(filename = "../contribution agreement/insectGMTN_boxplot.jpg", height = 12, width = 18, units = "cm", res = 600)
+insectGMTN_boxplot
+dev.off()
+
+mooseGMTN_boxplot <- ggplot(c_22_23_mooseGMTN, aes(x=factor(park_id), y=log(new_tot/9), colour = ex_ctrl)) +
+  geom_boxplot() +
+  labs(y = "log(Total Carbon) (g/m2)", x = "Park", colour = "Exclosure or control") +
+  scale_color_manual(values = c("#6600CC","#D55E00")) +
+  theme_classic()
+mooseGMTN_boxplot
+jpeg(filename = "../contribution agreement/mooseGMTN_boxplot.jpg", height = 12, width = 18, units = "cm", res = 600)
+mooseGMTN_boxplot
+dev.off()
+
+miGMTN_boxplot <- ggplot(c_22_23_mooseinsectGMTN, aes(x=factor(park_id), y=log(new_tot/9), colour = disturbance)) +
+  geom_boxplot() +
+  labs(y = "log(Total Carbon) (g/m2)", x = "Park", colour = "Stand type") +
+  scale_color_manual(values = c("#6600CC","#009E73"))+
+  theme_classic()
+miGMTN_boxplot
+jpeg(filename = "../contribution agreement/miGMTN_boxplot.jpg", height = 12, width = 18, units = "cm", res = 600)
+miGMTN_boxplot
+dev.off()
+```
 

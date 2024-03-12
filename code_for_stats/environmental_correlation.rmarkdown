@@ -20,7 +20,7 @@ pacman::p_load(
   raster)
 ```
 
-## data
+# data
 
 ### from sites
 
@@ -175,7 +175,6 @@ GM_env_sites <- subset(env_sites_SPD, env_sites_SPD$park == "GM")
 TN_env_sites <- subset(env_sites_SPD, env_sites_SPD$park == "TN")
 ```
 
-
 ## fix aspect to 180
 
 ### for sites
@@ -197,7 +196,6 @@ env_subplots <- env_subplots %>%
 ### fix na ASP
 env_subplots$ASP <-replace_na(env_subplots$ASP, 0.1)
 ```
-
 
 ### export process variables
 
@@ -243,9 +241,7 @@ moose_GMx[moose_GMx[] != 3 ] <- NA
 moose_GMx[moose_GMx[] == 3 ] <- 1
 ```
 
-
 ## stack rasters
-
 
 ```{r}
 
@@ -261,7 +257,7 @@ writeRaster(GM_env_raster, filename="GM_env_raster.tif", overwrite=TRUE)
 writeRaster(TN_env_raster, filename="TN_env_raster.tif", overwrite=TRUE)
 ```
 
-## correlation
+# correlation
 
 ```{r}
 l <- list()  
@@ -594,3 +590,4 @@ usdm::vif(as.data.frame(predictors_park_env_TN))
 usdm::vifstep(as.data.frame(predictors_park_env_TN)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
 usdm::vifcor(as.data.frame(predictors_park_env_TN), th=0.8) 
 ```
+

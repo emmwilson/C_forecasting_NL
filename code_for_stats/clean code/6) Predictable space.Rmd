@@ -1,0 +1,61 @@
+---
+title: "6) Predictable space"
+author: "Emmerson Wilson"
+date: "2024-03-07"
+output: html_document
+---
+
+```{r}
+library(terra)
+```
+
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# import rasters
+```{r}
+# stacked rasters of enviornmental data
+# made in 1) environmental correlation.Rmd
+GM_env_rast <- rast("data created/GM_env_raster.tif") # stack of enviornmental variables' rasters
+TN_env_rast <- rast("data created/TN_env_raster.tif") # stack of enviornmental variables' rasters
+
+# layer the clip by
+clip_GM_rast <- rast("data required/environmental data/GM_predict_binary.tif") # masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+clip_TN_rast <- rast("data required/environmental data/TN_predict_binary.tif")# masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+```
+
+# prep clipping space
+```{r}
+# change anywhere equal to 0 into NA
+clip_GM_rast[clip_GM_rast==0] <- NA
+
+clip_TN_rast[clip_TN_rast==0] <- NA
+```
+
+# clip
+```{r}
+GM_env_rast_masked <- crop(GM_env_rast, clip_GM_rast, mask=TRUE) # this part isn't taking out the proper cells *had to make the mask a raster
+plot(GM_env_rast_masked$FHT_GM) #check
+
+TN_env_rast_masked <- crop(TN_env_rast, clip_TN_rast, mask=TRUE)
+plot(TN_env_rast_masked$EVIamp_TN) #check
+```
+
+#export
+```{r}
+# save
+writeRaster(GM_env_rast_masked, filename="data created/GM_env_raster_masked.tif", overwrite=TRUE)
+writeRaster(TN_env_rast_masked, filename="data created/TN_env_raster_masked.tif", overwrite=TRUE)
+
+```
+
+
+
+
+
+
+
+

@@ -9,7 +9,8 @@ pacman::p_load(
   dplyr,
   tidyverse,
   readxl,
-  openxlsx)
+  openxlsx,
+  janitor)
 ```
 
 ## bring in data
@@ -17,10 +18,10 @@ pacman::p_load(
 ### 2023
 
 ```{r}
-c_2023 <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
+c_2023 <- read_xlsx("../final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
   replace(is.na(.), 0) 
 
-site_data <- read_xlsx("final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+site_data <- read_xlsx("../final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
 site_data$Site_ID <- sprintf("%02.f", site_data$Site_ID)
 
 c_2023_mess <- c_2023 %>%

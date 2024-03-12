@@ -11,13 +11,16 @@ library(terra)
 
 
 ```{r}
-GM_env_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/GM_env_raster.tif") # stack of enviornmental variables' rasters
-TN_env_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/TN_env_raster.tif") # stack of enviornmental variables' rasters
+GM_env_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/tifs for predicting/GM_env_raster.tif") # stack of enviornmental variables' rasters
+TN_env_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/tifs for predicting/TN_env_raster.tif") # stack of enviornmental variables' rasters
 
-clip_GM_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/attempt 2/GM_predict_mask.tif") # masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
-clip_TN_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/attempt 2/TN_predict_mask.tif")# masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+clip_GM_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/attemp 3 - rasterize roads and human use/GM_predict_binary.tif") # masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+clip_TN_rast <- rast("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/Environmental_datasets/clipping_files_predict/attemp 3 - rasterize roads and human use/TN_predict_binary.tif")# masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
 
+clip_GM_rast[clip_GM_rast==0] <- NA
 plot(clip_GM_rast) #check
+
+clip_TN_rast[clip_TN_rast==0] <- NA
 plot(clip_TN_rast) #check
 
 GM_env_rast_masked <- crop(GM_env_rast, clip_GM_rast, mask=TRUE) # this part isn't taking out the proper cells *had to make the mask a raster
@@ -28,11 +31,11 @@ plot(TN_env_rast_masked$EVIamp_TN) #check
 
 
 # save
-writeRaster(GM_env_rast_masked, filename="GM_env_raster_masked.tif", overwrite=TRUE)
-writeRaster(TN_env_rast_masked, filename="TN_env_raster_masked.tif", overwrite=TRUE)
+writeRaster(GM_env_rast_masked, filename="/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/GM_env_raster_masked.tif", overwrite=TRUE)
+writeRaster(TN_env_rast_masked, filename="/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/TN_env_raster_masked.tif", overwrite=TRUE)
 
 
-GM_env_rast
-clip_GM
+plot(GM_env_rast_masked$FHT_GM)
+plot(TN_env_rast_masked$FHT_TN)
 ```
 

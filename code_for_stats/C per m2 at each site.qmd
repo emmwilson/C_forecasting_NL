@@ -9,7 +9,8 @@ pacman::p_load(
   dplyr,
   tidyverse,
   readxl,
-  openxlsx)
+  openxlsx,
+  janitor)
 ```
 
 ## bring in data
@@ -124,6 +125,10 @@ c_22_23_m2_sub <- c_22_23 %>%
 
 c_m2_site <- write.xlsx(c_22_23_m2, file = "../final carbon data/c_m2_site.xlsx")
 c_m2_subplot <- write.xlsx(c_22_23_m2_sub, file = "../final carbon data/c_m2_subplot.xlsx")
+
+
+ggplot(c_22_23_m2, aes(gap, c_m2_site, colour = park_id)) +
+  geom_boxplot()
 ```
 
 ## aboveground carbon per 1m\^2 at each site
