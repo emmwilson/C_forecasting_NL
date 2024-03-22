@@ -1,0 +1,456 @@
+---
+title: "try evi mslsp"
+author: "Emmerson Wilson"
+date: "2024-03-07"
+output: html_document
+---
+
+```{r}
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats")
+```
+
+
+# environmental data
+### from sites
+
+```{r}
+env_sites_GM2 <- read_xlsx("try with MSLSP EVI/env_sites_GM_final MSLSP.xlsx") %>% # environmental data from Gros Morne sites
+  rename(CC = "CC10fill") # change name of canopy cover column to match others
+
+env_sites_TN2 <- read_xlsx("try with MSLSP EVI/env_sites_TN_final MSLSP.xlsx") %>% #environmental data from Terra Nova sites
+    rename(CC = "CC10fill") # change name of canopy cover column to match others
+
+```
+
+#### prep
+##### remove exclosures and unused columns
+```{r}
+env_sites2 <- dplyr::bind_rows(env_sites_TN2, env_sites_GM2) # put sites together
+env_sites2$ex_ctrl <- env_sites2$ex_ctrl %>% 
+  replace_na("pair") # turn na's into character so we can filter out exclosures
+env_sites2 <- env_sites2 %>% 
+  filter(ex_ctrl != "EX") %>% #filter our exclosure sites
+  dplyr::select(!ex_ctrl)  %>% # remove exclosure control column
+  dplyr::select(!Moose) %>% # remove old moose classification
+  dplyr::select(!nitro) # remove nitro because not good dataset
+```
+
+##### fix aspect
+```{r}
+env_sites2 <- env_sites2 %>% 
+  mutate(ASP = abs(180 - ASP))    # make aspect absolute number of degrees from S
+
+env_sites2$ASP <-replace_na(env_sites2$ASP, 0.1) # anywhere with slope of 0 has NA aspect, make aspect small
+```
+
+#### create dataset for each park
+```{r}
+GM2_env_sites <- subset(env_sites2, env_sites2$park == "GM") # make dataset for just GM
+TN2_env_sites <- subset(env_sites2, env_sites2$park == "TN") # make dataset for just TN
+```
+
+### from entire parks
+
+```{r}
+SPC_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_SPC_TN.tif")
+names(SPC_TN) <- "SPC_TN"
+FAC_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_FAC_TN.tif")
+names(FAC_TN) <- "FAC_TN"
+EVIamp2_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_EVIamp_TN.tif")
+names(EVIamp2_TN) <- "EVIamp2_TN"
+EVIarea_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_EVIarea_TN_filled.tif")
+names(EVIarea_TN) <- "EVIarea_TN"
+FHT_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GFCH_FHT_2019/GFCH_FHT_TN.tif")
+names(FHT_TN) <- "FHT_TN"
+CC10fill_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GFCC_CC_2005_2010/GFCC_CC_TN_10_filled.tif")
+names(CC10fill_TN) <- "CC10fill_TN"
+SLO_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_SLO_TN.tif")
+names(SLO_TN) <- "SLO_TN"
+ELE_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_ELE_TN.tif")
+names(ELE_TN) <- "ELE_TN"
+ASP_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_ASP_TN.tif")
+names(ASP_TN) <- "ASP_TN"
+LCT_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CEC_LCT_2020/CEC_LCT_2020_TN.tif")
+names(LCT_TN) <- "LCT_TN"
+LGS_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_LGS_TN_filled.tif")
+names(LGS_TN) <- "LGS_TN"
+moose_TN <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/moose_surveys/TN_2020/NP_moose2020_TN_clip.tif")
+names(moose_TN) <- "moose_TN"
+
+moose_TN[] = ifelse(moose_TN[]==1, 3, ifelse(moose_TN[]==2, 1, ifelse(moose_TN[]==3, 2, 4)))
+
+
+SPC_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_SPC_GM.tif")
+names(SPC_GM) <- "SPC_GM"
+FAC_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/NP_FAC_GM.tif")
+names(FAC_GM) <- "FAC_GM"
+EVIamp2_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_EVIamp_GM.tif")
+names(EVIamp2_GM) <- "EVIamp2_GM"
+EVIarea_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_EVIarea_GM_filled.tif")
+names(EVIarea_GM) <- "EVIarea_GM"
+FHT_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GFCH_FHT_2019/GFCH_FHT_GM.tif")
+names(FHT_GM) <- "FHT_GM"
+CC15fill_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/GFCC_CC_2005_2010/GFCC_CC_GM_15_filled.tif")
+names(CC15fill_GM) <- "CC15fill_GM"
+SLO_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_SLO_GM.tif")
+names(SLO_GM) <- "SLO_GM"
+ELE_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_ELE_GM.tif")
+names(ELE_GM) <- "ELE_GM"
+ASP_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CDEM_topography_2011/CDEM_ASP_GM.tif")
+names(ASP_GM) <- "ASP_GM"
+LCT_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/CEC_LCT_2020/CEC_LCT_2020_GM.tif")
+names(LCT_GM) <- "LCT_GM"
+LGS_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/MSLSP_EVI_2019/MSLSP_LGS_GM_filled.tif")
+names(LGS_GM) <- "LGS_GM"
+moose_GM <- rast("/Volumes/Emmerson's backup/C_forecasting_NL_env_data/All in NAD 83 - UTM 21/NP_FC_2010_2018/moose_surveys/GM_2017/NP_moose2017_GM_clip.tif")
+names(moose_GM) <- "moose_GM"
+
+moose_GM[] = ifelse(moose_GM[]==1, 2, ifelse(moose_GM[]==2, 1, ifelse(moose_GM[]==3, 3, 1)))
+
+```
+
+#### prep
+##### reorder moose data
+```{r}
+moose_TN[] = ifelse(moose_TN[]==1, 3, ifelse(moose_TN[]==2, 1, ifelse(moose_TN[]==3, 2, 4))) # reclassify moose values so in ascending order of lowest to highest
+
+moose_GM[] = ifelse(moose_GM[]==1, 2, ifelse(moose_GM[]==2, 1, ifelse(moose_GM[]==3, 3, 1))) # reclassify moose values so in ascending order of lowest to highest
+```
+##### make individual moose layers
+
+```{r}
+moose_TNl <- moose_TN
+names(moose_TNl) <- "moose_TNl"
+moose_TNm <- moose_TN
+names(moose_TNm) <- "moose_TNm"
+moose_TNh <- moose_TN
+names(moose_TNh) <- "moose_TNh"
+moose_TNl[moose_TNl[] != 1 ] <- NA
+moose_TNm[moose_TNm[] != 2 ] <- NA
+moose_TNm[moose_TNm[] == 2 ] <- 1
+moose_TNh[moose_TNh[] != 3 ] <- NA
+moose_TNh[moose_TNh[] == 3 ] <- 1
+
+moose_GMl <- moose_GM
+names(moose_GMl) <- "moose_GMl"
+moose_GMh <- moose_GM
+names(moose_GMh) <- "moose_GMh"
+moose_GMx <- moose_GM
+names(moose_GMx) <- "moose_GMx"
+
+moose_GMl[moose_GMl[] != 1 ] <- NA
+moose_GMh[moose_GMh[] != 2 ] <- NA
+moose_GMh[moose_GMh[] == 2 ] <- 1
+moose_GMx[moose_GMx[] != 3 ] <- NA
+moose_GMx[moose_GMx[] == 3 ] <- 1
+```
+
+##### fix aspect
+```{r}
+values(ASP_GM) <- abs(180 - values(ASP_GM))
+
+### fix na ASP
+ASP_GM[is.na(ASP_GM[])] <- 0.01
+
+# TN
+values(ASP_TN) <- abs(180 - values(ASP_TN))
+
+### fix na ASP
+ASP_TN[is.na(ASP_TN[])] <- 0.01
+```
+
+#### stack rasters
+
+```{r}
+TN_env_list2 <- list(SPC_TN, FAC_TN, FHT_TN, CC10fill_TN, LCT_TN, EVIamp2_TN, EVIarea_TN, SLO_TN, ELE_TN, ASP_TN, LGS_TN, moose_TN, moose_TNl, moose_TNm, moose_TNh)
+
+TN_env_raster2 <- rast(TN_env_list2)
+
+GM_env_list2 <- list(SPC_GM, FAC_GM, FHT_GM, CC15fill_GM, LCT_GM, EVIamp2_GM, EVIarea_GM, SLO_GM, ELE_GM, ASP_GM, LGS_GM, moose_GM, moose_GMl, moose_GMh, moose_GMx)
+
+GM_env_raster2 <- rast(GM_env_list2)
+```
+
+## export
+### for sites
+```{r}
+write.xlsx(env_sites2, file = "try with MSLSP EVI/env_sites_final2.xlsx")
+```
+
+
+### for rasters
+export the stacked rasters for each park, because this is what will be used to predict later
+```{r}
+writeRaster(GM_env_raster2, filename="try with MSLSP EVI/GM_env_rasterMSLSP.tif", overwrite=TRUE)
+writeRaster(TN_env_raster2, filename="try with MSLSP EVI/TN_env_rasterMSLSP.tif", overwrite=TRUE)
+```
+
+# correlation
+## both parks
+```{r, warning=FALSE}
+predictors_site_env2 <- env_sites2[, -c(1:7, 19)]
+# correlation structure
+varCor2 <- cor(predictors_site_env2, use="pairwise.complete.obs")
+corrplot(varCor2,  tl.col='black') # dendogram
+chart.Correlation(predictors_site_env2, histogram=F, pch=19)
+
+l$chart_site_both <- make_corrChart(predictors_site_env2, histogram=F, pch="0")
+l$chart_site_both
+
+
+allDistNew2 <- abs(as.dist(cor(predictors_site_env2, use="pairwise.complete.obs")))
+allClusNew2 <- hclust(1 - allDistNew2)
+plot(allClusNew2, hang=-1)
+
+usdm::vif(as.data.frame(predictors_site_env2))
+usdm::vifstep(as.data.frame(predictors_site_env2, th = 0.7)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
+usdm::vifcor(as.data.frame(predictors_site_env2), th=0.6) 
+```
+
+## GM
+```{r, warning=FALSE}
+
+env_sites_GM2 <- env_sites2 %>% 
+  filter(park == "GM")
+
+predictors_site_env2 <- env_sites_GM2[, -c(1:7, 19)]
+# correlation structure
+varCor2 <- cor(predictors_site_env2, use="pairwise.complete.obs")
+corrplot(varCor2,  tl.col='black') # dendogram
+chart.Correlation(predictors_site_env2, histogram=F, pch=19)
+
+l$chart_site_both <- make_corrChart(predictors_site_env2, histogram=F, pch="0")
+l$chart_site_both
+
+
+allDistNew2 <- abs(as.dist(cor(predictors_site_env2, use="pairwise.complete.obs")))
+allClusNew2 <- hclust(1 - allDistNew2)
+plot(allClusNew2, hang=-1)
+
+usdm::vif(as.data.frame(predictors_site_env2))
+usdm::vifstep(as.data.frame(predictors_site_env2, th = 0.7)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
+usdm::vifcor(as.data.frame(predictors_site_env2), th=0.6) 
+```
+
+## TN
+```{r, warning=FALSE}
+
+env_sites_TN2 <- env_sites2 %>% 
+  filter(park == "TN")
+
+predictors_site_env2 <- env_sites_TN2[, -c(1:7, 19)]
+# correlation structure
+varCor2 <- cor(predictors_site_env2, use="pairwise.complete.obs")
+corrplot(varCor2,  tl.col='black') # dendogram
+chart.Correlation(predictors_site_env2, histogram=F, pch=19)
+
+l$chart_site_both <- make_corrChart(predictors_site_env2, histogram=F, pch="0")
+l$chart_site_both
+
+
+allDistNew2 <- abs(as.dist(cor(predictors_site_env2, use="pairwise.complete.obs")))
+allClusNew2 <- hclust(1 - allDistNew2)
+plot(allClusNew2, hang=-1)
+
+usdm::vif(as.data.frame(predictors_site_env2))
+usdm::vifstep(as.data.frame(predictors_site_env2, th = 0.7)) ## takes out the highest (sees above 10 as collinearity problem) so that values decrease
+usdm::vifcor(as.data.frame(predictors_site_env2), th=0.6) 
+```
+
+
+
+
+# lm
+## carbon 
+
+```{r}
+c_m2_sites <- read_xlsx("clean code/data created/c_m2_site.xlsx")
+```
+## environmental data
+
+```{r}
+env_site_final2 <- read_xlsx("try with MSLSP EVI/env_sites_final2.xlsx")
+```
+
+## join env and c data
+
+```{r}
+c_env_sites2 <- full_join(c_m2_sites, env_site_final2) %>%
+  dplyr::select(!c(FAC, SPC, CC, CEC_LCT)) # remvoe unwated columns
+```
+
+#### scale
+```{r}
+#scale predictor variables (but don't center around 0)
+c_env_sites_scale2 <- c_env_sites2
+
+c_env_sites_scale2[c(11:16, 18)] <- scale(c_env_sites_scale2[c(11:16, 18)], center = F) # select continuous variabes to scale
+```
+
+#### make moose characters not numbers
+```{r}
+c_env_sites_scale2$Moose_new <- as.character(c_env_sites_scale2$Moose_new) # make moose categories characters
+
+c_env_sites_scale_GM2 <- c_env_sites_scale2 %>% 
+  filter(park == "GM")
+
+c_env_sites_scale_GM2["Moose_new"][c_env_sites_scale_GM2["Moose_new"] == 1] <- "aL"
+c_env_sites_scale_GM2["Moose_new"][c_env_sites_scale_GM2["Moose_new"] == 2] <- "aL"
+c_env_sites_scale_GM2["Moose_new"][c_env_sites_scale_GM2["Moose_new"] == 3] <- "bH"
+c_env_sites_scale_GM2["Moose_new"][c_env_sites_scale_GM2["Moose_new"] == 4] <- "cX"
+
+c_env_sites_scale_GM2$Moose_new <- as.factor(c_env_sites_scale_GM2$Moose_new)
+
+c_env_sites_scale_TN2 <- c_env_sites_scale2 %>% 
+  filter(park == "TN")
+
+c_env_sites_scale_TN2["Moose_new"][c_env_sites_scale_TN2["Moose_new"] == 1] <- "aL"
+c_env_sites_scale_TN2["Moose_new"][c_env_sites_scale_TN2["Moose_new"] == 2] <- "bM"
+c_env_sites_scale_TN2["Moose_new"][c_env_sites_scale_TN2["Moose_new"] == 3] <- "cH"
+c_env_sites_scale_TN2["Moose_new"][c_env_sites_scale_TN2["Moose_new"] == 4] <- "dV"
+
+c_env_sites_scale_TN2$Moose_new <- as.factor(c_env_sites_scale_TN2$Moose_new)
+```
+
+# glm function
+extremely useful for univariate models
+```{r}
+source("clean code/4) glm function.R")
+```
+
+
+# GM
+
+### null
+
+```{r}
+#run the model
+GM_lm_null2 <- lm_glm(c_env_sites_scale_GM2, "c_m2_site", "1")
+
+# get the summary of the model into a dataframe
+GM_lm_null2_summary <- as.data.frame(summary(GM_lm_null2)$coefficients) %>% 
+  mutate(model = "GM_lm_null") 
+GM_lm_null2_summary <- GM_lm_null2_summary %>% 
+  add_column("predictor" = rownames(GM_lm_null2_summary))
+
+# reorder columns so model name first
+GM_lm_null2_summary <- GM_lm_null2_summary[,c(5,6,1:4)]
+GM_lm_null2_summary
+```
+
+### full
+
+```{r}
+# make list of all variables to be included in full model
+full_var2 <- list("FHT", "EVIamp", "EVIarea", "ELE", "SLO", "ASP", "LGS", "Moose_new")
+
+# run the model
+GM_lm_full2 <- lm_glm(c_env_sites_scale_GM2, "c_m2_site", full_var2)
+summary(GM_lm_full2)
+
+# add summary of model to dataframe
+GM_lm_full2_summary <- as.data.frame(summary(GM_lm_full2)$coefficients) %>% 
+  mutate(model = "GM_lm_full2") 
+GM_lm_full2_summary <- GM_lm_full2_summary %>% 
+  add_column("predictor" = rownames(GM_lm_full2_summary))
+
+GM_lm_full2_summary <- GM_lm_full2_summary[,c(5,6,1:4)]
+GM_lm_full2_summary
+```
+
+### univariate
+
+```{r}
+# run model with each predictor variable on own
+
+GM_lm_uni2 <- lapply(full_var2, lm_glm, df = c_env_sites_scale_GM2, c = "c_m2_site")
+
+names(GM_lm_uni2) <- full_var2 # make sure names of objects in list consistent
+
+GM_lm_uni_summary2 <- lapply(GM_lm_uni2, summary)
+
+GM_lm_uni_summary2
+
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
+
+GM_uni_summary_all2 <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(GM_lm_uni_summary2, coef), as.data.frame), "model"=names(GM_lm_uni_summary2), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+GM_uni_summary_all2 <- GM_uni_summary_all2[,c(5,6,1:4)]
+GM_uni_summary_all2
+
+# is new EVIamp correlated with gap
+c_env_sites_scale_gap2 <- c_env_sites_scale2
+c_env_sites_scale_gap2$gap[c_env_sites_scale_gap2$gap == "Gap"] <- 0
+c_env_sites_scale_gap2$gap[c_env_sites_scale_gap2$gap == "Mature"] <- 1
+
+anova(lm(gap ~ FHT, c_env_sites_scale_gap2))
+anova(lm(gap ~ EVIamp, c_env_sites_scale_gap2))
+anova(lm(gap ~ FHT + EVIamp, c_env_sites_scale_gap2)) # still very correlated 
+anova(lm(gap ~ EVIarea, c_env_sites_scale_gap2)) # now yes but not in combination with FHT os must be correlated?
+anova(lm(FHT ~ EVIarea, c_env_sites_scale_gap2)) # very correlated so take out entirley? no cause same result with glance data, when run correlation diagnosis only 0.5
+anova(lm(FHT ~ EVIamp, c_env_sites_scale_gap2)) # also very correlated, but is the same for Glance data
+anova(lm(gap ~ FHT*EVIamp, c_env_sites_scale_gap2))
+
+try_predict_gap2 <- glm(as.numeric(gap) ~ FHT + EVIamp, subset(c_env_sites_scale_gap2, park_id == "GM"), family = binomial(link = "logit"))
+
+anova(lm(log(c_m2_site)~FHT*Moose_new, c_env_sites_scale2))
+```
+
+
+
+### reduced
+```{r}
+# find possible reduced model to add to 
+# need to input full model not through function 
+GM_lm_full2 <- glm(formula = log(c_m2_site) ~ FHT + EVIamp + EVIarea + ELE + SLO + ASP + LGS + Moose_new, data = c_env_sites_scale_GM2) 
+
+GM2_lm_red <- step(GM_lm_full2, direction = "backward", trace = F)
+
+
+GM2_lm_red_summary <- as.data.frame(summary(GM2_lm_red)$coefficients) %>% 
+  mutate(model = "GM_lm_red") 
+GM2_lm_red_summary <- GM2_lm_red_summary %>% 
+  add_column("predictor" = rownames(GM2_lm_red_summary))
+
+GM2_lm_red_summary <- GM2_lm_red_summary[,c(5,6,1:4)]
+GM2_lm_red_summary
+
+# assess reduced model for uninformative parameters
+# EVIamp least important so test removal
+
+GM2_lm_red2 <- glm(formula = log(c_m2_site) ~ FHT + EVIarea, data = c_env_sites_scale_GM2)
+
+GM_lm_red2_summary <- as.data.frame(summary(GM_lm_red2)$coefficients) %>% 
+  mutate(model = "GM_lm_red2") 
+GM_lm_red2_summary <- GM_lm_red2_summary %>% 
+  add_column("predictor" = rownames(GM_lm_red2_summary))
+
+GM_lm_red2_summary <- GM_lm_red2_summary[,c(5,6,1:4)]
+
+# step 1: difference in AICc
+GM2_lm_red_comp <- list()
+GM2_lm_red_comp[["GM_lm_red"]] <- GM2_lm_red
+GM2_lm_red_comp[["GM_lm_red2"]] <- GM2_lm_red2
+
+aictab(cand.set = GM2_lm_red_comp, sort = TRUE)
+# <2
+
+# step 2: difference in # parameters: 1
+
+# step 3: ranking: more parsimonious below
+# so  looking like not an uninformative parameter
+
+# step 4: log likelihoods: very similar
+
+# step 5: confidence interval of coefficient overlap 0:
+confint(GM_lm_red)
+confint(GM_lm_red2)
+# yes, but only so slightly
+# so informative? because of step 3
+# include both red( FHT + EVImed + EVIamp) and red2 (FHT + EVImed) in next steps
+```
+
+
+
+
+
+

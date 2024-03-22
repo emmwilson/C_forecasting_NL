@@ -1,0 +1,160 @@
+---
+title: "c_check_dw"
+author: "Emmerson Wilson"
+date: "2024-01-19"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx)
+```
+
+## bring in data
+
+### 2022
+
+```{r}
+c_2022_dw <- read_xlsx("./final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Deadwood_Field_Data NEW.xlsm", sheet = "DW carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, dw_carbon_9m2))
+c_2022_te <- read_xlsx("./final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, te_carbon_9m2))
+c_2022_gc <- read_xlsx("./final carbon data/Final_Carbon_Data_R/ground_cover_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, gc_carbon_9m2))
+c_2022_hb <- read_xlsx("./final carbon data/Final_Carbon_Data_R/herbaceous_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, hb_carbon_9m2))
+c_2022_ll <- read_xlsx("./final carbon data/Final_Carbon_Data_R/litter_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Park_ID, Site_ID, Ex_Ctrl, Subplot_ID, Site_Subplot_ID, ll_carbon_9m2))
+c_2022_sp <- read_xlsx("./final carbon data/Final_Carbon_Data_R/sapling_carbon.xlsx", sheet = "Sheet 1") %>% dplyr::select(c(Site_Subplot_ID, sp_carbon_9m2))
+#c_2022_sr <- read_xlsx("Final_Carbon_Data_R/shrub_root_carbon.xlsx", sheet = "Sheet 1") because this data came before R fixed the under 30 units I need to calculate on my own
+c_2022_sl <- read_xlsx("./final carbon data/Final_Carbon_Data_R/soil_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, sl_carbon_9m2))
+
+c_2022_tr <- read_xlsx("./final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree root carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, tr_carbon_9m2))
+c_2022_u3 <- read_xlsx("./final carbon data/Final_Carbon_Data_R/under_30_carbon.xlsx", sheet = "Sheet 1") %>%
+  mutate(u3_carbon_9m2 = u3_carbon_9m2/1000000) %>% # convert units
+  dplyr::select(c(Site_Subplot_ID, u3_carbon_9m2))
+c_2022_ws <- read_xlsx("./final carbon data/Final_Carbon_Data_R/woody_shrubs_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, ws_carbon_9m2))
+site_data_2022 <- read_xlsx("./final carbon data/Final_Carbon_Data_R/subplot_disturbacne.xlsx")
+
+c_2022_sr_list <- list(c_2022_u3, c_2022_ws, c_2022_sp)
+c_2022_sr <- c_2022_sr_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
+  replace(is.na(.), 0)
+c_2022_sr$sr_carbon_9m2 <- rowSums(c_2022_sr[, c(2:4)])
+c_2022_sr <- c_2022_sr %>% dplyr::select(c(1,5)) %>%
+  mutate(sr_carbon_9m2 = sr_carbon_9m2*0.25)
+  
+
+c_2022_list <- list(c_2022_dw, c_2022_te, c_2022_gc, c_2022_hb, c_2022_ll, c_2022_sp, c_2022_sr, c_2022_sl, c_2022_tr, c_2022_u3, c_2022_ws)
+
+c_2022 <- c_2022_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
+  dplyr::select(c(1,6:9,2:5,10:16)) %>%
+  replace(is.na(.), 0)
+c_2022$total_c_per_subplot <- rowSums(c_2022[, c(6:16)])
+
+c_2022_mess <- c_2022 %>%
+  left_join(site_data_2022) %>% # add subplot info
+  clean_names() %>% 
+  mutate(gap = disturbance) %>% 
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(ss_carbon_9m2 = rowSums(c_2022[, c("sp_carbon_9m2", "ws_carbon_9m2")])) %>% # recategorize pools to match 2023
+  mutate(rt_carbon_9m2 = rowSums(c_2022[, c("tr_carbon_9m2","sr_carbon_9m2")])) %>%
+  mutate(gv_carbon_9m2 = rowSums(c_2022[, c("gc_carbon_9m2", "hb_carbon_9m2", "u3_carbon_9m2")])) %>%
+  mutate(year = 2022) %>% # add year
+  mutate(site_number = as.numeric(site_id))
+c_2022_mess$site_number <- sprintf("%02.f", c_2022_mess$site_number)
+c_2022_mess <- c_2022_mess %>%
+  mutate(site_id = paste0(site_number, "_", "2022")) %>% # distinguish overlapping site numbers by year
+  mutate(subplot_id = substr(subplot_id,2,2))  # remove letter from subplot
+
+
+c_2022_dw <- c_2022_mess %>%
+  dplyr::select(c(2:5,18,19,23,6))
+```
+
+### 2023
+
+```{r}
+c_2023 <- read_xlsx("./final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
+  replace(is.na(.), 0) 
+
+site_data <- read_xlsx("./final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+site_data$Site_ID <- sprintf("%02.f", site_data$Site_ID)
+
+c_2023_mess <- c_2023 %>%
+  left_join(site_data)%>%
+  clean_names() %>%
+  mutate(gap = disturbance) %>%
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Wind', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Logging', 'Gap')) %>%
+  mutate(year = 2023) %>% # add year
+  mutate(site_id = paste0(site_id, "_", "2023")) # distinguish overlapping
+  
+
+c_2023_dw <- c_2023_mess %>%
+  dplyr::select(c(22,23,25,2,27,38,39,11)) %>%
+  replace(is.na(.), 0)
+```
+
+## combine
+
+```{r}
+c_22_23_dw <- rbind(c_2022_dw, c_2023_dw) %>%
+  mutate(unique_id = paste0(park_id, "_", site_id, "_", subplot_id))
+```
+
+## get only exc and ctrl
+
+```{r}
+c_22_23_dw_ce <- c_22_23_dw %>% 
+  filter(ex_ctrl != "NA") 
+```
+
+# compare dw
+
+```{r}
+
+ctrl_dw_ex_summary <- subset(c_22_23_dw_ce$dw_carbon_9m2, c_22_23_dw_ce$ex_ctrl == "EX") %>% 
+  summary()
+ctrl_dw_ct_summary <- subset(c_22_23_dw_ce$dw_carbon_9m2, c_22_23_dw_ce$ex_ctrl == "CTRL") %>% 
+  summary()
+
+ctrl_dw_ex_summary
+ctrl_dw_ct_summary
+
+ctrl_dw_ex_sum <- subset(c_22_23_dw_ce$dw_carbon_9m2, c_22_23_dw_ce$ex_ctrl == "EX") %>% 
+  sum()
+
+ctrl_dw_ct_sum <- subset(c_22_23_dw_ce$dw_carbon_9m2, c_22_23_dw_ce$ex_ctrl == "CTRL") %>% 
+  sum()
+
+ctrl_dw_ex_sum
+ctrl_dw_ct_sum
+
+ctr_ex_dw <- anova(aov(c_22_23_dw_ce$dw_carbon_9m2 ~ c_22_23_dw_ce$ex_ctrl))
+
+ctr_ex_dw
+
+ctr_ex_dw_box <- ggplot(c_22_23_dw_ce, aes(x = ex_ctrl, y = dw_carbon_9m2)) + 
+  geom_boxplot()
+  
+ctr_ex_dw_box
+
+ctr_ex_dw_viol <- ggplot(c_22_23_dw_ce, aes(x = ex_ctrl, y = dw_carbon_9m2)) + 
+  geom_violin() + 
+  stat_summary(fun.data = "mean_cl_boot", geom = "pointrange",
+               colour = "red")
+
+ctr_ex_dw_viol
+
+```
+
+

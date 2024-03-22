@@ -1,0 +1,159 @@
+---
+title: "6) Predictable space"
+author: "Emmerson Wilson"
+date: "2024-03-07"
+output: html_document
+---
+
+```{r}
+library(terra)
+```
+
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# import rasters
+```{r}
+# stacked rasters of enviornmental data
+# made in 1) environmental correlation.Rmd
+GM_env_rast <- rast("data created/GM_env_raster.tif") # stack of enviornmental variables' rasters
+TN_env_rast <- rast("data created/TN_env_raster.tif") # stack of enviornmental variables' rasters
+
+# layer the clip by
+clip_GM_rast <- rast("data required/environmental data/GM_predict_binary.tif") # masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+clip_TN_rast <- rast("data required/environmental data/TN_predict_binary.tif")# masking layer (cut out all human use areas, and space where values of environmental variables are outside of range sampled)
+
+```
+
+## prep clipping space
+```{r}
+# change anywhere equal to 0 into NA
+clip_GM_rast[clip_GM_rast==0] <- NA
+
+clip_TN_rast[clip_TN_rast==0] <- NA
+```
+
+## clip
+```{r}
+GM_env_rast_masked <- crop(GM_env_rast, clip_GM_rast, mask=TRUE) # this part isn't taking out the proper cells *had to make the mask a raster
+names(GM_env_rast_masked) <-  c( "SPC", "FAC", "FHT", "CC", "LCT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx") # name layers
+
+#remove unwanted layers
+GM_env_rast_masked <- subset(GM_env_rast_masked, c(3,6:12))
+ #check
+
+TN_env_rast_masked <- crop(TN_env_rast, clip_TN_rast, mask=TRUE)
+names(TN_env_rast_masked) <-  c( "SPC", "FAC", "FHT", "CC", "LCT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx") # name layers
+
+#remove unwanted layers
+TN_env_rast_masked <- subset(TN_env_rast_masked, c(3,6:12))
+```
+
+## scale variables
+```{r}
+# make rasters with proper dimensions to write over
+GM_env_raster_masked_scale <- GM_env_rast_masked
+GM_env_raster_masked_nm <- subset(GM_env_rast_masked, c(1:7)) # remove moose from stack of rasters to be scaled
+
+TN_env_raster_masked_scale <- TN_env_rast_masked
+TN_env_raster_masked_nm <- subset(TN_env_rast_masked, c(1:7))
+
+# need to bring in unscale environmental data, so we can scale it and use the saved attributes (RMS) for each variable
+env_for_scale_GM <- read_xlsx("data created/c_m2_site.xlsx") %>%
+  full_join(read_xlsx("data created/env_sites_final.xlsx")) %>% 
+  filter(park_id == "GM") %>% 
+  dplyr::select(!c(FAC, SPC, CC, CEC_LCT)) %>% 
+  dplyr::select(c(11:13, 16, 15, 14, 18)) # make sure in same order as raster stack
+
+env_for_scale_TN <- read_xlsx("data created/c_m2_site.xlsx") %>%
+  full_join(read_xlsx("data created/env_sites_final.xlsx")) %>% 
+  filter(park_id == "TN") %>% 
+  dplyr::select(!c(FAC, SPC, CC, CEC_LCT)) %>% 
+  dplyr::select(c(11:13, 16, 15, 14, 18))
+
+envscale_GM <- attr(scale(env_for_scale_GM, center = F), "scaled:scale") # scale and save the values each variable was scaled by
+envscale_TN <- attr(scale(env_for_scale_TN, center = F), "scaled:scale") 
+
+# rescale GM
+for (i in 1:nlyr(GM_env_raster_masked_nm)){
+  sub <- subset(GM_env_raster_masked_nm,i)
+  GM_env_raster_masked_scale[[sub@cpp$names]] <- terra::scale(sub, center = FALSE, scale = envscale_GM[[i]])
+  }
+
+# rescale TN
+for (i in 1:nlyr(TN_env_raster_masked_nm)){
+  sub <- subset(TN_env_raster_masked_nm,i)
+  TN_env_raster_masked_scale[[sub@cpp$names]] <- terra::scale(sub, center = FALSE, scale = envscale_TN[[i]])
+  }
+```
+
+##export
+```{r}
+# save
+writeRaster(GM_env_raster_masked_scale, filename="data created/GM_env_raster_masked_scaled.tif", overwrite=TRUE)
+writeRaster(TN_env_raster_masked_scale, filename="data created/TN_env_raster_masked_scaled.tif", overwrite=TRUE)
+```
+
+
+
+# for space based on only variables in best models
+```{r}
+clip_GM_rast_bm <- rast("data required/environmental data/GM_predict_binary_bm.tif")
+clip_TN_rast_bm <- rast("data required/environmental data/TN_predict_binary_bm.tif")
+```
+
+## prep clipping space
+```{r}
+# change anywhere equal to 0 into NA
+clip_GM_rast_bm[clip_GM_rast_bm==0] <- NA
+
+clip_TN_rast_bm[clip_TN_rast_bm==0] <- NA
+```
+
+## clip
+```{r}
+GM_env_rast_masked_bm <- crop(GM_env_rast, clip_GM_rast_bm, mask=TRUE) # this part isn't taking out the proper cells *had to make the mask a raster
+names(GM_env_rast_masked_bm) <-  c( "SPC", "FAC", "FHT", "CC", "LCT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx") # name layers
+
+#remove unwanted layers
+GM_env_rast_masked_bm <- subset(GM_env_rast_masked_bm, c(3,6:12))
+ #check
+
+TN_env_rast_masked_bm <- crop(TN_env_rast, clip_TN_rast_bm, mask=TRUE)
+names(TN_env_rast_masked_bm) <-  c( "SPC", "FAC", "FHT", "CC", "LCT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx") # name layers
+
+#remove unwanted layers
+TN_env_rast_masked_bm <- subset(TN_env_rast_masked_bm, c(3,6:12))
+```
+
+## scale variables
+```{r}
+# make rasters with proper dimensions to write over
+GM_env_raster_masked_scale_bm <- GM_env_rast_masked_bm
+GM_env_raster_masked_bm_nm <- subset(GM_env_rast_masked_bm, c(1:7)) # remove moose from stack of rasters to be scaled
+
+TN_env_raster_masked_scale_bm <- TN_env_rast_masked_bm
+TN_env_raster_masked_bm_nm <- subset(TN_env_rast_masked_bm, c(1:7))
+
+# rescale GM
+for (i in 1:nlyr(GM_env_raster_masked_bm_nm)){
+  sub <- subset(GM_env_raster_masked_bm_nm,i)
+  GM_env_raster_masked_scale_bm[[sub@cpp$names]] <- terra::scale(sub, center = FALSE, scale = envscale_GM[[i]])
+  }
+
+# rescale TN
+for (i in 1:nlyr(TN_env_raster_masked_bm_nm)){
+  sub <- subset(TN_env_raster_masked_bm_nm,i)
+  TN_env_raster_masked_scale_bm[[sub@cpp$names]] <- terra::scale(sub, center = FALSE, scale = envscale_TN[[i]])
+  }
+```
+
+##export
+```{r}
+writeRaster(GM_env_raster_masked_bm_scale, filename="data created/GM_env_raster_masked_scale_bm.tif", overwrite=TRUE)
+writeRaster(TN_env_raster_masked_bm_scale, filename="data created/TN_env_raster_masked_scale_bm.tif", overwrite=TRUE)
+```
+

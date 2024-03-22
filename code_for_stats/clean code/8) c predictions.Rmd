@@ -1,0 +1,149 @@
+---
+title: "7) Predictions"
+author: "Emmerson Wilson"
+date: "2024-03-07"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# import training datasets
+```{r}
+# made in 5) c lm total.Rmd
+GM_c_env <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
+TN_c_env <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
+```
+
+# import environmental rasters
+```{r}
+GM_env_raster_masked_scale <- rast("data created/GM_env_raster_masked_scaled.tif")
+TN_env_raster_masked_scale <- rast("data created/TN_env_raster_masked_scaled.tif")
+```
+
+## for space from just predictors in best models
+```{r}
+GM_env_raster_masked_scale_bm <- rast("data created/GM_env_raster_masked_scale_bm.tif")
+TN_env_raster_masked_scale_bm <- rast("data created/TN_env_raster_masked_scale_bm.tif")
+```
+
+
+
+# import glm function
+```{r}
+source("4) glm function.R")
+```
+
+# predict
+
+## GM
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+GM_var <- list("FHT", "EVImed", "EVIamp")
+
+# run best model
+GM_model_tot <- lm_glm(GM_var, df = GM_c_env, c = "c_m2_site")
+
+# predict
+GM_predict_tot <- terra::predict(GM_env_raster_masked_scale, GM_model_tot)
+
+# transform predictions
+GM_predict_tot_transform <- GM_predict_tot
+values(GM_predict_tot_transform) <- exp(values(GM_predict_tot))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+#plot(GM_predict_tot_transform, background = "lightblue") 
+
+# export
+writeRaster(GM_predict_tot_transform, filename="data created/GM_predict_tot.tif", overwrite=TRUE)
+```
+
+## TN
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+TN_var <- list("FHT", "SLO", "EVIamp")
+
+# run best model
+TN_model_tot <- lm_glm(TN_var, df = subset(TN_c_env), c = "c_m2_site")
+
+# predict
+TN_predict_tot <- terra::predict(TN_env_raster_masked_scale, TN_model_tot)
+
+# transform predictions
+TN_predict_tot_transform <- TN_predict_tot
+values(TN_predict_tot_transform) <- exp(values(TN_predict_tot))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+#plot(TN_predict_tot_transform, background = "lightblue") 
+
+# export
+writeRaster(TN_predict_tot_transform, filename="data created/TN_predict_tot.tif", overwrite=TRUE)
+
+max(values(GM_predict_tot_transform, na.rm = T))
+max(values(TN_predict_tot_transform, na.rm = T))
+
+min(values(GM_predict_tot_transform, na.rm = T))
+min(values(TN_predict_tot_transform, na.rm = T))
+
+mean(values(GM_predict_tot_transform, na.rm = T))
+mean(values(TN_predict_tot_transform, na.rm = T))
+
+sum(values(GM_predict_tot_transform, na.rm = T))
+sum(values(TN_predict_tot_transform, na.rm = T))
+
+```
+
+# predictions for space based on variabels in best models
+## GM
+```{r}
+# predict
+GM_predict_tot_bm <- terra::predict(GM_env_raster_masked_scale_bm, GM_model_tot)
+
+# transform predictions
+GM_predict_tot_transform_bm <- GM_predict_tot_bm
+values(GM_predict_tot_transform_bm) <- exp(values(GM_predict_tot_bm))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+#plot(GM_predict_tot_transform, background = "lightblue") 
+
+# export
+writeRaster(GM_predict_tot_transform_bm, filename="data created/GM_predict_tot_bm.tif", overwrite=TRUE)
+```
+
+## TN
+```{r}
+# predict
+TN_predict_tot_bm <- terra::predict(TN_env_raster_masked_scale_bm, TN_model_tot)
+
+# transform predictions
+TN_predict_tot_transform_bm <- TN_predict_tot_bm
+values(TN_predict_tot_transform_bm) <- exp(values(TN_predict_tot_bm))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+#plot(TN_predict_tot_transform, background = "lightblue") 
+
+# export
+writeRaster(TN_predict_tot_transform_bm, filename="data created/TN_predict_tot_bm.tif", overwrite=TRUE)
+
+max(values(GM_predict_tot_transform_bm, na.rm = T))
+max(values(TN_predict_tot_transform_bm, na.rm = T))
+
+min(values(GM_predict_tot_transform_bm, na.rm = T))
+min(values(TN_predict_tot_transform_bm, na.rm = T))
+
+mean(values(GM_predict_tot_transform_bm, na.rm = T))
+mean(values(TN_predict_tot_transform_bm, na.rm = T))
+
+sum(values(GM_predict_tot_transform_bm, na.rm = T))
+sum(values(TN_predict_tot_transform_bm, na.rm = T))
+
+```
+
+
+

@@ -1,0 +1,119 @@
+---
+title: "9) gap predictions"
+author: "Emmerson Wilson"
+date: "2024-03-15"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# import training datasets
+```{r}
+# made in 5) c lm total.Rmd
+GM_gap_env <- read_xlsx("data created/c_env_sites_scale_GM_gap.xlsx")
+TN_gap_env <- read_xlsx("data created/c_env_sites_scale_TN_gap.xlsx")
+```
+
+# import scaled environmental rasters
+```{r}
+GM_env_raster_masked_scaled <- rast("data created/GM_env_raster_masked_scaled.tif") # stack of enviornmental variables' rasters
+TN_env_raster_masked_scaled <- rast("data created/TN_env_raster_masked_scaled.tif")
+```
+
+## for space based on variabels in best models
+```{r}
+GM_env_raster_masked_scaled_bm <- rast("data created/GM_env_raster_masked_scale_bm.tif") # stack of enviornmental variables' rasters
+TN_env_raster_masked_scaled_bm <- rast("data created/TN_env_raster_masked_scale_bm.tif")
+```
+
+# import glm function
+```{r}
+source("4) glm function.R")
+```
+
+# predict
+
+## GM
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+GM_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+GM_model_tot_gap <- bi_glm(GM_var_gap, df = GM_gap_env, c = "gap")
+
+# predict
+GM_predict_tot_gap <- terra::predict(GM_env_raster_masked_scaled, GM_model_tot_gap)
+
+# transform predictions
+GM_predict_tot_gap_transform <- GM_predict_tot_gap
+values(GM_predict_tot_gap_transform) <- 1 / (1 + exp(-values(GM_predict_tot_gap))) # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+plot(GM_predict_tot_gap_transform, background = "lightblue") 
+
+# export
+writeRaster(GM_predict_tot_gap_transform, filename="data created/GM_predict_gap.tif", overwrite=TRUE)
+```
+
+## TN
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+TN_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+TN_model_tot_gap <- bi_glm(TN_var_gap, df = TN_gap_env, c = "gap")
+
+# predict
+TN_predict_tot_gap <- terra::predict(TN_env_raster_masked_scaled, TN_model_tot_gap)
+
+# transform predictions
+TN_predict_tot_gap_transform <- TN_predict_tot_gap
+values(TN_predict_tot_gap_transform) <- 1 / (1 + exp(-values(TN_predict_tot_gap))) # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+plot(TN_predict_tot_gap_transform, background = "lightblue") 
+
+# export
+writeRaster(TN_predict_tot_gap_transform, filename="data created/TN_predict_gap.tif", overwrite=TRUE)
+```
+
+# predict for space based on variables in best models
+
+## GM
+```{r}
+# predict
+GM_predict_tot_gap_bm <- terra::predict(GM_env_raster_masked_scaled_bm, GM_model_tot_gap)
+
+# transform predictions
+GM_predict_tot_gap_transform_bm <- GM_predict_tot_gap_bm
+values(GM_predict_tot_gap_transform_bm) <- 1 / (1 + exp(-values(GM_predict_tot_gap_bm))) # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+plot(GM_predict_tot_gap_transform_bm, background = "lightblue") 
+
+# export
+writeRaster(GM_predict_tot_gap_transform_bm, filename="data created/GM_predict_gap_bm.tif", overwrite=TRUE)
+```
+
+## TN
+```{r}
+# predict
+TN_predict_tot_gap_bm <- terra::predict(TN_env_raster_masked_scaled_bm, TN_model_tot_gap)
+
+# transform predictions
+TN_predict_tot_gap_transform_bm <- TN_predict_tot_gap_bm
+values(TN_predict_tot_gap_transform_bm) <- 1 / (1 + exp(-values(TN_predict_tot_gap_bm))) # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+plot(TN_predict_tot_gap_transform_bm, background = "lightblue") 
+
+# export
+writeRaster(TN_predict_tot_gap_transform_bm, filename="data created/TN_predict_gap_bm.tif", overwrite=TRUE)
+```

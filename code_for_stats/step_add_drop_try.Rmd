@@ -1,0 +1,156 @@
+---
+title: "step_add_drop_try"
+author: "Emmerson Wilson"
+date: "2024-03-06"
+output: html_document
+---
+
+bets way to continue with this is to use the AIC step functions to give possible reduced models to add to overall AIC and R2 table
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  readxl,
+  cv,
+  lme4,
+  AICcmodavg,
+  glmtoolbox,
+  MASS)
+options(tinytex.verbose = TRUE) 
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+probably make a markdown for each c pool? 
+
+## for GM
+```{r}
+
+GM_agb_lm_full2 <- glm(formula = log(c_m2_site_agb) ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_agb_env_sites_scale_GM) # load 6) c lm aboveground first
+
+summary(GM_agb_lm_full2) 
+
+# using glmtoolbox, can specify tests amd criterion
+# wald test with different directions and criterion
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "aic") # to use this can't use function
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "aic")
+
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "bic") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "bic")
+
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "adjr2") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "adjr2")
+
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "p-value") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "p-value")
+
+# likelihood ratio test with different directions and criterion
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "aic", test = "lr") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "aic", test = "lr")
+
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "bic", test = "lr") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "bic", test = "lr")
+
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "adjr2", test = "lr") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "adjr2", test = "lr")
+
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "p-value", test = "lr") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "p-value", test = "lr")
+
+# roas score with different directions and criterion
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "aic", test = "score") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "aic", test = "score")
+
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "bic", test = "score") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "bic", test = "score")
+
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "adjr2", test = "score") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "adjr2", test = "score")
+
+stepCriterion(GM_agb_lm_full2, direction= "forward", criterion = "p-value", test = "score") 
+stepCriterion(GM_agb_lm_full2, direction= "backward", criterion = "p-value", test = "score")
+
+# the final model depends on criterion but not test or direction
+# aic: FHT + EVImed+ EVIamp
+# bic: FHT + EVImed
+# likelihood: FHT + EVImed + EVIamp + ASP
+# p-value: FHT + EVImed
+
+# using stats::step()
+step(GM_agb_lm_full2, direction = "both")
+step(GM_agb_lm_full2, direction = "backward")
+# matches stepCriterion aic
+
+#using MASS::stepAIC
+stepAIC(GM_agb_lm_full2, direction = "both")
+stepAIC(GM_agb_lm_full2, direction = "backward")
+# also matche stepCriterion aic
+```
+## for TN
+```{r}
+
+TN_agb_lm_full2 <- glm(formula = log(c_m2_site_agb) ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_agb_env_sites_scale_TN) # load 6) c lm aboveground first
+
+summary(TN_agb_lm_full2) 
+
+# using C, can specify tests amd criterion
+# wald test with different directions and criterion
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "aic") # to use this can't use function
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "aic")
+
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "bic") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "bic")
+
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "adjr2") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "adjr2")
+
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "p-value") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "p-value")
+
+# likelihood ratio test with different directions and criterion
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "aic", test = "lr") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "aic", test = "lr")
+
+
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "bic", test = "lr") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "bic", test = "lr")
+
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "adjr2", test = "lr") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "adjr2", test = "lr")
+
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "p-value", test = "lr") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "p-value", test = "lr")
+
+# roas score with different directions and criterion
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "aic", test = "score") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "aic", test = "score")
+
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "bic", test = "score") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "bic", test = "score")
+
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "adjr2", test = "score") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "adjr2", test = "score")
+
+stepCriterion(TN_agb_lm_full2, direction= "forward", criterion = "p-value", test = "score") 
+stepCriterion(TN_agb_lm_full2, direction= "backward", criterion = "p-value", test = "score")
+
+# the final model depends on criterion but not test or direction
+# aic: FHT 
+# bic: FHT 
+# likelihood: FHT + SLO + EVIamp
+# p-value: FHT
+
+# using stats::step()
+step(TN_agb_lm_full2, direction = "both")
+step(TN_agb_lm_full2, direction = "backward")
+# matches stepCriterion aic
+
+#using MASS::stepAIC
+stepAIC(TN_agb_lm_full2, direction = "both")
+stepAIC(TN_agb_lm_full2, direction = "backward")
+# also matche stepCriterion aic
+```
+
