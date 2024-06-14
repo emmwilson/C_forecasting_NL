@@ -1,0 +1,131 @@
+---
+title: "13) gap error propagation"
+author: "Emmerson Wilson"
+date: "2024-05-08"
+output: html_document
+---
+
+# overall uncertainty: 
+```{r}
+# standard error of model residual
+GM_predict_tot_gap_se <- terra::predict(GM_env_raster_masked_scale, GM_model_tot_gap, se.fit = T)$se.fit
+GM_predict_tot_gap_se_transform <- GM_predict_tot_gap_se
+
+values(GM_predict_tot_gap_se_transform) <- 1 / (1 + exp(-values(GM_predict_tot_gap_se)))
+
+
+
+upper_95_gap <- GM_predict_tot_gap_se
+values(upper_95_gap) <- 1 / (1 + exp(-(values(GM_predict_tot_gap) + 1.96*values(GM_predict_tot_gap_se))))
+lower_95_gap <- GM_predict_tot_se
+values(lower_95_gap) <- 1 / (1 + exp(-(values(GM_predict_tot_gap) - 1.96*values(GM_predict_tot_gap_se))))
+
+plot(upper_95_gap)
+plot(lower_95_gap)
+plot(GM_predict_tot_gap_se_transform)
+
+```
+
+# how much of it from parameter uncertainty
+```{r}
+library(plotrix)
+library(propagate)
+# get parameter distributions
+m_i_gap <- summary(GM_model_tot_gap)[["coefficients"]][[1,1]]
+sd_i_gap <- summary(GM_model_tot_gap)[["coefficients"]][[1,2]]
+m_b1_gap <- summary(GM_model_tot_gap)[["coefficients"]][[2,1]]
+sd_b1_gap <- summary(GM_model_tot_gap)[["coefficients"]][[2,2]]
+m_b2_gap <- summary(GM_model_tot_gap)[["coefficients"]][[3,1]]
+sd_b2_gap <- summary(GM_model_tot_gap)[["coefficients"]][[3,2]]
+
+n <- 10
+
+# sample from distributions
+intercept_gap <- rnorm(n, mean = m_i_gap, sd = sd_i_gap)
+beta1_gap <- rnorm(n, mean = m_b1_gap, sd = sd_b1_gap)
+beta2_gap <- rnorm(n, mean = m_b2_gap, sd = sd_b2_gap)
+
+# put into data frame
+possible_coeff_gap <- cbind(intercept_gap, beta1_gap, beta2_gap)
+
+# initialize empty objects
+model_new_gap <- NULL
+predict_new_gap <- rast(GM_predict_tot_gap, nlyrs = n)
+
+# function to create predictions of  90% confidence interval with parameter uncertainty
+
+param.uncert_predict_func <- function(df, model_tot, stack) {
+    model_new <- model_tot
+  for(i in 1:nrow(df)) {
+    model_new$coefficients <- df[i,]
+    predict_new[[i]] <- terra::predict(stack, model_new, cores = 3)
+  }
+  return(predict_new)
+}
+
+try_repeated_sampling_coef_gap <- param.uncert_predict_func(possible_coeff_gap, GM_model_tot_gap, GM_env_raster_masked_scale)
+
+coef_upper_95_gap <- 1 / (1 + exp(-(quantile(try_repeated_sampling_coef_gap, probs=c(0.975), na.rm = TRUE))))
+coef_lower_95_gap <- 1 / (1 + exp(-(quantile(try_repeated_sampling_coef_gap, probs=c(0.025), na.rm = TRUE))))
+coef_se_gap <- 1 / (1 + exp(-(app(try_repeated_sampling_coef_gap, fun = std.error))))
+
+
+plot(upper_95_gap)
+plot(lower_95_gap)
+plot(coef_upper_95_gap)
+plot(coef_lower_95_gap)
+plot(coef_se_gap)
+plot(GM_predict_tot_gap_se_transform)
+
+
+
+
+
+
+# se_res_coef <- list(se_coef = try_repeated_sampling_coef[[2]], se_res = GM_predict_tot_se_transform)
+# 
+# se_res_coef_df <- lapply(names(se_res_coef), function(i) {
+#   data.frame(
+#     rastername = i,
+#     value = as.vector(se_res_coef[[i]])
+#   )
+# })
+# se_res_coef_df <- do.call(rbind, se_res_coef_df)
+# 
+# ggplot(se_res_coef_df, aes(rastername, value, fill = rastername)) +
+#   geom_violin()
+
+
+
+# maybe try rewriting the code so that each cell CI is calculated n times on its own then added to a raster, instead of creating a stack of n rasters and getting the CI from each of its cells (my comouter can't handle n = 10 so how will it handle an actually large number like 100)
+
+seplus_gap <- GM_predict_tot_gap_se_transform 
+values(seplus_gap) <- values(GM_predict_tot_gap_se_transform) + values(coef_se_gap)
+
+seminus_gap <- GM_predict_tot_gap_se_transform 
+values(seminus_gap) <- values(GM_predict_tot_gap_se_transform) - values(coef_se_gap)
+
+
+```
+
+#look at plots
+```{r}
+# prediction
+plot(GM_predict_tot_gap_transform)
+
+# upper 95%
+plot(upper_95_gap)
+plot(coef_upper_95_gap)
+
+# lower 95%
+plot(lower_95_gap)
+plot(coef_lower_95_gap)
+
+# se
+plot(GM_predict_tot_gap_se_transform)
+plot(coef_se_gap)
+
+# remainder of error when take out coef se
+plot(seminus_gap)
+```
+

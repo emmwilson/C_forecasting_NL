@@ -27,6 +27,11 @@ setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stat
 # made in 5) c lm total.Rmd
 GM_c_env <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
 TN_c_env <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
+
+mean(GM_c_env$c_m2_site)/1000
+mean(TN_c_env$c_m2_site)/1000
+
+
 ```
 
 # import environmental rasters
@@ -37,8 +42,8 @@ TN_env_raster_masked_scale <- rast("data created/TN_env_raster_masked_scaled.tif
 
 ## for space from just predictors in best models
 ```{r}
-GM_env_raster_masked_scale_bm <- rast("data created/GM_env_raster_masked_scale_bm.tif")
-TN_env_raster_masked_scale_bm <- rast("data created/TN_env_raster_masked_scale_bm.tif")
+GM_env_raster_masked_scale_bm <- rast("data created/GM_env_raster_masked_scale_bm_nwl.tif")
+TN_env_raster_masked_scale_bm <- rast("data created/TN_env_raster_masked_scale_bm_nwl.tif")
 ```
 
 
@@ -53,18 +58,19 @@ source("4) glm function.R")
 ## GM
 ```{r}
 # list of variables in best model from 5) c lm total.Rmd
-GM_var <- list("FHT", "EVImed", "EVIamp")
+GM_var <- list("FHT", "EVIamp")
 
 # run best model
 GM_model_tot <- lm_glm(GM_var, df = GM_c_env, c = "c_m2_site")
+summary(GM_model_tot)
 
 # predict
 GM_predict_tot <- terra::predict(GM_env_raster_masked_scale, GM_model_tot)
 
 # transform predictions
 GM_predict_tot_transform <- GM_predict_tot
-values(GM_predict_tot_transform) <- exp(values(GM_predict_tot))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
-#plot(GM_predict_tot_transform, background = "lightblue") 
+values(GM_predict_tot_transform) <- exp(values(GM_predict_tot)) # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon in kg (not densityt) per cell (90m2)
+plot(GM_predict_tot_transform) 
 
 # export
 writeRaster(GM_predict_tot_transform, filename="data created/GM_predict_tot.tif", overwrite=TRUE)
@@ -73,17 +79,18 @@ writeRaster(GM_predict_tot_transform, filename="data created/GM_predict_tot.tif"
 ## TN
 ```{r}
 # list of variables in best model from 5) c lm total.Rmd
-TN_var <- list("FHT", "SLO", "EVIamp")
+TN_var <- list("FHT", "EVIamp")
 
 # run best model
 TN_model_tot <- lm_glm(TN_var, df = subset(TN_c_env), c = "c_m2_site")
+summary(TN_model_tot)
 
 # predict
 TN_predict_tot <- terra::predict(TN_env_raster_masked_scale, TN_model_tot)
 
 # transform predictions
 TN_predict_tot_transform <- TN_predict_tot
-values(TN_predict_tot_transform) <- exp(values(TN_predict_tot))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+values(TN_predict_tot_transform) <- exp(values(TN_predict_tot)) # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
 #plot(TN_predict_tot_transform, background = "lightblue") 
 
 # export
@@ -111,7 +118,7 @@ GM_predict_tot_bm <- terra::predict(GM_env_raster_masked_scale_bm, GM_model_tot)
 
 # transform predictions
 GM_predict_tot_transform_bm <- GM_predict_tot_bm
-values(GM_predict_tot_transform_bm) <- exp(values(GM_predict_tot_bm))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+values(GM_predict_tot_transform_bm) <- exp(values(GM_predict_tot_bm)) # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
 #plot(GM_predict_tot_transform, background = "lightblue") 
 
 # export
@@ -125,7 +132,7 @@ TN_predict_tot_bm <- terra::predict(TN_env_raster_masked_scale_bm, TN_model_tot)
 
 # transform predictions
 TN_predict_tot_transform_bm <- TN_predict_tot_bm
-values(TN_predict_tot_transform_bm) <- exp(values(TN_predict_tot_bm))*90/1000 # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
+values(TN_predict_tot_transform_bm) <- exp(values(TN_predict_tot_bm)) # value is g of c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
 #plot(TN_predict_tot_transform, background = "lightblue") 
 
 # export

@@ -10,7 +10,8 @@ pacman::p_load(
   dplyr,
   tidyverse,
   readxl,
-  openxlsx)
+  openxlsx,
+  janitor)
 ```
 
 ```{r}
@@ -120,6 +121,8 @@ was done while adding missing soil c
 ```{r}
 c_22_23 <- rbind(c_2022_compat, c_2023) %>%
   mutate(unique_id = paste0(park_id, "_", site_id, "_", subplot_id)) # add unique id
+
+write.xlsx(c_22_23, file = "data created/c_22_23.xlsx")
 ```
 
 # total carbon per 1m^2 

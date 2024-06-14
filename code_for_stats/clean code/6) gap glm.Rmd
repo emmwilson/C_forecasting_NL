@@ -15,7 +15,9 @@ pacman::p_load(
   openxlsx,
   cv,
   lme4,
-  AICcmodavg)
+  AICcmodavg,
+  brglm2,
+  rcompanion)
   
 ```
 
@@ -38,12 +40,12 @@ c_env_sites_scale_TN <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
 c_env_sites_scale_GM_gap <- c_env_sites_scale_GM
 c_env_sites_scale_GM_gap$gap[c_env_sites_scale_GM_gap$gap == "Gap"] <- 0
 c_env_sites_scale_GM_gap$gap[c_env_sites_scale_GM_gap$gap == "Mature"] <- 1
-c_env_sites_scale_GM_gap$gap <- as.numeric(c_env_sites_scale_GM_gap$gap)
+c_env_sites_scale_GM_gap$gap <- as.integer(c_env_sites_scale_GM_gap$gap)
 
 c_env_sites_scale_TN_gap <- c_env_sites_scale_TN
 c_env_sites_scale_TN_gap$gap[c_env_sites_scale_TN_gap$gap == "Gap"] <- 0
 c_env_sites_scale_TN_gap$gap[c_env_sites_scale_TN_gap$gap == "Mature"] <- 1
-c_env_sites_scale_TN_gap$gap <- as.numeric(c_env_sites_scale_TN_gap$gap)
+c_env_sites_scale_TN_gap$gap <- as.integer(c_env_sites_scale_TN_gap$gap)
 ```
 
 ## export
@@ -68,7 +70,7 @@ R2 <- function(model){
 ## null
 ```{r}
 #run the model
-GM_lm_null_gap <- bi_glm(c_env_sites_scale_GM_gap, "gap", "1")
+GM_lm_null_gap <- firths_glm(c_env_sites_scale_GM_gap, "gap", "1")
 ```
 
 ```{r}
@@ -91,7 +93,10 @@ GM_lm_null_gap_summary
 full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS", "Moose_new")
 
 # run the model
-GM_lm_full_gap <- bi_glm(c_env_sites_scale_GM_gap, "gap", full_var)
+GM_lm_full_gap <- firths_glm(c_env_sites_scale_GM_gap, "gap", full_var)
+summary(GM_lm_full_gap)
+
+
 ```
 
 
@@ -111,7 +116,7 @@ GM_lm_full_gap_summary
 
 ## univariate
 ```{r}
-GM_lm_uni_gap <- lapply(full_var, bi_glm, df = c_env_sites_scale_GM_gap, c = "gap")
+GM_lm_uni_gap <- lapply(full_var, firths_glm, df = c_env_sites_scale_GM_gap, c = "gap")
 
 names(GM_lm_uni_gap) <- full_var # make sure names of objects in list consistent
 ```
@@ -132,7 +137,7 @@ GM_uni_gap_summary_all
 ## reduced
 ```{r}
 
-GM_lm_full_gap2 <- glm(formula = gap ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_env_sites_scale_GM_gap, family = binomial(link = "logit")) 
+GM_lm_full_gap2 <- glm(formula = gap ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_env_sites_scale_GM_gap, family = binomial(link = "logit"), method = "brglmFit") 
 
 GM_lm_red_gap <- step(GM_lm_full_gap2, direction = "backward", trace = F)
 ```
@@ -149,23 +154,32 @@ GM_lm_red_gap_summary
 
 ```{r}
 # check for uninformative parameters
+# and check against model with one extra variable, chosen based on univariate model with highest AIC
+GM_lm_red_gap2 <-  glm(formula = gap ~ FHT + EVIamp + LGS, data = c_env_sites_scale_GM_gap, family = binomial(link = "logit"), method = "brglmFit") 
 
-GM_red_gap_models_r <- list()
-GM_red_gap_models_r[[names(GM_lm_uni_gap)[1]]] <- GM_lm_uni_gap[[1]]
-GM_red_gap_models_r[[names(GM_lm_uni_gap)[3]]] <- GM_lm_uni_gap[[3]]
-GM_red_gap_models_r[["GM_lm_red_gap"]] <- GM_lm_red_gap
-Modnames_GM_red_gap <- paste(names(GM_red_gap_models_r))
+Cand.models <- list(GM_lm_uni_gap[[1]], GM_lm_uni_gap[[3]], GM_lm_red_gap, GM_lm_red_gap2)
 
-# get table
-aic_GMred_gap <- aictab(cand.set = GM_red_gap_models_r, modnames = Modnames_GM_red_gap, sort = TRUE) 
+lapply(Cand.models, AICc)
 
+GM_lm_red_gap_summary2 <- as.data.frame(summary(GM_lm_red_gap2)$coefficients) %>% 
+  mutate(model = "GM_lm_red2") 
+GM_lm_red_gap_summary2 <- GM_lm_red_gap_summary2 %>% 
+  add_column("predictor" = rownames(GM_lm_red_gap_summary2))
+
+GM_lm_red_gap_summary2 <- GM_lm_red_gap_summary2[,c(5,6,1:4)]
+GM_lm_red_gap_summary2
+
+
+lapply(Cand.models, confint)
+confint(GM_lm_uni_gap[[7]])
+confint(GM_lm_uni_gap[[2]])
 ```
 
 ## summary of uni, null and full
 
 ```{r}
 # combine summary dataframes for null, full and univariate models
-GM_lm_gap_summary <- rbind(GM_lm_null_gap_summary, GM_lm_full_gap_summary, GM_uni_gap_summary_all, GM_lm_red_gap_summary) 
+GM_lm_gap_summary <- rbind(GM_lm_null_gap_summary, GM_lm_full_gap_summary, GM_uni_gap_summary_all, GM_lm_red_gap_summary, GM_lm_red_gap_summary2) 
 GM_lm_gap_summary <- GM_lm_gap_summary %>% 
   mutate(significance = ifelse(GM_lm_gap_summary$`Pr(>|z|)` < 0.001, "***", ifelse(GM_lm_gap_summary$`Pr(>|z|)` < 0.01, "**", ifelse(GM_lm_gap_summary$`Pr(>|z|)` < 0.05, "*", ifelse(GM_lm_gap_summary$`Pr(>|z|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
 ```
@@ -187,34 +201,38 @@ GM_models_gap_r[[names(GM_lm_uni_gap)[6]]] <- GM_lm_uni_gap[[6]]
 GM_models_gap_r[[names(GM_lm_uni_gap)[7]]] <- GM_lm_uni_gap[[7]]
 GM_models_gap_r[[names(GM_lm_uni_gap)[8]]] <- GM_lm_uni_gap[[8]]
 GM_models_gap_r[["GM_lm_red_gap"]] <- GM_lm_red_gap
+GM_models_gap_r[["GM_lm_red_gap2"]] <- GM_lm_red_gap2
 
 Modnames_GM_gap_r <- paste(names(GM_models_gap_r)) # make sure names are same as model name
 
-# get table
-aic_GM_gap <- as.data.frame(aictab(cand.set = GM_models_gap_r, modnames = Modnames_GM_gap_r, sort = TRUE))
+GM_N <- length(c_env_sites_scale_GM_gap$unique_id)
 
 #add R2 to AIC table
-R2_GM_gap <- as.data.frame(sapply(GM_models_gap_r, R2)) %>% setNames(c("R2"))
-R2_GM_gap <- R2_GM_gap %>% 
-   mutate("Modnames" = rownames(R2_GM_gap))
-R2_GM_gap
-aic_GM_gap
+NagelkerkeR2_own <- function(model, null, N) {
+1 - ((((exp(logLik(null)[[1]]))/exp(logLik(model)[[1]])))^(2/N))/(1-exp(logLik(null)[[1]])^(2/N))
+}
 
-aic_R2_GM_gap <- full_join(aic_GM_gap, R2_GM_gap) # table of AIC values for null, full and univariate models
+summary(GM_lm_uni_gap[[1]])
+
+LL_GM_gap <- data.frame(lapply(lapply(GM_models_gap_r, logLik), function(x) x[[1]])) %>% 
+  pivot_longer(cols = c(1:12), values_to = "LL", names_to = "Modnames")
+
+R2_GM_gap <- data.frame(lapply(GM_models_gap_r, NagelkerkeR2_own, null = GM_lm_null_gap, N= GM_N)) %>% 
+  pivot_longer(cols = c(1:12), values_to = "R2", names_to = "Modnames")
+
+AICc_GM_gap <- data.frame(lapply(GM_models_gap_r, AICc)) %>% 
+  pivot_longer(cols = c(1:12), values_to = "AICc", names_to = "Modnames") 
+
+aic_R2_LL_GM_gap <- full_join(LL_GM_gap, AICc_GM_gap) %>% 
+  full_join(R2_GM_gap) # table of AIC values for null, full and univariate models
 ```
 
 # TN
 
-# temporarily set TN 05
-
-```{r}
-c_env_sites_scale_TN_gap$Moose_new <-replace_na(c_env_sites_scale_TN_gap$Moose_new, "cH")
-```
-
 ## null
 ```{r}
 #run the model
-TN_lm_null_gap <- bi_glm(c_env_sites_scale_TN_gap, "gap", "1")
+TN_lm_null_gap <- firths_glm(c_env_sites_scale_TN_gap, "gap", "1")
 ```
 
 ```{r}
@@ -237,36 +255,26 @@ TN_lm_null_gap_summary
 full_var <- list("FHT", "EVIamp",  "EVImed", "ELE", "SLO","ASP", "LGS", "Moose_new")
 
 # run the model
-TN_lm_full_gap <- bi_glm(c_env_sites_scale_TN_gap, "gap", full_var)
+TN_lm_full_gap <- firths_glm(c_env_sites_scale_TN_gap, "gap", full_var)
 summary(TN_lm_full_gap)
-# doesn't converge
 
-# detect separation
-library(detectseparation)
-
-glm(gap ~ FHT +EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_env_sites_scale_TN_gap,
-                       family = binomial("logit"),
-                       method = "detect_infinite_estimates")
 # all infinite if all variables included
 # all go to zero (finite value) when I take out LGS and one of the other variables except aspect
 # or moose_new and FHT, ELE, ASP or EVIamp
  # try with bayesian analysis with uninformative Cauchy prior "https://stats.stackexchange.com/questions/11109/how-to-deal-with-perfect-separation-in-logistic-regression"
+```
 
-library(arm)
-fit <- bayesglm(gap ~ FHT +EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data=c_env_sites_scale_TN_gap, family=binomial(link='logit'))
-display(fit)
-
-library(BMA) # to help drop variables?
-x <- c_env_sites_scale_TN_gap[11:18]
-y <- c_env_sites_scale_TN_gap$gap
-bic.glm(x, y, glm.family = binomial(link = "logit")) # moose and LGS are less likely and removing both will allow converging (only removing EVImed (second least likely) and one of the two variables still won't converge)
-
-x2 <- c_env_sites_scale_TN_gap[c(11:16)]
-y <- c_env_sites_scale_TN_gap$gap
-bic.glm(x2, y, glm.family = binomial(link = "logit")) 
-
-full_var_conv <- list("FHT", "EVIamp",  "EVImed", "ELE", "SLO","ASP")
-TN_lm_full_gap <- bi_glm(c_env_sites_scale_TN_gap, "gap", full_var_conv)
+```{r}
+# library(BMA) # to help drop variables?
+# x <- c_env_sites_scale_TN_gap[c(11:18)]
+# y <- c_env_sites_scale_TN_gap$gap
+# bic.glm(x, y, glm.family = binomial(link = "logit")) # moose and LGS are less likely and removing both will allow converging (only removing EVImed (second least likely) and one of the two variables still won't converge)
+# 
+# x2 <- c_env_sites_scale_TN_gap[c(11:16)]
+# bic.glm(x2, y, glm.family = binomial(link = "logit")) 
+# 
+# full_var_conv <- list("FHT", "EVIamp",  "EVImed", "ELE", "SLO","ASP")
+# TN_lm_full_gap <- bi_glm(c_env_sites_scale_TN_gap, "gap", full_var_conv)
 ```
 
 
@@ -284,7 +292,7 @@ TN_lm_full_gap_summary
 
 ## univariate
 ```{r}
-TN_lm_uni_gap <- lapply(full_var, bi_glm, df = c_env_sites_scale_TN_gap, c = "gap")
+TN_lm_uni_gap <- lapply(full_var, firths_glm, df = c_env_sites_scale_TN_gap, c = "gap")
 
 names(TN_lm_uni_gap) <- full_var # make sure names of objects in list consistent
 ```
@@ -304,61 +312,87 @@ TN_uni_gap_summary_all
 
 ## reduced
 ```{r}
-TN_lm_full_gap2 <- glm(gap ~ FHT +EVIamp + ELE + SLO + ASP , data = c_env_sites_scale_TN_gap,
-                       family = binomial("logit"))
+TN_lm_full_gap2 <- glm(formula = gap ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_env_sites_scale_TN_gap, family = binomial(link = "logit"), method = "brglmFit") 
 
-TN_lm_red_gap <- step(TN_lm_full_gap2, direction = "backward", trace = F) 
+TN_lm_red_gap <- step(TN_lm_full_gap2, direction = "backward", trace = F, method = "brglmFit")
 ```
 
 ```{r}
-# check uninformative priors
-AICc(TN_lm_red_gap)
-AICc(TN_lm_full_gap2) # compare to full model
-
 # create models without some parameters
 #summary(TN_lm_red_gap)
 
-TN_lm_red_gap2 <- glm(gap ~ FHT +EVIamp +  ASP , data = c_env_sites_scale_TN_gap,
-                       family = binomial("logit"))
-TN_lm_red_gap3 <- glm(gap ~ FHT +EVIamp +  ELE , data = c_env_sites_scale_TN_gap,
-                       family = binomial("logit")) # dropping ASP bring AICc <2 away
-confint(glm(gap ~ FHT +EVIamp +  ELE , data = c_env_sites_scale_TN_gap,
-                       family = binomial("logit"))) # and overlaps 0
-
+TN_lm_red_gap2 <- glm(gap ~ FHT + EVIamp +  ASP , data = c_env_sites_scale_TN_gap,
+                       family = binomial("logit"), method = "brglmFit")
+TN_lm_red_gap3 <- glm(gap ~ FHT +EVIamp +  LGS , data = c_env_sites_scale_TN_gap,
+                       family = binomial("logit"), method = "brglmFit") # dropping ASP bring AICc <2 away
 
 TN_lm_red_gap4 <- glm(gap ~ FHT +EVIamp, data = c_env_sites_scale_TN_gap,
-                       family = binomial("logit")) # also <2 then next model
+                       family = binomial("logit"), method = "brglmFit") # also <2 then next model
 
-TN_red_gap_models_r <- list()
-TN_red_gap_models_r[[names(TN_lm_uni_gap)[1]]] <- TN_lm_uni_gap[[1]]
-TN_red_gap_models_r[["TN_lm_red_gap"]] <- TN_lm_red_gap
-TN_red_gap_models_r[["TN_lm_red_gap2"]] <- TN_lm_red_gap2
-TN_red_gap_models_r[["TN_lm_red_gap3"]] <- TN_lm_red_gap3
-TN_red_gap_models_r[["TN_lm_red_gap4"]] <- TN_lm_red_gap4
-Modnames_TN_red_gap <- paste(names(TN_red_gap_models_r))
+TN_lm_red_gap5 <- glm(gap ~ FHT + LGS, data = c_env_sites_scale_TN_gap,
+                       family = binomial("logit"), method = "brglmFit") 
 
-# get table
-aic_TNred_gap <- aictab(cand.set = TN_red_gap_models_r, modnames = Modnames_TN_red_gap, sort = TRUE) 
+TN_lm_red_gap6 <- glm(gap ~ FHT + ASP, data = c_env_sites_scale_TN_gap,
+                       family = binomial("logit"), method = "brglmFit") 
 
-# believe ELE and ASP uninformative
+TN_red_gap_models_r <- list(TN_lm_uni_gap[[1]], TN_lm_red_gap, TN_lm_red_gap2, TN_lm_red_gap3, TN_lm_red_gap4, TN_lm_red_gap5, TN_lm_red_gap6)
+TN_red_gap_names <- list("FHT", "FHT + EVIamp + ASP + LGS", "FHT + EVIamp + ASP ", "FHT + EVIamp + LGS", "FHT + EVIamp", "FHT + LGS", "FHT + ASP")
 
+
+TN_gap_red_AIC <- lapply(TN_red_gap_models_r, AICc)
+TN_gap_red_R2 <- lapply(TN_red_gap_models_r, R2)
+
+TN_gap_red_AIC_R2 <- as.data.frame(do.call(rbind, TN_gap_red_AIC)) %>% 
+  cbind(as.data.frame(do.call(rbind, TN_gap_red_R2))) %>% 
+  cbind(as.data.frame(do.call(rbind, TN_red_gap_names)))
+
+colnames(TN_gap_red_AIC_R2) <-  c("AICc", "R2", "model")
+
+lapply(TN_red_gap_models_r, confint)
 ```
 
 ```{r}
-TN_lm_red_gap_summary <- as.data.frame(summary(TN_lm_red_gap4)$coefficients) %>% 
+TN_lm_red_gap_summary <- as.data.frame(summary(TN_lm_red_gap)$coefficients) %>% 
   mutate(model = "TN_lm_red") 
 TN_lm_red_gap_summary <- TN_lm_red_gap_summary %>% 
   add_column("predictor" = rownames(TN_lm_red_gap_summary))
 
 TN_lm_red_gap_summary <- TN_lm_red_gap_summary[,c(5,6,1:4)]
 TN_lm_red_gap_summary
+
+#2
+TN_lm_red_gap_summary2 <- as.data.frame(summary(TN_lm_red_gap2)$coefficients) %>% 
+  mutate(model = "TN_lm_red2") 
+TN_lm_red_gap_summary2 <- TN_lm_red_gap_summary2 %>% 
+  add_column("predictor" = rownames(TN_lm_red_gap_summary2))
+
+TN_lm_red_gap_summary2 <- TN_lm_red_gap_summary2[,c(5,6,1:4)]
+TN_lm_red_gap_summary2
+
+#3
+TN_lm_red_gap_summary3 <- as.data.frame(summary(TN_lm_red_gap3)$coefficients) %>% 
+  mutate(model = "TN_lm_red3") 
+TN_lm_red_gap_summary3 <- TN_lm_red_gap_summary3 %>% 
+  add_column("predictor" = rownames(TN_lm_red_gap_summary3))
+
+TN_lm_red_gap_summary3 <- TN_lm_red_gap_summary3[,c(5,6,1:4)]
+TN_lm_red_gap_summary3
+
+#4
+TN_lm_red_gap_summary4 <- as.data.frame(summary(TN_lm_red_gap4)$coefficients) %>% 
+  mutate(model = "TN_lm_red4") 
+TN_lm_red_gap_summary4 <- TN_lm_red_gap_summary4 %>% 
+  add_column("predictor" = rownames(TN_lm_red_gap_summary4))
+
+TN_lm_red_gap_summary4 <- TN_lm_red_gap_summary4[,c(5,6,1:4)]
+TN_lm_red_gap_summary4
 ```
 
 ## summary of uni, null and full
 
 ```{r}
 # combine summary dataframes for null, full and univariate models
-TN_lm_gap_summary <- rbind(TN_lm_null_gap_summary, TN_lm_full_gap_summary, TN_uni_gap_summary_all, TN_lm_red_gap_summary) 
+TN_lm_gap_summary <- rbind(TN_lm_null_gap_summary, TN_lm_full_gap_summary, TN_uni_gap_summary_all, TN_lm_red_gap_summary, TN_lm_red_gap_summary2, TN_lm_red_gap_summary3, TN_lm_red_gap_summary4) 
 TN_lm_gap_summary <- TN_lm_gap_summary %>% 
   mutate(significance = ifelse(TN_lm_gap_summary$`Pr(>|z|)` < 0.001, "***", ifelse(TN_lm_gap_summary$`Pr(>|z|)` < 0.01, "**", ifelse(TN_lm_gap_summary$`Pr(>|z|)` < 0.05, "*", ifelse(TN_lm_gap_summary$`Pr(>|z|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
 ```
@@ -380,20 +414,25 @@ TN_models_gap_r[[names(TN_lm_uni_gap)[6]]] <- TN_lm_uni_gap[[6]]
 TN_models_gap_r[[names(TN_lm_uni_gap)[7]]] <- TN_lm_uni_gap[[7]]
 TN_models_gap_r[[names(TN_lm_uni_gap)[8]]] <- TN_lm_uni_gap[[8]]
 TN_models_gap_r[["TN_lm_red_gap"]] <- TN_lm_red_gap
+TN_models_gap_r[["TN_lm_red_gap2"]] <- TN_lm_red_gap2
+TN_models_gap_r[["TN_lm_red_gap3"]] <- TN_lm_red_gap3
+TN_models_gap_r[["TN_lm_red_gap4"]] <- TN_lm_red_gap4
 
 Modnames_TN_gap_r <- paste(names(TN_models_gap_r)) # make sure names are same as model name
 
-# get table
-aic_TN_gap <- as.data.frame(aictab(cand.set = TN_models_gap_r, modnames = Modnames_TN_gap_r, sort = TRUE))
+TN_N <- length(c_env_sites_scale_TN_gap$unique_id)
 
-#add R2 to AIC table
-R2_TN_gap <- as.data.frame(sapply(TN_models_gap_r, R2)) %>% setNames(c("R2"))
-R2_TN_gap <- R2_TN_gap %>% 
-   mutate("Modnames" = rownames(R2_TN_gap))
-R2_TN_gap
-aic_TN_gap
+LL_TN_gap <- data.frame(lapply(lapply(TN_models_gap_r, logLik), function(x) x[[1]])) %>% 
+  pivot_longer(cols = c(1:14), values_to = "LL", names_to = "Modnames")
 
-aic_R2_TN_gap <- full_join(aic_TN_gap, R2_TN_gap) # table of AIC values for null, full and univariate models
+R2_TN_gap <- data.frame(lapply(TN_models_gap_r, NagelkerkeR2_own, null = TN_lm_null_gap, N = TN_N)) %>% 
+  pivot_longer(cols = c(1:14), values_to = "R2", names_to = "Modnames")
+
+AICc_TN_gap <- data.frame(lapply(TN_models_gap_r, AICc)) %>% 
+  pivot_longer(cols = c(1:14), values_to = "AICc", names_to = "Modnames") 
+
+aic_R2_LL_TN_gap <- full_join(LL_TN_gap, AICc_TN_gap) %>% 
+  full_join(R2_TN_gap)
 ```
 
 

@@ -1,0 +1,304 @@
+---
+title: "15) graphs"
+author: "Emmerson Wilson"
+date: "2024-05-08"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra,
+  PtProcess,
+  ggplot2,
+  gtable,
+  grid,
+  gridExtra,
+  ggpubr)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# import datasets
+```{r}
+# made in 5) c lm total.Rmd
+GM_c_env <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
+TN_c_env <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
+
+
+GM_gap_env <- read_xlsx("data created/c_env_sites_scale_GM_gap.xlsx")
+TN_gap_env <- read_xlsx("data created/c_env_sites_scale_TN_gap.xlsx")
+```
+
+# import glm function
+```{r}
+source("4) glm function.R")
+```
+
+# C
+
+## GM
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+GM_var <- list("FHT", "EVIamp")
+
+# run best model
+GM_model_tot <- lm_glm(GM_var, df = GM_c_env, c = "c_m2_site")
+
+FHT_c_GMggplot <- ggplot(data = GM_c_env, aes(FHT, c_m2_site)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(FHT, c_m2_site),
+                method = "glm", method.args = list(family = Gamma(link = "log")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), text = element_text(size = 17),plot.margin=unit(c(0,0,0,0.5), "cm"), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank()) +
+    xlab("Forest Height (m)\n ")+
+    annotate('text', label="B. Gros Morne", x=-Inf, y=Inf, hjust=-0.09, vjust=1.5, size = 5.5)
+
+# EVImed_c_GMggplot <- ggplot(data = GM_c_env, aes(EVImed, c_m2_site/1000)) +
+#     geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+#     geom_smooth(aes(EVImed, c_m2_site/1000),
+#                 method = "glm", method.args = list(family = Gamma(link = "log")),
+#                 se = T, 
+#                 colour = "gray19", fill = "gray25")+
+#     theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y = element_blank(), axis.title.y = element_blank(), text = element_text(size = 17),plot.margin=unit(c(0,0.3,0,1), "cm"), axis.title.x = element_text(margin = margin(t = 10))) +
+#     xlab("Enhanced Vegetation Index\nYearly Median") 
+
+EVIamp_c_GMggplot <- ggplot(data = GM_c_env, aes(EVIamp, c_m2_site)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(EVIamp, c_m2_site),
+                method = "glm", method.args = list(family = Gamma(link = "log")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y = element_blank(), axis.title.y = element_blank(), text = element_text(size = 17),plot.margin=unit(c(0,0,0,1), "cm"), axis.title.x = element_text(margin = margin(t = 10))) +
+    xlab("Enhanced Vegetation Index\nYearly Amplitude") 
+
+GM_c_coeff <- ggarrange(FHT_c_GMggplot, EVIamp_c_GMggplot, ncol = 2, widths = c(2, 2))
+
+jpeg("data created/graphs/GM_c_coeff.jpg", height = 11, width = 24, units = "cm", res = 600)
+
+annotate_figure(GM_c_coeff, left = text_grob(bquote('Total carbon storage '(g/m^2)), size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+
+```
+
+## TN
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+TN_var <- list("FHT", "EVIamp")
+
+# run best model
+TN_model_tot <- lm_glm(TN_var, df = TN_c_env, c = "c_m2_site")
+
+FHT_c_TNggplot <- ggplot(data = TN_c_env, aes(FHT, c_m2_site)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(FHT, c_m2_site),
+                method = "glm", method.args = list(family = Gamma(link = "log")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), text = element_text(size = 17),plot.margin=unit(c(0,0,0,0.5), "cm"), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank()) +
+    xlab("Forest Height (m)\n ")+
+    annotate('text', label="A. Terra Nova", x=-Inf, y=Inf, hjust=-0.09, vjust=1.5, size = 5.5)
+
+# SLO_c_TNggplot <- ggplot(data = TN_c_env, aes(SLO, c_m2_site/1000)) +
+#     geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+#     geom_smooth(aes(SLO, c_m2_site/1000),
+#                 method = "glm", method.args = list(family = Gamma(link = "log")),
+#                 se = T, 
+#                 colour = "gray19", fill = "gray25")+
+#     theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y = element_blank(), axis.title.y = element_blank(), text = element_text(size = 17),plot.margin=unit(c(0,0.3,0,1), "cm"), axis.title.x = element_text(margin = margin(t = 10))) +
+#     xlab("Slope (%)\n ") 
+
+EVIamp_c_TNggplot <- ggplot(data = TN_c_env, aes(EVIamp, c_m2_site)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(EVIamp, c_m2_site),
+                method = "glm", method.args = list(family = Gamma(link = "log")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y = element_blank(), axis.title.y = element_blank(), text = element_text(size = 17),plot.margin=unit(c(0,0,0,1), "cm"), axis.title.x = element_text(margin = margin(t = 10))) +
+    xlab("Enhanced Vegetation Index\nYearly Amplitude") 
+
+TN_c_coeff <- ggarrange(FHT_c_TNggplot, EVIamp_c_TNggplot, ncol = 2, widths = c(2, 2))
+
+jpeg("data created/graphs/TN_c_coeff.jpg", height = 11, width = 24, units = "cm", res = 600)
+
+annotate_figure(TN_c_coeff, left = text_grob(bquote('Total carbon storage '(g/m^2)), size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+```
+
+## put together
+```{r}
+TNGM_c_coef <- ggarrange(TN_c_coeff, GM_c_coeff, nrow = 2)
+
+
+jpeg("data created/graphs/TNGM_c_coeff.jpg", height = 22, width = 24, units = "cm", res = 600)
+
+annotate_figure(TNGM_c_coef, left = text_grob(bquote('Total carbon storage '(g/m^2)), size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+```
+
+# gap
+##GM
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+GM_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+GM_model_tot_gap <- bi_glm(GM_var_gap, df = GM_gap_env, c = "gap")
+
+FHT_gap_GMggplot <- ggplot(data = GM_gap_env, aes(FHT, gap)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(FHT, gap),
+                method = "glm", method.args = list(family =binomial(link = "logit")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), text = element_text(size = 17), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank(),plot.margin=unit(c(0,0,0,1), "cm")) +
+    xlab("Forest Height (m)\n ")+
+    annotate('text', label="B. Gros Morne", x=-Inf, y=Inf, hjust=-0.09, vjust=2.5, size = 5.5)
+
+EVIamp_gap_GMggplot <- ggplot(data = GM_gap_env, aes(EVIamp, gap)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(EVIamp, gap),
+                method = "glm", method.args = list(family = binomial(link = "logit")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y=element_blank(), text = element_text(size = 17), axis.title.y = element_blank(), axis.title.x = element_text(margin = margin(t = 10)),plot.margin=unit(c(0,0,0,1), "cm")) +
+    xlab("Enhanced Vegetation Index\nYearly Amplitude")
+
+GM_gap_coeff <- ggarrange(FHT_gap_GMggplot, EVIamp_gap_GMggplot,  ncol = 2, widths = c(2, 2))
+
+jpeg("data created/graphs/GM_gap.jpg", height = 11, width = 24, units = "cm", res = 600)
+
+annotate_figure(GM_gap_coeff, left = text_grob("Probability area is a mature forest", size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+```
+
+##TN
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+TN_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+TN_model_tot_gap <- bi_glm(TN_var_gap, df = TN_gap_env, c = "gap")
+
+FHT_gap_TNggplot <- ggplot(data = TN_gap_env, aes(FHT, gap)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(FHT, gap),
+                method = "glm", method.args = list(family =binomial(link = "logit")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), text = element_text(size = 17), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank(),plot.margin=unit(c(0,0,0,1), "cm")) +
+    xlab("Forest Height (m)\n ")+ 
+    annotate('text', label="A. Terra Nova", x=-Inf, y=Inf, hjust=-0.09, vjust=2.5, size = 5.5)
+
+EVIamp_gap_TNggplot <- ggplot(data = TN_gap_env, aes(EVIamp, gap)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(EVIamp, gap),
+                method = "glm", method.args = list(family = binomial(link = "logit")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y=element_blank(), text = element_text(size = 17), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank(), plot.margin=unit(c(0,0,0,1), "cm")) +
+    xlab("Enhanced Vegetation Index\nYearly Amplitude")
+
+# ASP_gap_TNggplot <- ggplot(data = TN_gap_env, aes(EVIamp, gap)) +
+#     geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+#     geom_smooth(aes(EVIamp, gap),
+#                 method = "glm", method.args = list(family = binomial(link = "logit")),
+#                 se = T, 
+#                 colour = "gray19", fill = "gray19")+
+#     theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y=element_blank(), text = element_text(size = 17), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank(), plot.margin=unit(c(0,0,0,1), "cm")) +
+#     xlab("Aspect (|˚from South|)")
+
+
+TN_gap_coeff <- ggarrange(FHT_gap_TNggplot, EVIamp_gap_TNggplot, ncol = 2, widths = c(2, 2))
+
+jpeg("data created/graphs/TN_gap.jpg", height = 11, width = 24, units = "cm", res = 600)
+
+annotate_figure(GM_gap_coeff, left = text_grob("Probability area is a mature forest", size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+```
+
+## put together
+```{r}
+TNGM_gap_coef <- ggarrange(TN_gap_coeff, GM_gap_coeff, nrow = 2)
+
+
+jpeg("data created/graphs/TNGM_gap_coef.jpg", height = 22, width = 24, units = "cm", res = 600)
+
+annotate_figure(TNGM_gap_coef, left = text_grob("Probability area is mature forest", size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+```
+
+# mature vs disturbed (y/n herbivory)
+
+## data prep
+```{r}
+c_22_23_mi2 <- read_xlsx("data created/c_22_23_distvsmat.xlsx")
+c_22_23_mi2$gap <- factor(c_22_23_mi2$gap , levels=c("Gap (excl)", "Mature", "Gap"))
+c_22_23_mi2$park_id <- factor(c_22_23_mi2$park_id  , levels=c("TN", "GM"))
+
+park_id.labs <- as_labeller(c(`TN`="A. Terra Nova", `GM`="B. Gros Morne"))
+```
+
+
+```{r}
+# for each park
+miGMvsTN_boxplot_nolegend <- ggplot(c_22_23_mi2, aes(x=gap, y=log(new_tot/(1000*9)), fill = gap, colour = gap)) +
+  geom_boxplot(alpha = 1/9)+
+  facet_wrap(~park_id, ncol = 1, nrow = 2, labeller = park_id.labs)+
+  geom_jitter(shape = 1, stroke = 1, alpha = 1/4) +
+  labs(y = "log(Total Carbon) (kg*m^-2) ",x = "Stand type") +  
+  scale_x_discrete(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"))+
+  scale_color_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
+  scale_fill_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
+  theme_classic()+
+  theme(text = element_text(size = 12), legend.position = "none", strip.text.x = element_text(hjust = 0, margin=margin(l=3, t = 3)), strip.background = element_blank())
+miGMvsTN_boxplot_nolegend
+jpeg("data created/graphs/herbivory_effect_facetpark.jpg", height = 13, width = 10, units = "cm", res = 600)
+miGMvsTN_boxplot_nolegend
+dev.off()
+
+## Create a graphical object g here
+miGMvsTN_boxplot_nolegend
+
+## Stop writing to the PDF file
+dev.off()
+
+
+mi_boxplot_nolegend <- ggplot(c_22_23_mi2, aes(x=gap, y=log(new_tot/(1000*9)), fill = gap, colour = gap)) +
+  geom_boxplot(alpha = 1/9, outlier.shape = NA)+
+  geom_jitter(shape = 1, stroke = 1, alpha = 1/4) +
+  labs(y = "log(Total Carbon) (Kg/m2) ",x = "Stand type") +  
+  scale_x_discrete(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"))+
+  scale_color_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
+  scale_fill_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
+  theme_classic()+
+  theme(text = element_text(size = 12), legend.position = "none")
+mi_boxplot_nolegend
+
+
+
+jpeg("data created/graphs/herbivory_effect_bothparks.jpg", height = 8, width = 15, units = "cm", res = 600)
+
+## Create a graphical object g here
+mi_boxplot_nolegend
+
+## Stop writing to the PDF file
+dev.off()
+```
+

@@ -13,7 +13,8 @@ pacman::p_load(
   openxlsx,
   cv,
   lme4,
-  AICcmodavg)
+  AICcmodavg,
+  rcompanion)
   
 ```
 
@@ -145,6 +146,7 @@ GM_lm_full_summary <- GM_lm_full_summary %>%
 
 GM_lm_full_summary <- GM_lm_full_summary[,c(5,6,1:4)]
 GM_lm_full_summary
+
 ```
 
 ### univariate
@@ -161,6 +163,9 @@ names(GM_lm_uni) <- full_var # make sure names of objects in list consistent
 GM_lm_uni_summary <- lapply(GM_lm_uni, summary)
 
 GM_lm_uni_summary
+
+GM_lm_uni_AIC <- as.data.frame(t(as.data.frame(lapply(GM_lm_uni, AICc)))) 
+GM_lm_uni_AIC$model <- rownames(GM_lm_uni_AIC)
 
 # get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
 
@@ -190,9 +195,10 @@ GM_lm_red_summary
 ```
 
 ```{r}
-# check for uninformative parameters
+# check for uninformative parameters and add next most important parameter (EVIamp is actually a better univariate model than EVImed)
 GM_lm_red2 <- glm(formula = c_m2_site ~ FHT + EVImed, data = c_env_sites_scale_GM, family = Gamma(link = "log")) 
 GM_lm_red3 <- glm(formula = c_m2_site ~ FHT + EVIamp, data = c_env_sites_scale_GM, family = Gamma(link = "log")) 
+GM_lm_red4 <- glm(formula = c_m2_site ~ EVImed + EVIamp, data = c_env_sites_scale_GM, family = Gamma(link = "log")) 
 
 GM_red_models_r <- list()
 GM_red_models_r[[names(GM_lm_uni)[1]]] <- GM_lm_uni[[1]]
@@ -201,13 +207,39 @@ GM_red_models_r[[names(GM_lm_uni)[3]]] <- GM_lm_uni[[3]]
 GM_red_models_r[["GM_lm_red"]] <- GM_lm_red
 GM_red_models_r[["GM_lm_red2"]] <- GM_lm_red2
 GM_red_models_r[["GM_lm_red3"]] <- GM_lm_red3
+GM_red_models_r[["GM_lm_red4"]] <- GM_lm_red4
 Modnames_GM_red <- paste(names(GM_red_models_r))
 
 # get table
 aic_GMred <- aictab(cand.set = GM_red_models_r, modnames = Modnames_GM_red, sort = TRUE) 
 
-# including both improves model by more than 2 AICc, neither model uninfomrative because model with an additional parameter ranked below both
+# including both improves model by more than 2 AICc, neither variable uninfomrative because model with an additional parameter ranked below both
 
+GM_lm_red_summary2 <- as.data.frame(summary(GM_lm_red2)$coefficients) %>% 
+  mutate(model = "GM_lm_red") 
+GM_lm_red_summary2 <- GM_lm_red_summary2 %>% 
+  add_column("predictor" = rownames(GM_lm_red_summary2))
+
+GM_lm_red_summary2 <- GM_lm_red_summary2[,c(5,6,1:4)]
+GM_lm_red_summary2
+
+GM_lm_red_summary <- as.data.frame(summary(GM_lm_red)$coefficients) %>% 
+  mutate(model = "GM_lm_red") 
+GM_lm_red_summary <- GM_lm_red_summary %>% 
+  add_column("predictor" = rownames(GM_lm_red_summary))
+
+GM_lm_red_summary <- GM_lm_red_summary[,c(5,6,1:4)]
+GM_lm_red_summary
+
+GM_lm_red_summary3 <- as.data.frame(summary(GM_lm_red3)$coefficients) %>% 
+  mutate(model = "GM_lm_red") 
+GM_lm_red_summary3 <- GM_lm_red_summary3 %>% 
+  add_column("predictor" = rownames(GM_lm_red_summary3))
+
+GM_lm_red_summary3 <- GM_lm_red_summary3[,c(5,6,1:4)]
+GM_lm_red_summary3
+
+lapply(GM_red_models_r, confint)
 
 ```
 
@@ -215,9 +247,9 @@ aic_GMred <- aictab(cand.set = GM_red_models_r, modnames = Modnames_GM_red, sort
 
 ```{r}
 # combine summary dataframes for null, full and univariate models
-GM_lm_summary <- rbind(GM_lm_null_summary, GM_lm_full_summary, GM_uni_summary_all, GM_lm_red_summary) 
+GM_lm_summary <- rbind(GM_lm_null_summary, GM_lm_full_summary, GM_uni_summary_all, GM_lm_red_summary, GM_lm_red_summary2, GM_lm_red_summary3) 
 GM_lm_summary <- GM_lm_summary %>% 
-  mutate(significance = ifelse(GM_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(GM_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(GM_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(GM_lm_summary$`Pr(>|t|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
+  mutate(significance = ifelse(GM_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(GM_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(GM_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(GM_lm_summary$`Pr(>|t|)` < 0.1, ".", "  "))))) # add symbols for easy visualization of sigificance
 ```
 
 ## compare
@@ -236,17 +268,20 @@ GM_models_r[[names(GM_lm_uni)[5]]] <- GM_lm_uni[[5]]
 GM_models_r[[names(GM_lm_uni)[6]]] <- GM_lm_uni[[6]]
 GM_models_r[[names(GM_lm_uni)[7]]] <- GM_lm_uni[[7]]
 GM_models_r[[names(GM_lm_uni)[8]]] <- GM_lm_uni[[8]]
+GM_models_r[["GM_lm_red2"]] <- GM_lm_red2
 GM_models_r[["GM_lm_red"]] <- GM_lm_red
+GM_models_r[["GM_lm_red3"]] <- GM_lm_red3
+GM_models_r[["GM_lm_red4"]] <- GM_lm_red4
 
 Modnames_GM_r <- paste(names(GM_models_r)) # make sure names are same as model name
 
 # get table
 aic_GM <- as.data.frame(aictab(cand.set = GM_models_r, modnames = Modnames_GM_r, sort = TRUE))
 
+
 #add R2 to AIC table
-R2_GM <- as.data.frame(sapply(GM_models_r, R2)) %>% setNames(c("R2"))
-R2_GM <- R2_GM %>% 
-   mutate("Modnames" = rownames(R2_GM))
+R2_GM <- data.frame(lapply(lapply(GM_models_r, nagelkerke, null = GM_lm_null), function(x) x$Pseudo.R.squared.for.model.vs.null[[3]])) %>% 
+  pivot_longer(cols = c(1:14), values_to = "R2", names_to = "Modnames")
 R2_GM
 aic_GM
 
@@ -254,13 +289,6 @@ aic_R2_GM <- full_join(aic_GM, R2_GM) # table of AIC values for null, full and u
 ```
 
 # TN
-
-# temporarily set TN 05
-
-```{r}
-c_env_sites_scale_TN$Moose_new <-replace_na(c_env_sites_scale_TN$Moose_new, "cH")
-```
-
 
 ### null
 
@@ -342,12 +370,20 @@ TN_lm_red2_summary <- TN_lm_red2_summary[,c(5,6,1:4)]
 TN_lm_red2_summary
 
 TN_lm_red3 <- glm(formula = c_m2_site ~ FHT + SLO, data = c_env_sites_scale_TN, family = Gamma(link = "log")) 
-TN_lm_red3_summary <- as.data.frame(summary(TN_lm_red3)$coefficients) %>% 
+TN_lm_red3_summary <- as.data.frame(summary(TN_lm_red3)$coefficients) %>%
   mutate(model = "TN_lm_red") 
 TN_lm_red3_summary <- TN_lm_red3_summary %>% 
   add_column("predictor" = rownames(TN_lm_red3_summary))
 TN_lm_red3_summary <- TN_lm_red3_summary[,c(5,6,1:4)]
 TN_lm_red3_summary
+
+TN_lm_red4 <- glm(formula = c_m2_site ~ EVIamp + SLO, data = c_env_sites_scale_TN, family = Gamma(link = "log")) 
+TN_lm_red4_summary <- as.data.frame(summary(TN_lm_red4)$coefficients) %>%
+  mutate(model = "TN_lm_red") 
+TN_lm_red4_summary <- TN_lm_red4_summary %>% 
+  add_column("predictor" = rownames(TN_lm_red4_summary))
+TN_lm_red4_summary <- TN_lm_red4_summary[,c(5,6,1:4)]
+TN_lm_red4_summary
 
 
 TN_red_models_r <- list()
@@ -357,6 +393,7 @@ TN_red_models_r[[names(TN_lm_uni)[5]]] <- TN_lm_uni[[5]]
 TN_red_models_r[["TN_lm_red"]] <- TN_lm_red
 TN_red_models_r[["TN_lm_red2"]] <- TN_lm_red2
 TN_red_models_r[["TN_lm_red3"]] <- TN_lm_red3
+TN_red_models_r[["TN_lm_red4"]] <- TN_lm_red4
 Modnames_TN_red <- paste(names(TN_red_models_r))
 
 # compare AIC and LL
@@ -365,10 +402,11 @@ aic_TNred <- aictab(cand.set = TN_red_models_r, modnames = Modnames_TN_red, sort
 confint(TN_lm_red) # all parameters overlap 0 (but FHT improves all metrics too much)
 confint(TN_lm_red2) # EVIamp overlaps 0
 confint(TN_lm_red3) # SLO overlaps 0
+confint(TN_lm_uni[[1]])
 
 # looking at one parameter at a time, both SLO and EVIamp are uninformative
 # but
-# if we look at the model as a whole, to see if it is better than just FHT, AICc are different by more than 2 (and this also seems like no uninformative parameter based on step 2 of Leroux 2019)
+# if we look at the model as a whole, to see if it is better than just FHT, AICc are not different by more than 2 (and this also seems like no uninformative parameter based on step 2 of Leroux 2019)
 ```
 
 ## summary of uni, null and full
@@ -400,16 +438,16 @@ TN_models_r[[names(TN_lm_uni)[8]]] <- TN_lm_uni[[8]]
 TN_models_r[["TN_lm_red"]] <- TN_lm_red
 TN_models_r[["TN_lm_red2"]] <- TN_lm_red2
 TN_models_r[["TN_lm_red3"]] <- TN_lm_red3
+TN_models_r[["TN_lm_red4"]] <- TN_lm_red4
 
 Modnames_TN_r <- paste(names(TN_models_r))
 
 # get table
 aic_TN <- aictab(cand.set = TN_models_r, modnames = Modnames_TN_r, sort = TRUE)  
 
-R2_TN <- as.data.frame(sapply(TN_models_r, R2)) %>% setNames(c("R2"))
-R2_TN <- R2_TN %>% 
-   mutate("Modnames" = rownames(R2_TN))
-R2_TN
+R2_TN <- data.frame(lapply(lapply(TN_models_r, nagelkerke, null = TN_lm_null), function(x) x$Pseudo.R.squared.for.model.vs.null[[3]])) %>% 
+  pivot_longer(cols = c(2:14), values_to = "R2", names_to = "Modnames") %>% 
+  select(!1)
 aic_TN
 
 aic_R2_TN <- full_join(aic_TN, R2_TN) # table of AIC values for null, full and univariate models

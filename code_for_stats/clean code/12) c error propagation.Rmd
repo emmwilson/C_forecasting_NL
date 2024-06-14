@@ -1,0 +1,273 @@
+---
+title: "12) c error propagation"
+author: "Emmerson Wilson"
+date: "2024-05-08"
+output: html_document
+---
+
+how do I do this
+
+need to propogate
+parameter uncert
+process uncert
+driver uncert
+
+# initial uncertainty: 
+```{r}
+# standard error of model residual
+GM_predict_tot_se <- terra::predict(GM_env_raster_masked_scale, GM_model_tot, se.fit = T)$se.fit
+GM_predict_tot_se_transform <- GM_predict_tot_se
+values(GM_predict_tot_se_transform) <- exp(values(GM_predict_tot_se))
+
+upper_95 <- GM_predict_tot_se
+values(upper_95) <- exp(values(GM_predict_tot) + 1.96*values(GM_predict_tot_se))
+lower_95 <- GM_predict_tot_se
+values(lower_95) <- exp(values(GM_predict_tot) - 1.96*values(GM_predict_tot_se))
+
+plot(upper_95)
+plot(lower_95)
+plot(GM_predict_tot_se_transform)
+
+# prediction interval
+dof <- df.residual(GM_model_tot)
+sig2 <- c(crossprod(GM_model_tot$residuals)) / dof
+sqrt(sig2)
+
+Xp <- model.matrix(delete.response(terms(GM_model_tot)), data.frame(GM_env_raster_masked_scale))
+V <- vcov(GM_model_tot) 
+b <- coef(GM_model_tot) 
+yh <- c(Xp %*% b)
+var.fit <- rowSums((Xp %*% V) * Xp)
+
+se.PI <- sqrt(sqrt(var.fit) ^ 2 + sqrt(sig2) ^ 2)
+
+Qt <- c(-1, 1) * qt((1 - 0.95) / 2, df.residual(GM_model_tot), lower.tail = FALSE)
+PI <- exp(yh + outer(se.PI, Qt))
+colnames(PI) <- c("lwr", "upr")
+PI
+
+PI_GM <- rast(cbind(as.data.frame(GM_env_raster_masked_scale, xy = T),PI))
+
+plot(PI_GM$upr)
+plot(PI_GM$lwr)
+
+plot(upper_95)
+plot(lower_95)
+
+ggplot(pivot_wider(as.data.frame(cbind(se.PI, se.CI = sqrt(var.fit))), values_from = c(se.PI, se.CI))
+```
+
+# how much of it from parameter uncertainty
+```{r}
+# library(plotrix)
+# library(propagate)
+# # get parameter distributions
+# m_i <- summary(GM_model_tot)[["coefficients"]][[1,1]]
+# sd_i <- summary(GM_model_tot)[["coefficients"]][[1,2]]
+# m_b1 <- summary(GM_model_tot)[["coefficients"]][[2,1]]
+# sd_b1 <- summary(GM_model_tot)[["coefficients"]][[2,2]]
+# m_b2 <- summary(GM_model_tot)[["coefficients"]][[3,1]]
+# sd_b2 <- summary(GM_model_tot)[["coefficients"]][[3,2]]
+# 
+# n <- 2
+# 
+# # sample from distributions
+# intercept <- rnorm(n, mean = m_i, sd = sd_i)
+# beta1 <- rnorm(n, mean = m_b1, sd = sd_b1)
+# beta2 <- rnorm(n, mean = m_b2, sd = sd_b2)
+# 
+# # put into data frame
+# possible_coeff <- cbind(intercept, beta1, beta2)
+# 
+# # initialize empty objects
+# predict_new <- rast(GM_predict_tot, nlyrs = n)
+# 
+# # function to create predictions of  90% confidence interval with parameter uncertainty
+# 
+# param.uncert_predict_func <- function(df, model_tot, stack) {
+#     model_new <- NULL
+#     model_new <- model_tot
+#   for(i in 1:nrow(df)) {
+#     model_new$coefficients <- df[i,]
+#     predict_new[[i]] <- terra::predict(stack, model_new, cores = 3)
+#   }
+#   return(predict_new)
+# }
+# 
+# try_repeated_sampling_coef <- param.uncert_predict_func(possible_coeff, GM_model_tot, GM_env_raster_masked_scale)
+# 
+# coef_upper_95 <- exp(quantile(try_repeated_sampling_coef, probs=c(0.975), na.rm = TRUE))
+# coef_lower_95 <- exp(quantile(try_repeated_sampling_coef, probs=c(0.025), na.rm = TRUE))
+# coef_se <- exp(app(try_repeated_sampling_coef, fun = std.error))
+# 
+# plot(coef_upper_95)
+# plot(coef_lower_95)
+# plot(coef_se)
+# plot(GM_predict_tot_se_transform)
+# 
+# 
+# 
+# # maybe try rewriting the code so that each cell CI is calculated n times on its own then added to a raster, instead of creating a stack of n rasters and getting the CI from each of its cells (my comouter can't handle n = 10 so how will it handle an actually large number like 100)
+# 
+# seplus <- GM_predict_tot_se_transform 
+# values(seplus) <- values(GM_predict_tot_se_transform) + values(coef_se)
+# 
+# seminus <- GM_predict_tot_se_transform 
+# values(seminus) <- values(GM_predict_tot_se_transform) - values(coef_se)
+# 
+# plot(seminus)
+
+```
+
+```{r}
+# se_res_coef <- list(se_coef = coef_se, se_res = GM_predict_tot_se_transform, no_coef = seminus)
+# 
+# se_res_coef_df <- lapply(names(se_res_coef), function(i) {
+#   data.frame(
+#     rastername = i,
+#     value = as.vector(se_res_coef[[i]])
+#   )
+# })
+# se_res_coef_df <- do.call(rbind, se_res_coef_df)
+# 
+# ggplot(se_res_coef_df, aes(rastername, value, fill = rastername)) +
+#   geom_violin() +
+#   ylim(c(0, 2))
+```
+
+
+# data uncertainty
+dont actually have error for either variable
+```{r}
+# # bring in error layers for FHT and EVIamp
+# FHT_error <- rast()
+# EVIamp_error <- rast()
+# 
+# # stack error layer and value layer by variable
+# FHT_m_e <- rast(list(mean = GM_env_raster_masked_scale[[1]], sd = GM_env_raster_masked_scale[[2]]))
+# EVIamp_m_e <- rast(list(mean = GM_env_raster_masked_scale[[2]], sd = GM_env_raster_masked_scale[[1]]))
+# 
+# FHTEVIamp_errors <- list(FHT_m_e = FHT_m_e, EVIamp_m_e = EVIamp_m_e)
+# 
+# from_dist <- function(x, y) { rnorm(n = 1, mean = x, sd = y) }
+# 
+# from_dist(FHTEVIamp_errors[[1]][[1]], FHTEVIamp_errors[[1]][[2]])
+# 
+# terra::lapp(FHTEVIamp_errors[[1]], fun = from_dist, usernames = T)
+# 
+# rand.norm <- app(EVIamp_m_e, fun = function(x) { return(rnorm(1, mean = x[[1]], sd = x[[2]])) } )
+# 
+# 
+# s <- rast(system.file("ex/logo.tif", package="terra")) + 1
+# ss <- s[[2:1]]
+# fvi <- function(x, y){ (x - y ) / (x + y) }
+# y <- fvi(s[[2]], s[[1]])
+```
+
+#TN
+
+## initial uncertainty: 
+```{r}
+# standard error of model residual
+TN_predict_tot_se <- terra::predict(TN_env_raster_masked_scale, TN_model_tot, se.fit = T)$se.fit
+TN_predict_tot_se_transform <- TN_predict_tot_se
+values(TN_predict_tot_se_transform) <- ilink(values(TN_predict_tot_se))
+
+TNilink <- family(TN_model_tot)$linkinv
+
+TNupper_95 <- TN_predict_tot_se
+values(TNupper_95) <- ilink(values(TN_predict_tot) + 1.96*values(TN_predict_tot_se))
+TNlower_95 <- TN_predict_tot_se
+values(TNlower_95) <- ilink(values(TN_predict_tot) - 1.96*values(TN_predict_tot_se))
+
+plot(TNupper_95)
+plot(TNlower_95)
+plot(TN_predict_tot_se_transform)
+
+```
+
+# how much of it from parameter uncertainty
+```{r}
+library(plotrix)
+library(propagate)
+# get parameter distributions
+TNm_i <- summary(TN_model_tot)[["coefficients"]][[1,1]]
+TNsd_i <- summary(TN_model_tot)[["coefficients"]][[1,2]]
+TNm_b1 <- summary(TN_model_tot)[["coefficients"]][[2,1]]
+TNsd_b1 <- summary(TN_model_tot)[["coefficients"]][[2,2]]
+TNm_b2 <- summary(TN_model_tot)[["coefficients"]][[3,1]]
+TNsd_b2 <- summary(TN_model_tot)[["coefficients"]][[3,2]]
+
+n <- 10
+
+# sample from distributions
+TNintercept <- rnorm(n, mean = TNm_i, sd = TNsd_i)
+TNbeta1 <- rnorm(n, mean = TNm_b1, sd = TNsd_b1)
+TNbeta2 <- rnorm(n, mean = TNm_b2, sd = TNsd_b2)
+
+# put into data frame
+TNpossible_coeff <- cbind(TNintercept, TNbeta1, TNbeta2)
+
+# initialize empty objects
+TNpredict_new <- rast(TN_predict_tot, nlyrs = n)
+
+TNparam.uncert_predict_func <- function(df, model_tot, stack) {
+    model_new <- NULL
+    model_new <- model_tot
+  for(i in 1:nrow(df)) {
+    model_new$coefficients <- df[i,]
+    TNpredict_new[[i]] <- terra::predict(stack, model_new, cores = 3)
+  }
+  return(TNpredict_new)
+}
+
+
+
+TNtry_repeated_sampling_coef <- TNparam.uncert_predict_func(TNpossible_coeff, TN_model_tot, TN_env_raster_masked_scale)
+
+
+
+TNcoef_upper_95 <- exp(quantile(TNtry_repeated_sampling_coef, probs=c(0.975), na.rm = TRUE))
+TNcoef_lower_95 <- exp(quantile(TNtry_repeated_sampling_coef, probs=c(0.025), na.rm = TRUE))
+TNcoef_se <- exp(app(TNtry_repeated_sampling_coef, fun = std.error))
+
+
+
+plot(TNcoef_upper_95)
+plot(TNcoef_lower_95)
+plot(TNcoef_se)
+plot(TN_predict_tot_se_transform)
+
+
+
+
+
+
+# se_res_coef <- list(se_coef = try_repeated_sampling_coef[[2]], se_res = GM_predict_tot_se_transform)
+# 
+# se_res_coef_df <- lapply(names(se_res_coef), function(i) {
+#   data.frame(
+#     rastername = i,
+#     value = as.vector(se_res_coef[[i]])
+#   )
+# })
+# se_res_coef_df <- do.call(rbind, se_res_coef_df)
+# 
+# ggplot(se_res_coef_df, aes(rastername, value, fill = rastername)) +
+#   geom_violin()
+
+
+
+# maybe try rewriting the code so that each cell CI is calculated n times on its own then added to a raster, instead of creating a stack of n rasters and getting the CI from each of its cells (my comouter can't handle n = 10 so how will it handle an actually large number like 100)
+
+TNseplus <- TN_predict_tot_se_transform 
+values(TNseplus) <- values(TN_predict_tot_se_transform) + values(TNcoef_se)
+
+TNseminus <- TN_predict_tot_se_transform 
+values(TNseminus) <- values(TN_predict_tot_se_transform) - values(TNcoef_se)
+
+plot(TNseminus)
+
+```
+
+

@@ -1,0 +1,453 @@
+---
+title: "11) c cross validation"
+author: "Emmerson Wilson"
+date: "2024-05-02"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra,
+  boot,
+  setRNG,
+  brglm2,
+  stringr)
+```
+
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# import training datasets
+```{r}
+# made in 5) c lm total.Rmd
+GM_c_env <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
+TN_c_env <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
+```
+
+# cross validation and glm functions
+```{r}
+source("4) glm function.R")
+
+# glm cv function
+cv_cv.glm2 <- function(data, vars,  k) {
+c_Output <- NULL
+
+#Do it 100 times
+for(x in seq(1,100,1)){
+  
+  #Step 1 - Re-shuffle the response
+  #Reshuffle stoich data and place in new file
+  c_Shuf <- transform(data, c_m2_site = sample(c_m2_site))
+  
+  #Step 2
+  #Run the model
+  #Need to do glm because boot works on glm. Normal distribution so same as lm.
+  c_Rand <- lm_glm(vars, df = c_Shuf, c = "c_m2_site")
+  
+  #Step 3
+  #Run cross validation
+  cv <-cv.glm(data=c_Shuf, glmfit=c_Rand, K=k)
+  
+  
+  #Step 4
+  #Collect the cv values for each model. For each iteration x save the cv.
+  c_Output <- rbind(c_Output, data.frame(Iteration = x, CV = cv$delta[2]))
+  
+  print (x)
+}
+
+#Step 5
+#Sort random set to calculate 90% CI for cv$delta[2]
+c_Output_Sort <- c_Output[order(c_Output$CV),]
+
+t.test(c_Output_Sort$CV)
+}
+
+## brglm cv function
+gap_cv.brgml <- function(data, vars,  k) {
+gap_Output <- NULL
+
+#Do it 100 times
+for(x in seq(1,100,1)){
+  
+  #Step 1 - Re-shuffle the response
+  #Reshuffle stoich data and place in new file
+  gap_Shuf <- transform(data, gap = sample(gap))
+  
+  #Step 2
+  #Run the model
+  #Need to do glm because boot works on glm. Normal distribution so same as lm.
+  gap_Rand <- firths_glm(vars, df = gap_Shuf, c = "gap")
+  
+  #Step 3
+  #Run cross validation
+  cv.gap <-cv.glm(data=gap_Shuf, glmfit=gap_Rand, K=k)
+  
+  
+  #Step 4
+  #Collect the cv values for each model. For each iteration x save the cv.
+  gap_Output <- rbind(gap_Output, data.frame(Iteration = x, CV = cv.gap$delta[2]))
+  
+  print (x)
+}
+
+#Step 5
+#Sort random set to calculate 90% CI for cv$delta[2]
+gap_Output_Sort <- gap_Output[order(gap_Output$CV),]
+
+t.test(gap_Output_Sort$CV)
+}
+```
+
+## GM
+
+### top models from AIC
+```{r}
+# list of variables in best models from 5) c lm total.Rmd
+# run them
+var_GM_lm_red <- list("FHT", "EVImed")
+GM_c_red <- lm_glm(var_GM_lm_red, df = GM_c_env, c = "c_m2_site")
+
+var_GM_lm_red2 <- list("FHT", "EVIamp", "EVImed")
+GM_c_red2 <- lm_glm(var_GM_lm_red2, df = GM_c_env, c = "c_m2_site")
+
+var_GM_lm_red3 <- list("FHT", "EVIamp")
+GM_c_red3 <- lm_glm(var_GM_lm_red3, df = GM_c_env, c = "c_m2_site")
+
+var_GM_lm_FHT <- list("FHT")
+GM_c_FHT <- lm_glm(var_GM_lm_FHT, df = GM_c_env, c = "c_m2_site")
+
+GM_var_lists <- list(var_GM_lm_red, var_GM_lm_red2, var_GM_lm_red3, var_GM_lm_FHT)
+GM_c_top_models <- list(GM_c_red, GM_c_red2, GM_c_red3, GM_c_FHT)
+
+# do cross validation on models themselves
+k <- 9
+GM_cv_Output <- NULL
+
+for(x in seq(1,100,1)){
+GM_c_cv <- lapply(GM_c_top_models, cv.glm, data=GM_c_env, K = k)
+names(GM_c_cv) <- GM_var_lists
+
+GM_c_cv_delta <- lapply(GM_c_cv, `[`, c('delta'))
+
+GM_c_cv_delta <- do.call(rbind.data.frame, GM_c_cv_delta)
+GM_c_cv_delta$names <- rownames(GM_c_cv_delta)
+
+GM_cv_Output <- rbind(GM_cv_Output, data.frame(Iteration = x, model = GM_c_cv_delta$names, delta = GM_c_cv_delta$delta))
+}
+
+GM_avg_cv <- GM_cv_Output %>% 
+  group_by(model) %>% 
+  summarize(mean_delta1 = mean(delta)) 
+  
+GM_cv_Output_delta1_2 <- GM_cv_Output %>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("delta_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = delta, names_from = n)
+```
+
+### cross validation of random 
+```{r}
+GM_c_cvrand <- lapply(GM_var_lists, FUN = cv_cv.glm2, d = GM_c_env, k = k)
+names(GM_c_cvrand) <- GM_var_lists
+
+GM_c_cvrand_95 <- lapply(GM_c_cvrand, `[`, c('conf.int'))
+
+GM_c_cvrand_95 <- do.call(rbind.data.frame, GM_c_cvrand_95)
+GM_c_cvrand_95$model <- rownames(GM_c_cvrand_95)
+
+GM_c_cvrand_95_1_2 <- GM_c_cvrand_95%>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("ci95_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = conf.int, names_from = n)
+```
+
+## put random with cv
+```{r}
+GM_val_cv <- GM_cv_Output_delta1_2 %>% 
+  full_join(GM_c_cvrand_95_1_2) %>% 
+  mutate(diff = ci95_1 - delta_1) %>% 
+  mutate(validate = ifelse(diff<0.0, "no", "yes"))
+GM_nval_cv <- GM_val_cv %>% 
+  group_by(model_2) %>% 
+  summarize(n_y = sum(validate == "yes"), n_n = sum(validate == "no"))
+```
+
+
+## together
+```{r}
+GM_c_delta_95 <- inner_join(GM_avg_cv, GM_c_cvrand_95) %>% 
+  mutate(diff = conf.int - mean_delta1)
+```
+
+
+
+# try with gap
+
+## import training datasets
+```{r}
+# made in 5) c lm total.Rmd
+GM_gap_env <- read_xlsx("data created/c_env_sites_scale_GM_gap.xlsx")
+TN_gap_env <- read_xlsx("data created/c_env_sites_scale_TN_gap.xlsx")
+```
+
+### top models from 
+```{r}
+# list of variables in best models from 5) c lm total.Rmd
+# run them
+var_GM_bi_red <- list("FHT", "EVIamp")
+GM_gap_red <- firths_glm(var_GM_bi_red, df = GM_gap_env, c = "gap")
+
+var_GM_bi_red2 <- list("FHT", "EVIamp", "LGS")
+GM_gap_red2 <- firths_glm(var_GM_bi_red2, df = GM_gap_env, c = "gap")
+
+var_GM_bi_FHT <- list("FHT")
+GM_gap_FHT <- firths_glm(var_GM_bi_FHT, df = GM_gap_env, c = "gap")
+
+GM_var_lists_gap <- list(var_GM_bi_red, var_GM_bi_red2, var_GM_bi_FHT)
+GM_gap_top_models <- list(GM_gap_red, GM_gap_red2, GM_gap_FHT)
+
+# do cross validation on models themselves
+k <- 5
+GM_cv_gap_Output <- NULL
+
+for(x in seq(1,100,1)){
+GM_gap_cv <- lapply(GM_gap_top_models, cv.glm, data=GM_gap_env, K = k)
+names(GM_gap_cv) <- GM_var_lists_gap
+
+GM_gap_cv_delta <- lapply(GM_gap_cv, `[`, c('delta'))
+
+GM_gap_cv_delta <- do.call(rbind.data.frame, GM_gap_cv_delta)
+GM_gap_cv_delta$names <- rownames(GM_gap_cv_delta)
+
+GM_cv_gap_Output <- rbind(GM_cv_gap_Output, data.frame(Iteration = x, model = GM_gap_cv_delta$names, delta = GM_gap_cv_delta$delta))
+}
+
+GM_avg_cv <- GM_cv_gap_Output %>% 
+  group_by(model) %>% 
+  summarize(mean_delta1 = mean(delta))
+
+GM_cv_gap_Output_delta1_2 <- GM_cv_gap_Output %>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("delta_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = delta, names_from = n)
+```
+
+### cross validation of random 
+```{r}
+GM_gap_cvrand <- lapply(GM_var_lists_gap, FUN = gap_cv.brgml, d = GM_gap_env, k = k)
+names(GM_gap_cvrand) <- GM_var_lists_gap
+
+GM_gap_cvrand_95 <- lapply(GM_gap_cvrand, `[`, c('conf.int'))
+
+GM_gap_cvrand_95 <- do.call(rbind.data.frame, GM_gap_cvrand_95)
+GM_gap_cvrand_95$model <- rownames(GM_gap_cvrand_95)
+
+GM_gap_cvrand_95_1_2 <- GM_gap_cvrand_95%>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("ci95_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = conf.int, names_from = n)
+```
+
+## put random with cv
+```{r}
+GM_val_cv_gap <- GM_cv_gap_Output_delta1_2 %>% 
+  full_join(GM_gap_cvrand_95_1_2) %>% 
+  mutate(diff = ci95_1 - delta_1) %>% 
+  mutate(validate = ifelse(diff<0.0, "no", "yes"))
+GM_nval_cv_gap <- GM_val_cv_gap %>% 
+  group_by(model_2) %>% 
+  summarize(n_y = sum(validate == "yes"), n_n = sum(validate == "no"))
+```
+
+## together
+```{r}
+GM_gap_delta_95 <- inner_join(GM_avg_cv, GM_gap_cvrand_95) %>% 
+  mutate(diff = conf.int - mean_delta1)
+```
+
+# TN
+
+### top models from 
+```{r}
+# list of variables in best models from 5) c lm total.Rmd
+# run them
+var_TN_lm_red <- list("FHT", "EVIamp", "SLO")
+TN_c_red <- lm_glm(var_TN_lm_red, df = TN_c_env, c = "c_m2_site")
+
+var_TN_lm_red2 <- list("FHT", "EVIamp")
+TN_c_red2 <- lm_glm(var_TN_lm_red2, df = TN_c_env, c = "c_m2_site")
+
+var_TN_lm_red3 <- list("FHT", "SLO")
+TN_c_red3 <- lm_glm(var_TN_lm_red3, df = TN_c_env, c = "c_m2_site")
+
+var_TN_lm_FHT <- list("FHT")
+TN_c_FHT <- lm_glm(var_TN_lm_FHT, df = TN_c_env, c = "c_m2_site")
+
+TN_var_lists <- list(var_TN_lm_red, var_TN_lm_red2, var_TN_lm_red3, var_TN_lm_FHT)
+TN_c_top_models <- list(TN_c_red, TN_c_red2, TN_c_red3, TN_c_FHT)
+
+# do cross validation on models themselves
+k <- 9
+TN_cv_Output <- NULL
+
+for(x in seq(1,100,1)){
+TN_c_cv <- lapply(TN_c_top_models, cv.glm, data=TN_c_env, K = k)
+names(TN_c_cv) <- TN_var_lists
+
+TN_c_cv_delta <- lapply(TN_c_cv, `[`, c('delta'))
+
+TN_c_cv_delta <- do.call(rbind.data.frame, TN_c_cv_delta)
+TN_c_cv_delta$names <- rownames(TN_c_cv_delta)
+
+TN_cv_Output <- rbind(TN_cv_Output, data.frame(Iteration = x, model = TN_c_cv_delta$names, delta = TN_c_cv_delta$delta))
+}
+
+TN_avg_cv <- TN_cv_Output %>% 
+  group_by(model) %>% 
+  summarize(mean_delta1 = mean(delta))
+
+TN_cv_Output_delta1_2 <- TN_cv_Output %>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("delta_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = delta, names_from = n)
+```
+
+### cross validation of random 
+```{r}
+TN_c_cvrand <- lapply(TN_var_lists, FUN = cv_cv.glm2, d = TN_c_env, k = k)
+names(TN_c_cvrand) <- TN_var_lists
+
+TN_c_cvrand_95 <- lapply(TN_c_cvrand, `[`, c('conf.int'))
+
+TN_c_cvrand_95 <- do.call(rbind.data.frame, TN_c_cvrand_95)
+TN_c_cvrand_95$model <- rownames(TN_c_cvrand_95)
+
+TN_c_cvrand_95_1_2 <- TN_c_cvrand_95%>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("ci95_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = conf.int, names_from = n)
+```
+
+## put random with cv
+```{r}
+TN_val_cv <- TN_cv_Output_delta1_2 %>% 
+  full_join(TN_c_cvrand_95_1_2) %>% 
+  mutate(diff = ci95_1 - delta_1) %>% 
+  mutate(validate = ifelse(diff<0.0, "no", "yes"))
+TN_nval_cv <- TN_val_cv %>% 
+  group_by(model_2) %>% 
+  summarize(n_y = sum(validate == "yes"), n_n = sum(validate == "no"))
+```
+
+## together
+```{r}
+TN_c_delta_95 <- inner_join(TN_avg_cv, TN_c_cvrand_95) %>% 
+  mutate(diff = conf.int - mean_delta1)
+```
+
+
+
+# try with gap
+
+## import training datasets
+```{r}
+# made in 5) c lm total.Rmd
+TN_gap_env <- read_xlsx("data created/c_env_sites_scale_TN_gap.xlsx")
+TN_gap_env <- read_xlsx("data created/c_env_sites_scale_TN_gap.xlsx")
+```
+
+```{r}
+# list of variables in best models from 5) c lm total.Rmd
+# run them
+var_TN_bi_red <- list("FHT", "EVIamp", "ASP", "LGS")
+TN_gap_red <- firths_glm(var_TN_bi_red, df = TN_gap_env, c = "gap")
+
+var_TN_bi_red2 <- list("FHT", "EVIamp", "LGS")
+TN_gap_red2 <- firths_glm(var_TN_bi_red2, df = TN_gap_env, c = "gap")
+
+var_TN_bi_red3 <- list("FHT", "EVIamp", "ASP")
+TN_gap_red3 <- firths_glm(var_TN_bi_red3, df = TN_gap_env, c = "gap")
+
+var_TN_bi_red4 <- list("FHT", "EVIamp")
+TN_gap_red4 <- firths_glm(var_TN_bi_red4, df = TN_gap_env, c = "gap")
+
+
+TN_var_lists_gap <- list(var_TN_bi_red, var_TN_bi_red2, var_TN_bi_red3, var_TN_bi_red4)
+TN_gap_top_models <- list(TN_gap_red, TN_gap_red2, TN_gap_red3, TN_gap_red4)
+
+# do cross validation on models themselves
+k <- 5
+TN_cv_gap_Output <- NULL
+
+for(x in seq(1,100,1)){
+TN_gap_cv <- lapply(TN_gap_top_models, cv.glm, data=TN_gap_env, K = k)
+names(TN_gap_cv) <- TN_var_lists_gap
+
+TN_gap_cv_delta <- lapply(TN_gap_cv, `[`, c('delta'))
+
+TN_gap_cv_delta <- do.call(rbind.data.frame, TN_gap_cv_delta)
+TN_gap_cv_delta$names <- rownames(TN_gap_cv_delta)
+
+TN_cv_gap_Output <- rbind(TN_cv_gap_Output, data.frame(Iteration = x, model = TN_gap_cv_delta$names, delta = TN_gap_cv_delta$delta))
+}
+
+TN_avg_cv_gap <- TN_cv_gap_Output %>% 
+  group_by(model) %>% 
+  summarize(mean_delta1 = mean(delta))
+
+TN_cv_gap_Output_delta1_2 <- TN_cv_gap_Output %>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("delta_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = delta, names_from = n)
+```
+
+### cross validation of random 
+```{r}
+TN_gap_cvrand <- lapply(TN_var_lists_gap, FUN = gap_cv.brgml, d = TN_gap_env, k = k)
+names(TN_gap_cvrand) <- TN_var_lists_gap
+
+TN_gap_cvrand_95 <- lapply(TN_gap_cvrand, `[`, c('conf.int'))
+
+TN_gap_cvrand_95 <- do.call(rbind.data.frame, TN_gap_cvrand_95)
+TN_gap_cvrand_95$model <- rownames(TN_gap_cvrand_95)
+
+TN_gap_cvrand_95_1_2 <- TN_gap_cvrand_95%>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("ci95_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = conf.int, names_from = n)
+```
+
+## put random with cv
+```{r}
+TN_val_cv_gap <- TN_cv_gap_Output_delta1_2 %>% 
+  full_join(TN_gap_cvrand_95_1_2) %>% 
+  mutate(diff = ci95_1 - delta_1) %>% 
+  mutate(validate = ifelse(diff<0.0, "no", "yes"))
+TN_nval_cv_gap <- TN_val_cv_gap %>% 
+  group_by(model_2) %>% 
+  summarize(n_y = sum(validate == "yes"), n_n = sum(validate == "no"))
+```
+
+## together
+```{r}
+TN_gap_delta_95 <- inner_join(TN_avg_cv, TN_gap_cvrand_95) %>% 
+  mutate(diff = conf.int - mean_delta1)
+```

@@ -6,7 +6,10 @@ output: html_document
 ---
 
 ```{r}
-library(terra)
+pacman::p_load(
+  terra,
+  tidyverse,
+  readxl)
 ```
 
 
@@ -157,3 +160,62 @@ writeRaster(GM_env_raster_masked_bm_scale, filename="data created/GM_env_raster_
 writeRaster(TN_env_raster_masked_bm_scale, filename="data created/TN_env_raster_masked_scale_bm.tif", overwrite=TRUE)
 ```
 
+
+
+# removed wetlands
+```{r}
+clip_GM_rast_bm_nwl <- rast("data required/environmental data/GM_predict_binary_bm_nwl.tif")
+clip_TN_rast_bm_nwl <- rast("data required/environmental data/TN_predict_binary_bm_nwl.tif")
+```
+
+## prep clipping space
+```{r}
+# change anywhere equal to 0 into NA
+clip_GM_rast_bm_nwl[clip_GM_rast_bm_nwl==0] <- NA
+
+clip_TN_rast_bm_nwl[clip_TN_rast_bm_nwl==0] <- NA
+```
+
+## clip
+```{r}
+GM_env_rast_masked_bm_nwl <- crop(GM_env_rast, clip_GM_rast_bm_nwl, mask=TRUE) # this part isn't taking out the proper cells *had to make the mask a raster
+names(GM_env_rast_masked_bm_nwl) <-  c( "SPC", "FAC", "FHT", "CC", "LCT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx") # name layers
+
+#remove unwanted layers
+GM_env_rast_masked_bm_nwl <- subset(GM_env_rast_masked_bm_nwl, c(3,6:12))
+ #check
+
+TN_env_rast_masked_bm_nwl <- crop(TN_env_rast, clip_TN_rast_bm_nwl, mask=TRUE)
+names(TN_env_rast_masked_bm_nwl) <-  c( "SPC", "FAC", "FHT", "CC", "LCT", "EVIamp", "EVImed","SLO", "ELE", "ASP", "LGS", "Moose_new",  "Moose_newl",  "Moose_newh",  "Moose_newx") # name layers
+
+#remove unwanted layers
+TN_env_rast_masked_bm_nwl <- subset(TN_env_rast_masked_bm_nwl, c(3,6:12))
+```
+
+## scale variables
+```{r}
+# make rasters with proper dimensions to write over
+GM_env_raster_masked_scale_bm_nwl <- GM_env_rast_masked_bm_nwl
+GM_env_raster_masked_bm_nm_nwl <- subset(GM_env_rast_masked_bm_nwl, c(1:7)) # remove moose from stack of rasters to be scaled
+
+TN_env_raster_masked_scale_bm_nwl <- TN_env_rast_masked_bm_nwl
+TN_env_raster_masked_bm_nm_nwl <- subset(TN_env_rast_masked_bm_nwl, c(1:7))
+
+# rescale GM
+for (i in 1:nlyr(GM_env_raster_masked_bm_nm_nwl)){
+  sub <- subset(GM_env_raster_masked_bm_nm_nwl,i)
+  GM_env_raster_masked_scale_bm_nwl[[sub@cpp$names]] <- terra::scale(sub, center = FALSE, scale = envscale_GM[[i]])
+  }
+
+# rescale TN
+for (i in 1:nlyr(TN_env_raster_masked_bm_nm_nwl)){
+  sub <- subset(TN_env_raster_masked_bm_nm_nwl,i)
+  TN_env_raster_masked_scale_bm_nwl[[sub@cpp$names]] <- terra::scale(sub, center = FALSE, scale = envscale_TN[[i]])
+  }
+```
+
+##export
+```{r}
+writeRaster(GM_env_raster_masked_scale_bm_nwl, filename="data created/GM_env_raster_masked_scale_bm_nwl.tif", overwrite=TRUE)
+writeRaster(TN_env_raster_masked_scale_bm_nwl, filename="data created/TN_env_raster_masked_scale_bm_nwl.tif", overwrite=TRUE)
+```

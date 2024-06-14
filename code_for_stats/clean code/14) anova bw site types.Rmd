@@ -1,0 +1,157 @@
+---
+title: "14) anova between site types"
+author: "Emmerson Wilson"
+date: "2024-05-08"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  janitor)
+  
+```
+
+# data
+
+## 2022
+```{r}
+#combine individual excel files fror carbon in each pool
+c_2022_dw <- read_xlsx("~/Documents/Master's/C_forecasting_NL/final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Deadwood_Field_Data NEW.xlsm", sheet = "DW carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, dw_carbon_9m2))
+c_2022_te <- read_xlsx("~/Documents/Master's/C_forecasting_NL/final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, te_carbon_9m2))
+c_2022_gc <- read_xlsx("~/Documents/Master's/C_forecasting_NL//final carbon data/Final_Carbon_Data_R/ground_cover_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, gc_carbon_9m2))
+c_2022_hb <- read_xlsx("~/Documents/Master's/C_forecasting_NL//final carbon data/Final_Carbon_Data_R/herbaceous_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, hb_carbon_9m2))
+c_2022_ll <- read_xlsx("~/Documents/Master's/C_forecasting_NL//final carbon data/Final_Carbon_Data_R/litter_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Park_ID, Site_ID, Ex_Ctrl, Subplot_ID, Site_Subplot_ID, ll_carbon_9m2))
+c_2022_sp <- read_xlsx("~/Documents/Master's/C_forecasting_NL//final carbon data/Final_Carbon_Data_R/sapling_carbon.xlsx", sheet = "Sheet 1") %>% dplyr::select(c(Site_Subplot_ID, sp_carbon_9m2))
+#c_2022_sr <- read_xlsx("Final_Carbon_Data_R/shrub_root_carbon.xlsx", sheet = "Sheet 1") because this data came before R fixed the under 30 units I need to calculate on my own
+c_2022_sl <- read_xlsx("~/Documents/Master's/C_forecasting_NL//final carbon data/Final_Carbon_Data_R/soil_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, sl_carbon_9m2))
+
+c_2022_tr <- read_xlsx("~/Documents/Master's/C_forecasting_NL//final carbon data/Final_Carbon_Data_R/Rachael 2022 measurements/Tree_Biomass_NEW.xlsm", sheet = "Tree root carbon") %>%
+  dplyr::select(c(Site_Subplot_ID, tr_carbon_9m2))
+c_2022_u3 <- read_xlsx("~/Documents/Master's/C_forecasting_NL//final carbon data/Final_Carbon_Data_R/under_30_carbon.xlsx", sheet = "Sheet 1") %>%
+  mutate(u3_carbon_9m2 = u3_carbon_9m2/1000000) %>% # convert units
+  dplyr::select(c(Site_Subplot_ID, u3_carbon_9m2))
+c_2022_ws <- read_xlsx("~/Documents/Master's/C_forecasting_NL//final carbon data/Final_Carbon_Data_R/woody_shrubs_carbon.xlsx", sheet = "Sheet 1") %>%
+  dplyr::select(c(Site_Subplot_ID, ws_carbon_9m2))
+site_data_2022 <- read_xlsx("~/Documents/Master's/C_forecasting_NL//final carbon data/Final_Carbon_Data_R/subplot_disturbacne.xlsx")
+
+c_2022_sr_list <- list(c_2022_u3, c_2022_ws, c_2022_sp)
+c_2022_sr <- c_2022_sr_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
+  replace(is.na(.), 0)
+c_2022_sr$sr_carbon_9m2 <- rowSums(c_2022_sr[, c(2:4)])
+c_2022_sr <- c_2022_sr %>% dplyr::select(c(1,5)) %>%
+  mutate(sr_carbon_9m2 = sr_carbon_9m2*0.25)
+  
+
+c_2022_list <- list(c_2022_dw, c_2022_te, c_2022_gc, c_2022_hb, c_2022_ll, c_2022_sp, c_2022_sr, c_2022_sl, c_2022_tr, c_2022_u3, c_2022_ws)
+
+c_2022 <- c_2022_list %>% reduce(full_join, by='Site_Subplot_ID') %>%
+  dplyr::select(c(1,6:9,2:5,10:16)) %>%
+  replace(is.na(.), 0)
+c_2022$total_c_per_subplot <- rowSums(c_2022[, c(6:16)])
+
+c_2022_mess <- c_2022 %>%
+  left_join(site_data_2022) %>% # add subplot info
+  clean_names() %>%
+  mutate(gap = disturbance) %>% 
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(ss_carbon_9m2 = rowSums(c_2022[, c("sp_carbon_9m2", "ws_carbon_9m2")])) %>% # recategorize pools to match 2023
+  mutate(rt_carbon_9m2 = rowSums(c_2022[, c("tr_carbon_9m2","sr_carbon_9m2")])) %>%
+  mutate(gv_carbon_9m2 = rowSums(c_2022[, c("gc_carbon_9m2", "hb_carbon_9m2", "u3_carbon_9m2")])) %>%
+  mutate(year = 2022) %>% # add year
+  mutate(site_number = as.numeric(site_id))
+c_2022_mess$site_number <- sprintf("%02.f", c_2022_mess$site_number)
+c_2022_mess <- c_2022_mess %>%
+  mutate(site_id = paste0(site_number, "_", "2022")) %>% # distinguish overlapping site numbers by year
+  mutate(subplot_id = substr(subplot_id,2,2)) # remove letter from subplot
+
+```
+
+## 2023
+```{r}
+c_2023 <- read_xlsx("~/Documents/Master's/C_forecasting_NL/final carbon data/carbon_data_2023.xlsm", sheet = "Overall C") %>%
+  replace(is.na(.), 0) 
+
+site_data <- read_xlsx("~/Documents/Master's/C_forecasting_NL/final carbon data/carbon_data_2023.xlsm", sheet = "Subplot info")
+site_data$Site_ID <- sprintf("%02.f", site_data$Site_ID)
+
+c_2023_mess <- c_2023 %>%
+  left_join(site_data)%>%
+  clean_names() %>%
+  mutate(gap = disturbance) %>%
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Wind', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Logging', 'Gap')) %>%
+  mutate(year = 2023) %>% # add year
+  mutate(site_id = paste0(site_id, "_", "2023")) # distinguish overlapping site numbers by year
+  
+
+```
+
+## put together
+```{r}
+c_2022_compare <- c_2022_mess %>%
+   dplyr::select(c(2:5,18,19,23,6,7,10,13,20:22,17)) # run "C_explore_22_23.qmd" first
+c_2023_compare <- c_2023_mess %>%
+  dplyr::select(c(22,23,25,2,27,38,39,5,7,10,11,13,16,18,21)) %>%
+  replace(is.na(.), 0)
+c_22_23 <- rbind(c_2022_compare, c_2023_compare) %>%
+  mutate(unique_id = paste0(park_id, "_", site_id, "_", subplot_id))
+
+length(unique(subset(c_22_23, year == "2022")$site_id))
+```
+
+# stats for results
+```{r}
+c_22_23_insect2 <- c_22_23 %>% 
+  filter(gap != "Gap" | ex_ctrl != "NA") %>% 
+  filter(gap != "Mature" | ex_ctrl != "EX") %>% 
+  filter(ex_ctrl != "CTRL") %>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  dplyr::select(-c(dw_carbon_9m2, total_c_per_subplot)) 
+c_22_23_insect2$gap[c_22_23_insect2$gap == "Gap"] <- 'Gap (excl)'
+
+c_22_23_moosegap <- c_22_23 %>% 
+  filter(ex_ctrl != "EX")  %>% 
+  filter(gap != "Mature")%>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  dplyr::select(-c(dw_carbon_9m2)) 
+
+c_22_23_mi2 <- rbind(subset(dplyr::select(c_22_23_moosegap, c(1,5,6,16))), dplyr::select(c_22_23_insect2, c(1,5,6,15)))
+c_22_23_mi2$gap <- factor(c_22_23_mi2$gap , levels=c("Gap (excl)", "Mature", "Gap"))
+
+
+write.xlsx(c_22_23_mi2, file = "data created/c_22_23_distvsmat.xlsx")
+```
+
+# anovas
+```{r}
+# both parks together
+disturbance_all_model <- aov(new_tot~gap, data = c_22_23_mi2)
+
+anova(disturbance_all_model)
+TukeyHSD(disturbance_all_model)
+
+# GM
+disturbance_GM_model <- aov(new_tot~gap, data = subset(c_22_23_mi2, park_id == "GM"))
+
+anova(disturbance_GM_model)
+TukeyHSD(disturbance_GM_model)
+
+# TN
+disturbance_TN_model <- aov(new_tot~gap, data = subset(c_22_23_mi2, park_id == "TN"))
+
+anova(disturbance_TN_model)
+TukeyHSD(disturbance_TN_model)
+```

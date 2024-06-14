@@ -16,3 +16,12 @@ bi_glm <- function(df, c, variables) {
   lm_glm$call$formula <- formula1
   lm_glm
 }
+
+
+firths_glm <- function(df, c, variables) {
+  lm_glm <- glm(formula(paste0(quo_name(c)," ~ ", paste0(variables, collapse="+"))), data = df, family = binomial(link = "logit"), method = "brglmFit")
+  eval <- eval(lm_glm$call$formula)
+  formula1<- eval(eval)
+  lm_glm$call$formula <- formula1
+  lm_glm
+}
