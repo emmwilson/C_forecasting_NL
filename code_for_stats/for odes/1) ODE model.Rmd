@@ -1,0 +1,275 @@
+---
+title: "ODE model"
+author: "Emmerson Wilson"
+date: "2024-06-19"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  deSolve)
+
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/for odes")
+```
+
+# model structure
+```{r}
+lv <- function(times, state, parms) {
+  with(as.list(c(state, parms)), {
+# moose
+    Consumption    <- ((a * Pyoung)/(1 + a * h * Pyoung)) * e * Moose
+    Death <- lM * (Moose^2)
+    Hunt <- H * Moose
+    
+    # palatable 
+    GrowthPy <- rPy * (Pyoung) * (1 - (Pyoung + Pmature + alphaUPy * Unpal)/kPy)
+    NewSeed <- s * Pmature
+    GrowthPm <- rPm * (Pmature) * (1 - (Pyoung + Pmature + alphaUPm * Unpal)/kPm)
+    Ageing <- if(times <= 7.5) 0 else g * Pyoung  
+    DeathPm <- lPm * Pmature
+    
+    # unpalatable
+    GrowthU <- rU * Unpal * (1 - (alphaPyU * Pyoung + alphaPmU * Pmature + Unpal)/kU)
+    DeathU <- lU * Unpal
+
+    # odes
+    dMoose  <- Consumption - Death - Hunt
+    dPyoung <- GrowthPy + NewSeed - Consumption/e - Ageing
+    dPmature <- GrowthPm + Ageing - DeathPm
+    dUnpal <- GrowthU - DeathU
+    
+
+    list(c(dMoose, dPyoung, dPmature, dUnpal))
+  })
+}
+```
+
+## parameters
+```{r}
+parms  <- c(a = 0.9985, #from Lunberg and Danelle 1990
+            h = 0.0223, # 1/max intake in Mg per Mg moose per year (similar to handling time of Lunberg and Denelle)
+            e = 0.01, #0.02 leads to max reasonable stable moose pop, prefer 0.01
+            lM = 0.2451, # 1/lifespan
+            H = 0,
+            rPy = 0.2,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, # should have almost no effect
+            kPy = 4000,
+            kPm = 200000, # includes only live veg
+            rPm = 0.2,
+            g = 0.133, # 1/time to reach 3m
+            lPm = 0.01,
+            rU = 0.4,
+            alphaPyU = 0.003, # less than alphaPmU, but more than alphaUpy
+            alphaPmU = 0.0065, # level so that kPm*alpha < kU, so that some upalatable species do persist, as seen in field
+            kU = 1300,
+            lU = 0.05)
+```
+
+## starting conditions
+```{r}
+time_vec1 <- seq(from = 1, to = 200, length.out = 200)
+Moose0 <- 000.000000000e-00
+Pyoung0 <- 200
+Pmature0 <- 0
+Unpal0 <- 0
+state <- c(Moose = Moose0, Pyoung = Pyoung0, Pmature = Pmature0, Unpal = Unpal0)
+```
+
+## extinction
+```{r}
+eps <- 1e-2
+## event triggered if state variable <= eps
+rootfun <- function (times, y, parms) {
+  return(abs(y) - eps)
+}
+
+## sets state variable = 0
+eventfun <- function(times, y, parms) {
+  if (y[1] <= eps) y[1] <- 0
+  if (y[2] <= eps) y[2] <- 0
+  if (y[3] <= eps) y[3] <- 0
+  if (y[4] <= eps) y[4] <- 0
+  return(y)
+}
+
+eventfun1 <- function(times, y, parms) {
+ifelse(y[1] <= eps, 0, y[1])
+ifelse(y[2] <= eps, 0,  y[2])
+ifelse(y[3] <= eps, 0, y[3])
+ifelse(y[4] <= eps, 0, y[4])
+  return(y)
+}
+
+eventfun1 <- function(t, y, parms){
+  with(as.list(y), {
+    y[y <= 1e-2] <- 0
+    return(y)
+  })
+}
+
+
+eps <- 1e-2
+## event triggered if state variable <= eps
+rootfun <- function (times, y, parms) {
+  return(y - eps)
+}
+
+## sets state variable = 0
+eventfun <- function(times, y, parms) {
+  if (y[1] <= eps) y[1] <- 0
+  if (y[2] <= eps) y[2] <- 0
+  if (y[3] <= eps) y[3] <- 0
+  if (y[4] <= eps) y[4] <- 0
+  return(y)
+}
+```
+
+## run model
+```{r}
+#with extinction
+out1 <- ode(y = state, times = time_vec1, func = lv, parms = parms, method = "lsoda", rootfun = rootfun, events = list(func = eventfun, root = TRUE))
+```
+
+## plot
+```{r}
+long_out1 <- as.data.frame(out1) %>% 
+  pivot_longer(cols = c(2:5))
+
+ggplot(long_out1, aes(x = time, y = value)) +
+  geom_line() +
+  facet_wrap(~name, scales = "free") +
+  theme_bw() 
+```
+
+# sensitivity
+
+## ODEsensitivity
+```{r}
+library(ODEsensitivity)
+
+# set bounds of parameters
+LVpars <-  c("a", "h", "e", "lM", "H", "rPy", "s", "alphaUPy", "alphaUPm", "kPy", "kPm", "rPm", "g", "lPm", "rU", "alphaPyU", "alphaPmU", "kU", "lU")
+LVlow <-  c(0.5, 0.005, 0.005, 0.196, 0, 0.05, 0.005, 0.0005, 0.00005, 200, 50000,0.05,0.1,0.005,0.1,0.0005,0.0005,100,0.005)
+LVhigh <-  c(1.5, 0.04, 0.05, 0.36, 0, 0.4, 0.03, 0.01, 0.001, 10000,300000, 0.4,0.333,0.02,0.5,0.01,0.01,5000,0.1)
+
+LVres_sobolm <-  ODEsobol(mod = lv, pars = LVpars, state_init = y_0, times = time_vec1, binf = LVlow, bsup = LVhigh, rargs = paste0("min = ", LVblow, ", max = ", LVbhigh),
+                     sobol_method = "Martinez",
+                     ode_method = "lsoda",
+                     parallel_eval = TRUE,
+                     parallel_eval_ncores = 2,
+           rootfun = rootfun,
+           events = list(func = eventfun, root = TRUE))
+
+moose_param <-  c("a", "h", "e", "lM", "H")
+pal_param <- c("rPy", "s", "alphaUPy", "alphaUPm", "kPy", "kPm", "rPm", "g", "lPm")
+unpal_param <- c("rU", "alphaPyU", "alphaPmU", "kU", "lU")
+
+plot(LVres_sobolm, pars_plot = moose_param, state_plot = "Moose") 
+plot(LVres_sobolm, pars_plot = pal_param, state_plot = "Moose") 
+plot(LVres_sobolm, pars_plot = unpal_param, state_plot = "Moose") 
+
+plot(LVres_sobolm, pars_plot = moose_param, state_plot = "Pyoung") 
+plot(LVres_sobolm, pars_plot = pal_param, state_plot = "Pyoung") 
+plot(LVres_sobolm, pars_plot = unpal_param, state_plot = "Pyoung") 
+
+plot(LVres_sobolm, pars_plot = moose_param, state_plot = "Pmature") 
+plot(LVres_sobolm, pars_plot = pal_param, state_plot = "Pmature") 
+plot(LVres_sobolm, pars_plot = unpal_param, state_plot = "Pmature")
+
+plot(LVres_sobolm, pars_plot = moose_param, state_plot = "Unpal") 
+plot(LVres_sobolm, pars_plot = pal_param, state_plot = "Unpal") 
+plot(LVres_sobolm, pars_plot = unpal_param, state_plot = "Unpal")
+
+# this depends highly on starting conditions
+
+# so run this multiple times with many starting conditions? low medium high?
+```
+
+## FME
+```{r}
+library(FME)
+
+
+solvelv <- function(param) {
+  state <- y_0
+  tout  <- seq(from = 1, to = 200, length.out = 200)
+  ## ode solves the model by integration ...
+  return(as.data.frame(ode(y = state, times = tout, func = lv,
+    parms = param, method = "lsoda",
+           rootfun = rootfun,
+           events = list(func = eventfun, root = TRUE))))
+}
+
+s_out <- solvelv(param)
+
+## the local sensitivity to parameters 
+
+SensF <- sensFun(func = solvelv, parms = param,
+           sensvar = c("Moose", "Pyoung", "Pmature", "Unpal"))
+Sens2F <- summary(SensF)
+Sens2Fabs <- abs(Sens2F)
+
+## Plot all variables; plot mean +- sd, min max
+plot(Sens2F)
+plot(Sens2Fabs)
+
+# global sensitivity over time to parameters space over time
+
+LVlow <-  c(0.5, 0.005, 0.005, 0.196, 0, 0.05, 0.005, 0.0005, 0.00005, 200, 50000,0.05,0.1,0.005,0.1,0.0005,0.0005,100,0.005)
+LVhigh <-  c(1.5, 0.04, 0.05, 0.36, 0, 0.4, 0.03, 0.01, 0.001, 10000,300000, 0.4,0.333,0.02,0.5,0.01,0.01,5000,0.1)
+
+param_space <- data.frame(min = LVlow, max = LVhigh)
+rownames(param_space)<- names(param)
+
+Sens2_t <- sensRange(func = solvelv, parms = param, dist = "latin", parRange = param_space, num = 200)
+
+Sens2_tsum <- summary(Sens2_t)
+
+## Plot all variables; plot mean +- sd, min max
+plot(Sens2_t, xlab = "time, year", ylab = "Mg",
+main = "Sensitivity to params", mfrow = NULL)
+plot(Sens2_tsum, xlab = "time, year", ylab = "Mg",
+main = "Sensitivity to params", mfrow = NULL)
+
+# global sensitivity to parameter space 
+
+SF <- function (param) {
+out <- solvelv(param)
+return(out[nrow(out), 2:5])
+}
+
+SF(param)
+
+Sens2_ <- sensRange(func = SF,parms = param, dist = "latin", parRange = param_space, num = 200) 
+Sens2_sum <- summary(Sens2_)
+plot(Sens2_, which = c("Moose", "Pyoung", "Pmature", "Unpal"))
+
+
+CRL <- modCRL(func = SF, parRange = param_space, dist = "latin")
+summary(CRL)
+plot(CRL)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

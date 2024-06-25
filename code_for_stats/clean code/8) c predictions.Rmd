@@ -119,7 +119,7 @@ GM_predict_tot_bm <- terra::predict(GM_env_raster_masked_scale_bm, GM_model_tot)
 # transform predictions
 GM_predict_tot_transform_bm <- GM_predict_tot_bm
 values(GM_predict_tot_transform_bm) <- exp(values(GM_predict_tot_bm)) # value is c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
-#plot(GM_predict_tot_transform, background = "lightblue") 
+plot(GM_predict_tot_transform_bm) 
 
 # export
 writeRaster(GM_predict_tot_transform_bm, filename="data created/GM_predict_tot_bm.tif", overwrite=TRUE)
@@ -133,7 +133,7 @@ TN_predict_tot_bm <- terra::predict(TN_env_raster_masked_scale_bm, TN_model_tot)
 # transform predictions
 TN_predict_tot_transform_bm <- TN_predict_tot_bm
 values(TN_predict_tot_transform_bm) <- exp(values(TN_predict_tot_bm)) # value is g of c per m2 so can multiply by 90/1000 to get absloute estimate of carbon (not densityt) per cell (90m2)
-#plot(TN_predict_tot_transform, background = "lightblue") 
+plot(TN_predict_tot_transform_bm) 
 
 # export
 writeRaster(TN_predict_tot_transform_bm, filename="data created/TN_predict_tot_bm.tif", overwrite=TRUE)

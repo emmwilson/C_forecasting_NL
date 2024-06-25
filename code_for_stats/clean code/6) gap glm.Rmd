@@ -95,8 +95,6 @@ full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS", "Moose_n
 # run the model
 GM_lm_full_gap <- firths_glm(c_env_sites_scale_GM_gap, "gap", full_var)
 summary(GM_lm_full_gap)
-
-
 ```
 
 

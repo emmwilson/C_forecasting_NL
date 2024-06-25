@@ -1,0 +1,265 @@
+---
+title: "abundances_for_odes"
+author: "Emmerson Wilson"
+date: "2024-06-06"
+output: html_document
+---
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes")
+```
+
+# 2022 data
+```{r}
+ # palatable
+ c_2022_Pm <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2022/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
+   dplyr::select(c(Site_Subplot_ID, te_carbon_9m2))
+
+ c_2022_sap <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2022/sapling_carbon.xlsx", sheet = "Sheet 1") %>% dplyr::select(c(Site_Subplot_ID, sp_carbon_9m2))
+
+ # unpalatable
+ c_2022_gc <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2022/ground_cover_carbon.xlsx", sheet = "Sheet 1") %>%
+   dplyr::select(c(Site_Subplot_ID, gc_carbon_9m2))
+
+ c_2022_hb <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2022/herbaceous_carbon.xlsx", sheet = "Sheet 1") %>%
+   dplyr::select(c(Site_Subplot_ID, hb_carbon_9m2))
+
+ c_2022_ws <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2022/woody_shrubs_carbon.xlsx", sheet = "Sheet 1") %>%
+   dplyr::select(c(Site_Subplot_ID, ws_carbon_9m2))
+
+ c_2022_U <- c_2022_gc %>%
+   full_join(c_2022_hb) %>%
+   full_join(c_2022_ws) %>%
+   replace(is.na(.), 0) %>%
+   mutate(un_biomass_9m2 = gc_carbon_9m2 + hb_carbon_9m2 + ws_carbon_9m2)
+
+ # some of both
+ c_2022_u3 <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2022/under_30_carbon.xlsx", sheet = "Sheet 1") %>%
+   mutate(u3_carbon_9m2 = u3_carbon_9m2/1000000) %>% # convert units
+   dplyr::select(c(Site_Subplot_ID, u3_carbon_9m2))
+
+
+ site_data_2022 <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2022/subplot_disturbacne.xlsx") # metadata
+ excl_ctrl <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2022/litter_carbon.xlsx", sheet = "Sheet 1") %>%
+   dplyr::select(c(Park_ID, Site_ID, Ex_Ctrl, Subplot_ID, Site_Subplot_ID))
+
+ c_2022_list2 <- list(c_2022_Pm, c_2022_sap, c_2022_U, excl_ctrl)
+
+ c_20222 <- c_2022_list2 %>% reduce(full_join, by='Site_Subplot_ID')
+
+ c_2022_mess2 <- c_20222 %>%
+   replace(is.na(.), 0) %>% 
+   left_join(site_data_2022) %>% # add subplot info
+   clean_names()  %>% 
+   mutate(site = substr(site_subplot_id, 1, 5)) %>% 
+  group_by(site, ex_ctrl, disturbance) %>% 
+  summarise(Pm = mean(te_carbon_9m2), Py = mean(sp_carbon_9m2), U = mean(un_biomass_9m2))%>%
+   mutate(gap = disturbance) %>%
+   mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+   mutate(across('gap', str_replace, 'Fire', 'Gap'))
+```
+
+```{r}
+# palatable
+c_2023_Pm <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "Tree dbh biomass") %>%
+  clean_names() %>% 
+  select(c(unique, biomass_row)) %>% 
+  group_by(unique) %>% 
+  summarize(Pm_biomass_9m2 = sum(biomass_row)*9/5)
+
+c_2023_sapling <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "Shrub and sapling") %>%
+  clean_names() %>% 
+  select(c(unique, species, biomass_row)) %>% 
+  filter(species == c("Balsam Fir", "heart-leaved birch", "Paper Birch", "White Birch", "Red Maple", "Mountain Maple")) %>% 
+  group_by(unique) %>% 
+  summarize(sap_biomass_9m2 = sum(biomass_row)*9/5)
+
+c_2023_seedling <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "GC woody") %>%
+  clean_names() %>% 
+  select(c(unique, woody_shrub_30_cm_species, biomass_row_g)) %>% 
+  filter(woody_shrub_30_cm_species == c("Balsam Fir", "Birch", "Maple")) %>% 
+  group_by(unique) %>% 
+  summarize(se_biomass_9m2 = sum(biomass_row_g)*4*9)
+
+c_2023_Py <- c_2023_sapling %>% 
+  full_join(c_2023_seedling) %>% 
+  replace(is.na(.), 0) %>% 
+  mutate(Py_biomass_9m2 = sap_biomass_9m2 + se_biomass_9m2) %>% 
+  select(c(1,4))
+
+
+# unpalatable
+c_2023_Ush <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "Shrub and sapling") %>%
+  clean_names() %>% 
+  select(c(unique, species, biomass_row)) %>% 
+  filter(!species %in% c("Balsam Fir", "Black Spruce", "heart-leaved birch", "Paper Birch", "White Birch", "Red Maple", "Mountain Maple")) %>% 
+  group_by(unique) %>% 
+  summarize(sh_biomass_9m2 = sum(biomass_row)*9/5)
+
+c_2023_Ushsp <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "Shrub and sapling") %>%
+  clean_names() %>% 
+  select(c(disturbance, unique, species, biomass_row)) %>% 
+  filter(!species %in% c("Balsam Fir", "Black Spruce", "heart-leaved birch", "Paper Birch", "White Birch", "Red Maple", "Mountain Maple")) %>% 
+  group_by(disturbance, species) %>% 
+  summarize(sh_biomass_9m2 = mean(biomass_row)*9/5)
+
+c_2023_Uu30 <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "GC woody") %>%
+  clean_names() %>% 
+  select(c(unique, woody_shrub_30_cm_species, biomass_row_g)) %>% 
+  filter(!woody_shrub_30_cm_species %in% c("Balsam Fir", "Birch", "Maple", "Black Spruce")) %>% 
+  group_by(unique) %>% 
+  summarize(u30_biomass_9m2 = sum(biomass_row_g)*4*9)
+
+c_2023_Uu30_sp <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "GC woody") %>%
+  clean_names() %>% 
+  select(c(disturbance, unique, woody_shrub_30_cm_species, biomass_row_g)) %>% 
+  filter(!woody_shrub_30_cm_species %in% c("Balsam Fir", "Birch", "Maple", "Black Spruce")) %>% 
+  group_by(disturbance, woody_shrub_30_cm_species) %>%      
+  summarize(u30_biomass_9m2 = mean(biomass_row_g)*4*9)
+
+c_2023_gc <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "Ground cover") %>%
+  clean_names() %>% 
+  select(c(unique, biomass_forgs_moss_g)) %>%
+  group_by(unique) %>% 
+  summarize(gc_biomass_9m2 = sum(biomass_forgs_moss_g)*4*9)
+
+c_2023_gcsp <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "Ground cover") %>%
+  clean_names() %>% 
+  select(c(disturbance, unique, biomass_forgs_moss_g)) %>%
+  group_by(disturbance) %>% 
+  summarize(gc_biomass_9m2 = mean(biomass_forgs_moss_g)*4*9)
+
+c_2023_U <- c_2023_Ush %>% 
+  full_join(c_2023_Uu30) %>% 
+  full_join(c_2023_gc) %>% 
+  replace(is.na(.), 0) %>%
+  mutate(U_biomass_9m2 = sh_biomass_9m2 +u30_biomass_9m2 + gc_biomass_9m2) %>% 
+  select(c(1, 5))
+
+site_data <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2023/carbon_data_2023.xlsm", sheet = "Subplot info") %>% 
+  clean_names() %>% 
+  mutate(unique = paste0(park_site, "_", subplot_id)) %>% 
+  select(c(5, 7, 19))
+
+c_2023_relative <- c_2023_U %>% 
+  full_join(c_2023_Py) %>% 
+  full_join(c_2023_Pm) %>% 
+  replace(is.na(.), 0) %>% 
+  full_join(site_data)  %>% 
+  mutate(site = substr(unique, 1, 5)) %>% 
+  group_by(site, ex_ctrl, disturbance) %>% 
+  summarise(Pm = mean(Pm_biomass_9m2), Py = mean(Py_biomass_9m2), U = mean(U_biomass_9m2)) %>% 
+  mutate(gap = disturbance) %>% # make a column of wether site gap or mature
+  mutate(across('gap', str_replace, 'Insect', 'Gap')) %>% # add if gap or not gap
+  mutate(across('gap', str_replace, 'Fire', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Wind', 'Gap')) %>%
+  mutate(across('gap', str_replace, 'Logging', 'Gap')) 
+
+
+carryingcap_unpal <- c_2023_relative %>% 
+  group_by(ex_ctrl, gap) %>% 
+  slice_max(U, n = 4) %>% 
+  summarize(capU = (mean(U)/9))
+
+carryingcap_Py <- c_2023_relative %>% 
+  group_by(ex_ctrl, gap) %>% 
+  slice_max(Py, n = 4) %>% 
+  summarize(capPy = (mean(Py)/9))
+
+carryingcap_Pm <- c_2023_relative %>% 
+  group_by(ex_ctrl, gap) %>% 
+  slice_max(Pm, n = 4) %>% 
+  summarize(capPm = (mean(Pm)/9))
+
+carryingcap <- carryingcap_unpal %>% 
+  full_join(carryingcap_Py) %>% 
+  full_join(carryingcap_Pm)
+
+# with 2022
+
+c_22_23_rel <- c_2022_mess2 %>% 
+  full_join(c_2023_relative)
+
+carryingcap_unpal2 <- c_22_23_rel %>% 
+  group_by(ex_ctrl, gap) %>% 
+  slice_max(U, n = 5) %>% 
+  summarize(capU = (mean(U)*2/9))
+
+carryingcap_Py2 <- c_22_23_rel %>% 
+  group_by(ex_ctrl, gap) %>% 
+  slice_max(Py, n = 5) %>% 
+  summarize(capPy = (mean(Py)*2/9))
+
+carryingcap_Pm2 <- c_22_23_rel %>% 
+  group_by(ex_ctrl, gap) %>% 
+  slice_max(Pm, n = 5) %>% 
+  summarize(capPm = (mean(Pm)*2/9))
+
+carryingcap2 <- carryingcap_unpal2 %>% 
+  full_join(carryingcap_Py2) %>% 
+  full_join(carryingcap_Pm2)
+```
+
+```{r}
+# relative abundances
+
+min_unpal2 <- c_22_23_rel %>% 
+  group_by(ex_ctrl, gap) %>% 
+  slice_min(U, n = 2) %>% 
+  summarize(minU = (mean(U)/9))
+
+min_Py2 <- c_22_23_rel %>% 
+  group_by(ex_ctrl, gap) %>% 
+  slice_min(Py, n = 2) %>% 
+  summarize(minPy = (mean(Py)/9))
+
+min_Pm2 <- c_22_23_rel %>% 
+  group_by(ex_ctrl, gap) %>% 
+  slice_min(Pm, n = 2) %>% 
+  summarize(minPm = (mean(Pm)/9))
+
+mins <- min_unpal2 %>% 
+  full_join(min_Py2) %>% 
+  full_join(min_Pm2)
+
+mins_caps <- mins %>% full_join(carryingcap2)
+
+avg_unpal2 <- c_22_23_rel %>% 
+  group_by(ex_ctrl, gap) %>% 
+  summarize(avgU = (mean(U))/9)
+
+avg_Py2 <- c_22_23_rel %>% 
+  group_by(ex_ctrl, gap) %>% 
+  summarize(avgPy = (mean(Py))/9)
+
+avg_Pm2 <- c_22_23_rel %>% 
+  group_by(ex_ctrl, gap) %>% 
+  summarize(avgPm = (mean(Pm))/9)
+
+avgs <- avg_unpal2 %>% 
+  full_join(avg_Py2) %>% 
+  full_join(avg_Pm2)
+
+avgs_caps <- avgs %>% full_join(carryingcap2)
+
+ggplot(filter(full_join(c_2023_relative,c_2022_mess2), ex_ctrl =="EX"), aes(Pm, U)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+ggplot(full_join(c_2023_relative,c_2022_mess2), aes(Py, U)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  xlim(c(0,15000))
+
+ggplot(full_join(c_2023_relative,c_2022_mess2), aes(U, Py)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  ylim(c(0,15000))
+
+ggplot(filter(full_join(c_2023_relative,c_2022_mess2), ex_ctrl =="EX"), aes(U, Pm)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+
+

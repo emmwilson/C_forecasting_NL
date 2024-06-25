@@ -258,11 +258,11 @@ park_id.labs <- as_labeller(c(`TN`="A. Terra Nova", `GM`="B. Gros Morne"))
 
 ```{r}
 # for each park
-miGMvsTN_boxplot_nolegend <- ggplot(c_22_23_mi2, aes(x=gap, y=log(new_tot/(1000*9)), fill = gap, colour = gap)) +
+miGMvsTN_boxplot_nolegend <- ggplot(c_22_23_mi2, aes(x=gap, y=log(carbon), fill = gap, colour = gap)) +
   geom_boxplot(alpha = 1/9)+
   facet_wrap(~park_id, ncol = 1, nrow = 2, labeller = park_id.labs)+
   geom_jitter(shape = 1, stroke = 1, alpha = 1/4) +
-  labs(y = "log(Total Carbon) (kg*m^-2) ",x = "Stand type") +  
+  labs(y = expression("log(Total Carbon) (" ~ g/m^2~")"),x = "Stand type") +  
   scale_x_discrete(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"))+
   scale_color_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
   scale_fill_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
@@ -280,10 +280,10 @@ miGMvsTN_boxplot_nolegend
 dev.off()
 
 
-mi_boxplot_nolegend <- ggplot(c_22_23_mi2, aes(x=gap, y=log(new_tot/(1000*9)), fill = gap, colour = gap)) +
+mi_boxplot_nolegend <- ggplot(c_22_23_mi2, aes(x=gap, y=log(carbon), fill = gap, colour = gap)) +
   geom_boxplot(alpha = 1/9, outlier.shape = NA)+
   geom_jitter(shape = 1, stroke = 1, alpha = 1/4) +
-  labs(y = "log(Total Carbon) (Kg/m2) ",x = "Stand type") +  
+  labs(y = expression("log(Total Carbon) (" ~ g/m^2~")"),x = "Stand type") +  
   scale_x_discrete(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"))+
   scale_color_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
   scale_fill_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
@@ -301,4 +301,26 @@ mi_boxplot_nolegend
 ## Stop writing to the PDF file
 dev.off()
 ```
+
+# error graphs
+```{r}
+library(ggh4x)
+# run 12 and 13 first
+se_df <- mutate(TN_se_s_df, p = "TN_carbon", park = "TN", model = "carbon")  %>% 
+  rbind(mutate(GM_se_s_df, p = "GM_carbon", park = "GM", model = "carbon")) %>% 
+  rbind(mutate(TN_se_s_df_gap, p = "TN_gap", park = "TN", model = "gap")) %>%
+  rbind(mutate(GM_se_s_df_gap, p = "GM_gap", park = "GM", model = "gap")) %>% 
+  na.omit()
+se_df$park <- factor(se_df$park , levels=c("TN", "GM"))
+
+ggplot(se_df, aes(rastername, value, fill = rastername)) +
+  geom_violin() +
+  ggh4x::facet_grid2(model ~ park, scales = "free_y") +
+  theme_bw() +
+  xlab("Error term") +
+  ylab("Error Value")
+```
+
+
+
 

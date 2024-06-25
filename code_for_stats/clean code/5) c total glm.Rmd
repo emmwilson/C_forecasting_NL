@@ -99,10 +99,6 @@ write.xlsx(c_env_sites_scale_TN, file = "data created/c_env_sites_scale_TN.xlsx"
 extremely useful for univariate models
 ```{r}
 source("4) glm function.R")
-
-R2 <- function(model){
-  with(summary(model), 1 - deviance/null.deviance)
-}
 ```
 
 

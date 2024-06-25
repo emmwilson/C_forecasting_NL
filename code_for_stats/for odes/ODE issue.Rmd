@@ -1,0 +1,112 @@
+---
+title: "ODE issue"
+author: "Emmerson Wilson"
+date: "2024-06-24"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  deSolve)
+```
+
+# model structure
+```{r}
+lv <- function(times, state, parms) {
+  with(as.list(c(state, parms)), {
+# moose
+    Consumption    <- ((a * Pyoung)/(1 + a * h * Pyoung)) * e * Moose
+    Death <- lM * (Moose^2)
+    Hunt <- H * Moose
+    
+    # palatable 
+    GrowthPy <- rPy * (Pyoung) * (1 - (Pyoung + Pmature + alphaUPy * Unpal)/kPy)
+    NewSeed <- s * Pmature
+    GrowthPm <- rPm * (Pmature) * (1 - (Pyoung + Pmature + alphaUPm * Unpal)/kPm)
+    Ageing <- if(times <= 7.5) 0 else g * Pyoung  
+    DeathPm <- lPm * Pmature
+    
+    # unpalatable
+    GrowthU <- rU * Unpal * (1 - (alphaPyU * Pyoung + alphaPmU * Pmature + Unpal)/kU)
+    DeathU <- lU * Unpal
+
+    # odes
+    dMoose  <- Consumption - Death - Hunt
+    dPyoung <- GrowthPy + NewSeed - Consumption/e - Ageing
+    dPmature <- GrowthPm + Ageing - DeathPm
+    dUnpal <- GrowthU - DeathU
+    
+
+    list(c(dMoose, dPyoung, dPmature, dUnpal))
+  })
+}
+```
+
+## parameters
+```{r}
+parms  <- c(a = 0.9985, 
+            h = 0.0223,  
+            e = 0.01, 
+            lM = 0.2451, 
+            H = 0,
+            rPy = 0.2,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, 
+            kPy = 4000,
+            kPm = 200000, 
+            rPm = 0.2,
+            g = 0.133,
+            lPm = 0.01,
+            rU = 0.4,
+            alphaPyU = 0.003, 
+            alphaPmU = 0.0065, 
+            kU = 1300,
+            lU = 0.05)
+```
+
+## starting conditions
+```{r}
+time_vec1 <- seq(from = 1, to = 200, length.out = 200)
+Moose0 <- 0
+Pyoung0 <- 200
+Pmature0 <- 0
+Unpal0 <- 0
+state <- c(Moose = Moose0, Pyoung = Pyoung0, Pmature = Pmature0, Unpal = Unpal0)
+```
+
+## extinction
+```{r}
+eps <- 1e-2
+## event triggered if state variable <= eps
+rootfun <- function (times, y, parms) {
+  return(y - eps)
+}
+
+## sets state variable = 0
+eventfun <- function(times, y, parms) {
+  if (y[1] <= eps) y[1] <- 0
+  if (y[2] <= eps) y[2] <- 0
+  if (y[3] <= eps) y[3] <- 0
+  if (y[4] <= eps) y[4] <- 0
+  return(y)
+}
+```
+
+## run model
+```{r}
+#with extinction
+out1 <- ode(y = state, times = time_vec1, func = lv, parms = parms, method = "lsoda", rootfun = rootfun, events = list(func = eventfun, root = TRUE))
+```
+
+## plot
+```{r}
+long_out1 <- as.data.frame(out1) %>% 
+  pivot_longer(cols = c(2:5))
+
+ggplot(long_out1, aes(x = time, y = value)) +
+  geom_line() +
+  facet_wrap(~name, scales = "free") +
+  theme_bw() 
+```

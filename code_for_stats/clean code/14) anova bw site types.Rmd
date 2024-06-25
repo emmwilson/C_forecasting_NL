@@ -128,7 +128,9 @@ c_22_23_moosegap <- c_22_23 %>%
   mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
   dplyr::select(-c(dw_carbon_9m2)) 
 
-c_22_23_mi2 <- rbind(subset(dplyr::select(c_22_23_moosegap, c(1,5,6,16))), dplyr::select(c_22_23_insect2, c(1,5,6,15)))
+c_22_23_mi2 <- rbind(subset(dplyr::select(c_22_23_moosegap, c(1,2,5,6,16))), dplyr::select(c_22_23_insect2, c(1,2,5,6,15))) %>% 
+  group_by(park_id, site_id, disturbance, gap) %>% 
+  summarize(carbon = mean(new_tot)/9)
 c_22_23_mi2$gap <- factor(c_22_23_mi2$gap , levels=c("Gap (excl)", "Mature", "Gap"))
 
 
@@ -138,19 +140,19 @@ write.xlsx(c_22_23_mi2, file = "data created/c_22_23_distvsmat.xlsx")
 # anovas
 ```{r}
 # both parks together
-disturbance_all_model <- aov(new_tot~gap, data = c_22_23_mi2)
+disturbance_all_model <- aov(carbon~gap, data = c_22_23_mi2)
 
 anova(disturbance_all_model)
 TukeyHSD(disturbance_all_model)
 
 # GM
-disturbance_GM_model <- aov(new_tot~gap, data = subset(c_22_23_mi2, park_id == "GM"))
+disturbance_GM_model <- aov(carbon~gap, data = subset(c_22_23_mi2, park_id == "GM"))
 
 anova(disturbance_GM_model)
 TukeyHSD(disturbance_GM_model)
 
 # TN
-disturbance_TN_model <- aov(new_tot~gap, data = subset(c_22_23_mi2, park_id == "TN"))
+disturbance_TN_model <- aov(carbon~gap, data = subset(c_22_23_mi2, park_id == "TN"))
 
 anova(disturbance_TN_model)
 TukeyHSD(disturbance_TN_model)

@@ -1,0 +1,496 @@
+---
+title: "playing with spatial models"
+author: "Emmerson Wilson"
+date: "2024-01-22"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+```{r}
+library(deSolve)
+library(tidyverse)
+```
+
+<!-- ## trying ode.1d -->
+
+<!-- ```{r} -->
+<!-- moose <-function(t, M, param) { -->
+<!--     deltax <- c (0.5, rep(1, numboxes - 1), 0.5) -->
+<!--     diffusion <- -Dm * diff(c(0, APHIDS, 0)) / deltax -->
+<!--     dM <- -diff(diffusion) / delx + M * rm -->
+
+<!--   list(dM) -->
+<!-- } -->
+
+<!-- # param -->
+
+<!-- numboxes <- 60 -->
+<!-- delx <- 1 -->
+<!-- Dm <- 0.3 -->
+<!-- rm <- 0.01 -->
+
+<!-- # init -->
+<!-- # Initial conditions: # ind/m2 -->
+<!-- M <- rbinom(numboxes, 1, 0.5) -->
+<!-- state <- c(M = M) # initialise state variables -->
+<!-- Distance <- seq(from = 0.5, by = delx, length.out = numboxes) -->
+
+<!-- times <- as.numeric(seq(0, 200, by = 1)) -->
+<!-- print(system.time(out <- ode.1D(state, times, moose, parms = 0, nspec = 1, names = "moose"))) -->
+
+<!-- head(out[,1:5]) -->
+
+<!--  summary(out) -->
+
+<!--  image(out, method = "filled.contour", grid = Distance, -->
+<!-- xlab = "time, days", ylab = "Distance on plant, m", -->
+<!-- main = "Aphid density on a row of plants") -->
+
+<!-- ``` -->
+
+<!-- ## try example ode.2D -->
+
+<!-- ```{r} -->
+<!-- lvmod2D <- function (time, state, pars, N, Da, dx) { -->
+<!--   NN <- N*N -->
+<!--   M <- matrix(nrow = N, ncol = N,state[1:NN]) -->
+<!--   P <- matrix(nrow = N, ncol = N,state[(NN+1):(2*NN)]) -->
+
+<!--   with (as.list(pars), { -->
+<!--     ## Biology -->
+<!--     dM <- c * (e * P * M)/(1 + e * h * P) - dm * M -->
+<!--     dP <- rp * P * (1 - P/kp) - (e * P * M)/(1 + e * h * P) -->
+
+<!--     zero <- rep(0, N) -->
+
+<!--     ## 1. Fluxes in x-direction; zero fluxes near boundaries -->
+<!--     FluxM <- -Da * rbind(zero,(P[2:N,] - P[1:(N-1),]), zero)/dx -->
+
+<!--     ## Add flux gradient to rate of change -->
+<!--     dM    <- dM - (FluxM[2:(N+1),] - FluxM[1:N,])/dx -->
+
+<!--     ## 2. Fluxes in y-direction; zero fluxes near boundaries -->
+<!--     FluxM <- -Da * cbind(zero,(P[,2:N] - P[,1:(N-1)]), zero)/dx -->
+
+<!--     ## Add flux gradient to rate of change -->
+<!--     dM    <- dM - (FluxM[,2:(N+1)] - FluxM[,1:N])/dx -->
+
+<!--     return(list(c(as.vector(dM), as.vector(dP)))) -->
+<!--  }) -->
+<!-- } -->
+
+<!-- ## =================== -->
+<!-- ## Model applications -->
+<!-- ## =================== -->
+
+<!-- pars    <- c(rm   = 0.2,    # /day, rate of ingestion -->
+<!--              rp  = 1.0,    # /day, growth rate of prey -->
+<!--              dm  = 0.2 ,   # /day, mortality rate of predator -->
+<!--              c = 0.5,    # -, assimilation efficiency -->
+<!--              e = 0.5,    # , rate of encounters -->
+<!--              h = 0.5,     # , handling time -->
+<!--              kp  = 5  )    # mmol/m3, carrying capacity -->
+
+<!-- R  <- 20                      # total length of surface, m -->
+<!-- N  <- 50                      # number of boxes in one direction -->
+<!-- dx <- R/N                     # thickness of each layer -->
+<!-- Da <- 0.05                    # m2/d, dispersion coefficient -->
+
+<!-- NN <- N*N                     # total number of boxes -->
+
+<!-- ## initial conditions -->
+<!-- yini    <- rep(0, 2*N*N) -->
+<!-- cc      <- c((NN/2):(NN/2+1)+N/2, (NN/2):(NN/2+1)-N/2) -->
+<!-- yini[cc] <- yini[NN+cc] <- 1 -->
+
+<!-- ## solve model (5000 state variables...  use Cash-Karp Runge-Kutta method -->
+<!-- times   <- seq(0, 50, by = 1) -->
+<!-- out <- ode.2D(y = yini, times = times, func = lvmod2D, parms = pars, -->
+<!--               dimens = c(N, N), names = c("Moose", "Palatable"), -->
+<!--               N = N, dx = dx, Da = Da, method = rkMethod("rk45ck")) -->
+
+<!-- diagnostics(out) -->
+<!-- summary(out) -->
+
+<!-- image(out, xlab = "x", ylab = "y", mtext = paste("time = ", times)) -->
+
+
+<!-- ``` -->
+
+
+# try own model
+
+```{r}
+lv <- function(times, state, parms) {
+  with(as.list(c(state, parms)), {
+# moose
+    Consumption    <- ((a * Pyoung)/(1 + a * h * Pyoung)) * e * Moose
+    Death <- lM * (Moose^2)
+    Hunt <- H * Moose
+    
+    # palatable 
+    GrowthPy <- rPy * (Pyoung) * (1 - (Pyoung + Pmature + alphaUPy * Unpal)/kPy)
+    NewSeed <- s * Pmature
+    GrowthPm <- rPm * (Pmature) * (1 - (Pyoung + Pmature + alphaUPm * Unpal)/kPm)
+    Ageing <- if(times <= 7.5) 0 else g * Pyoung  
+    DeathPm <- lPm * Pmature
+    
+    # unpalatable
+    GrowthU <- rU * Unpal * (1 - (alphaPyU * Pyoung + alphaPmU * Pmature + Unpal)/kU)
+    DeathU <- lU * Unpal
+
+    # odes
+    dMoose  <- Consumption - Death - Hunt
+    dPyoung <- GrowthPy + NewSeed - Consumption/e - Ageing
+    dPmature <- GrowthPm + Ageing - DeathPm
+    dUnpal <- GrowthU - DeathU
+    
+
+    return(list(c(dMoose, dPyoung, dPmature, dUnpal)))
+  })
+}
+
+param  <- c(a = exp(-0.0015), #from Lunberg and Danelle 1990
+            h = 1/(44.8), # 1/max intake in Mg per Mg moose per year (similar to handling time of Lunberg and Denelle)
+            e = 0.01, #0.02 leads to max reasonable stable moose pop, prefer 0.01
+            lM = (1/12)/.34, # 1/lifespan
+            H = 0,
+            rPy = 0.2,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, # should have almost no effect
+            kPy = 4000,
+            kPm = 200000, # includes only live veg
+            rPm = 0.2,
+            g = 1/7.5, # 1/time to reach 3m
+            lPm = 0.01,
+            rU = 0.4,
+            alphaPyU = 0.003, # less than alphaPmU, but more than alphaUpy
+            alphaPmU = 0.0065, # level so that kPm*alpha < kU, so that some upalatable species do persist, as seen in field
+            kU = 1300,
+            lU = 0.05)
+
+time_vec1 <- seq(from = 0, to = 200, length.out = 201)
+y_0 <- c(Moose = 3.5, Pyoung = 1000, Pmature = 10000, Unpal = 100)
+out <- ode(y = y_0, times = time_vec1, func = lv, parms = param) 
+
+eps <- 1e-1
+## event triggered if state variable <= eps
+rootfun <- function (t, y, pars) {
+  return(y - eps)
+}
+
+## sets state variable = 0
+eventfun <- function(t, y, pars) {
+  if (y[1] <= eps/1000) y[1] <- 0
+  if (y[2] <= eps) y[2] <- 0
+  if (y[3] <= eps) y[3] <- 0
+  if (y[4] <= eps) y[4] <- 0
+  return(y)
+}
+
+out1 <- ode(y = y_0, times = time_vec1, func = lv, parms = param, method = "lsoda",
+           rootfun = rootfun,
+           events = list(func = eventfun, root = TRUE))
+
+plot(out, out1)
+out1
+out
+plot(out1)
+
+long_out1 <- as.data.frame(out1) %>% 
+  pivot_longer(cols = c(2:5))
+
+ggplot(long_out1, aes(x = time, y = value)) +
+  geom_line() +
+  facet_wrap(~name, scales = "free") +
+  theme_bw() 
+  
+  
+
+# out1c <- out1 %>% 
+#   as.data.frame() %>% 
+#   mutate(c = 0.5 * (Moose + Pyoung + Pmature + Unpal))
+# plot(out1c$time, out1c$c)
+
+
+# c_out <- as.data.frame(out) %>% mutate(carbon = sum(Moose, Pyoung, Pmature, Unpal)*0.5)
+# c_out[1001,]
+# c_out1 <- as.data.frame(out1) %>% mutate(carbon = sum(Moose, Pyoung, Pmature, Unpal)*0.5)
+# c_out1[1001,]
+```
+
+Within a reasonable time frame, the vegetation going to very small stays at a very small. but after about many hundreds of years it grows again because the continuous solution doesn't allow values to truly reach 0. Maybe this is true of the system but doesn't lead to proper stable states for analysis.
+Adding an event (if pop goes below certain value it exchanges with 0) shows the dynamics I would expect.
+
+Next steps: 
+- parameterizing: overall units in Mg and years in a cell that is 1km2
+  - moose:
+    a: exp(-0.0015) same decay rate as Reneker and Hudson 1986
+    h: 1/44.8, 1/max intake in Mg per Mg moose per year, emmulated shape from Reneker and Hudson 1986, max rate from Astrom et al. 1990 (actually retrieved from Gross et al 1993 (29g/min/moose * 1g/1000000kg * 525600min/1yr * 1 moose/340kg * 1000kg/1Mg)
+    e: conversion atm 0.4 from Rob's
+    dm: death = 1/time in population (12 yrs?) * avg Kg of moose
+    im: immigration rate, steady state over time
+        atm median range 7.7km2, so it has a 1/7.7 chance of going to that 1km2
+        or base on movement rates?
+    em: emigration rate, depends on population in cell
+  - palatable veg:
+    rPy: net growth rate of young palatable (from mature and young)
+          age class from park/biomass, or literature
+          atm Robs balsam fir
+    rPm: net growth rate of mature veg (from mature)
+          age class from park/biomass, or literature
+          atm Robs balsam fir
+    alphaPm: competitive effect of mature on young
+          literature? 
+          fit to abunance?
+    alphaPy: competitive effect of young on mature
+    alphaUP: competitive effect of unpalatable on palatable
+    kP: carrying capacity of palatable veg
+          from highest biomass in field work for mature forest
+    age: rate of young palatable growing out of browse zone
+          look up in Rob's paper
+  - unpalatable veg:
+    rU: net growth rate of unpalatable
+          age class of park/biomass, or literature
+          atm higher than palatable
+    alphaPU: competitive effect of palatable on unpalatable 
+        *should I make alphaPyU (young palatable on unpal), alphaPmU (mature palat on unpal),         alphaUPy (unpal on young pal), and alphaUPm (unpal on mature pal)
+    kU: carrying capacity of unpalatable veg   
+          from highest biomass in field work for gaps
+          
+add hunting based on disturbance (veg volumes reach certain low level) and moose densities. or if you know there's a disturbance increase hunting until veg volumes reach certain level
+
+
+if making spatial:
+grid overlays park, with initial veg ratios and moose densities coming from real life
+
+could try with example cells of different scenarios
+  - moose either high or low
+      with or without hunting based on veg or not
+  - mature veg high or low
+      high: normal forest without disturbance
+      low: been disturbed
+  - young veg high or low
+      not sure what scenario would have high starting values of young veg
+  - unpalatable veg high or low
+      
+
+
+ok for now I have the dynamics I want!!
+an unstable saddle when start with palat young veg too low and moose too high (with no mature) plus a stable state where moose can exist in a mature forest (unless Pm is almost entirely filling up the carrying capacity)
+
+```{r}
+# find carrying caps of veg
+library(readxl)
+library(dplyr)
+c_22_23 <- read_xlsx("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/c_22_23.xlsx")
+
+carryingcap_unpal <- c_22_23 %>% 
+  mutate(live_veg = rowSums(c_22_23[, c("gv_carbon_9m2", "ss_carbon_9m2")])) %>% 
+  group_by(gap) %>% 
+  select(c(6,17)) %>% 
+  slice_max(live_veg, n = 5) %>% 
+  summarize(avg_2max_veg = (mean(live_veg)/9)) # convert from g/9m2 to Mg/km2, so divide by 9 to get from 9m2 to 1m2, converting to km2 you multiply by 1000000, to get to Megagram you divide by 1000000, so those cancel out
+
+carryingcap_young <- c_22_23 %>% 
+  group_by(gap) %>% 
+  select(c(6,12)) %>% 
+  slice_max(ss_carbon_9m2, n = 5) %>% 
+  summarize(avg_2max_veg = (mean(ss_carbon_9m2)/9)) 
+
+carryingcap_mat <- c_22_23 %>% 
+  group_by(gap) %>% 
+  select(c(6,9)) %>% 
+  slice_max(te_carbon_9m2, n = 5) %>% 
+  summarize(avg_2max_veg = (mean(te_carbon_9m2)/9)) 
+
+# get new carrying capacities from raw data (not grouped)
+
+
+```
+
+
+## sensitivity analysis
+```{r}
+library(ODEsensitivity)
+library(sensitivity)
+
+
+# pars <- c("e", "h", "c","dM", "im" , "em", "km", "rPy", "alphaPyPm", "alphaPmPy", "alphaUPy", "alphaUPm", "kP", "rPm", "age", "rU", "alphaPU", "kU")
+# 
+# time_vec <- seq(from = 1, to = 2, length = 2)
+# 
+# ODEsobol(lv, pars = pars, state_init = y_0, times = time_vec)
+
+#ODEsensitivity having trouble even with unit changes
+
+library(FME)
+
+
+solveBact <- function(param) {
+  state <- c(Moose = 2, Pyoung = 1, Pmature = 0000, Unpal = 1)
+  tout  <- time_vec <- seq(from = 0, to = 200, by = 1)
+  ## ode solves the model by integration ...
+  return(as.data.frame(ode(y = state, times = tout, func = lv,
+    parms = param)))
+}
+
+s_out <- solveBact(param)
+
+## the sensitivity parameters
+parRanges <- data.frame(min = c(0.01, 0.1, 0.5), max = c(1, 0.3, 1))
+rownames(parRanges)<- c("c", "rPy", "alphaPU")
+parRanges
+
+tout <- 0:200
+
+## sensitivity to rB; equally-spaced parameters ("grid")
+SensR <- sensRange(func = solveBact, parms = param, dist = "grid",
+                   sensvar = "Pyoung", parRange = parRanges, num = 200)
+
+Sens  <-summary(SensR)
+plot(SensR)
+
+## sensitivity to all; latin hypercube
+Sens2 <- summary(sensRange(func = solveBact, parms = param, dist = "latin",
+           sensvar = c("Moose", "Pyoung", "Pmature", "Unpal"), parRange = parRanges, num = 200))
+
+SensF <- sensFun(func = solveBact, parms = param,
+           sensvar = c("Moose", "Pyoung", "Pmature", "Unpal"))
+Sens2F <- summary(SensF)
+Sens2Fabs <- abs(Sens2F)
+
+## Plot all variables; plot mean +- sd, min max
+plot(Sens2)
+plot(Sens2Fabs)
+
+# try sensitivity to initial conditions / state values
+library(tdsa)
+
+reward_fn <-  function(t, y){
+  # Parameters.
+  W = c(0.5, 0.5, 0.5, 0.5)  # Per-capita terminal payoff
+
+  # Split the state vector.
+  Moose = y[1]
+  Pyoung = y[2]
+  Pmature = y[3]
+  Unpal = y[4]
+  
+  # Return the terminal payoff.
+  NN = Moose + Pyoung + Pmature + Unpal
+  return( sum(W*NN) )
+}
+
+# Function that returns the terminal payoff.
+terminal_fn <-  function(y){
+  # Parameters.
+  V = c(0.5, 0.5, 0.5, 0.5)  # Per-capita terminal payoff; only nonzero for Species 5.
+
+  # Split the state vector.
+  Moose = y[1]
+  Pyoung = y[2]
+  Pmature = y[3]
+  Unpal = y[4]
+  
+  # Return the terminal payoff.
+  NN = Moose + Pyoung + Pmature + Unpal
+  return( sum(V*NN) )
+}
+
+time_vec2 <- seq(from = 0, to = 100, length.out = 100)
+y_01 <- c(Moose = 2, Pyoung = 1, Pmature = 00, Unpal = 1)
+
+state_sens_out = state_sens(
+  model_type = "continuous",
+  dynamic_fn = lv,
+  parms = param,
+  reward_fn = reward_fn,
+  terminal_fn = terminal_fn,
+  y_0 = y_01,
+  times = time_vec2)
+
+
+# lambda_y <- data.frame(t = seq(from = 0, to = 100, length.out = 100), lambda_Moose = state_sens_out$tdss[,1], lambda_Pyoung = state_sens_out$tdss[,2], lambda_Pmature = state_sens_out$tdss[,3], lambda_Unpal = state_sens_out$tdss[,4])
+# 
+# lambda_y_l <- data.frame(t = seq(from = 0, to = 100, length.out = 100), lambda_Moose = state_sens_out$tdss[,1], lambda_Pyoung = state_sens_out$tdss[,2], lambda_Pmature = state_sens_out$tdss[,3], lambda_Unpal = state_sens_out$tdss[,4]) %>% 
+#   pivot_longer(cols = c(lambda_Moose, lambda_Pyoung, lambda_Pmature, lambda_Unpal), names_to = "variable", values_to = "lambda")
+# 
+# ggplot(lambda_y_l, aes(t, abs(lambda), colour = variable)) +
+#   geom_point() +
+#   xlim(c(0,300)) 
+# 
+# ggplot(lambda_y_l, aes(t, log(abs(lambda)))) +
+#   geom_point() +
+#   xlim(c(0,300)) +
+#   facet_wrap(~variable)
+# # I think using kg/year means all my variables and changes in values each tiem step are way to big, yes changing variables to Mg/year made the sensitivity functions work!
+# ggplot(lambda_y, aes(t, abs(lambda_Moose))) +
+#   geom_point() +
+#   xlim(c(0,300)) 
+
+
+# don't think a time series sensitivity to parameters is important, just want overall sensitivity
+
+parm_sens_out = parm_sens(
+  state_sens_out = state_sens_out)
+
+kapp_y_l <- data.frame(t = seq(from = 0, to = 200, length.out = 200), parm_sens_out$tdps) %>% 
+  pivot_longer(cols = c(e:kU), names_to = "param", values_to = "kappa")
+
+
+ggplot(kapp_y_l, aes(x = t, y = abs(kappa), colour = param)) +
+  geom_point()
+
+ggplot(kapp_y_l, aes(x = t, y = log(abs(kappa)))) +
+  geom_point() +
+  facet_wrap(~param)
+
+```
+
+
+
+
+
+
+```{r}
+
+library(rootSolve)
+
+MCmod2 <- function(x) c(
+M = ((pars[1] * x[2])/(1 + pars[1] * pars[2] * x[2])) * pars[3] * x[1]*(1-x[1]/pars[7]) + pars[5] - pars[6] * x[1] - pars[4] * x[1],
+
+Py = pars[8] * (x[2] + x[3]) * (1 - (x[2] + pars[9]*x[3] + pars[11] * x[4])/pars[13]) - ((pars[1] * x[2])/(1 + pars[1] * pars[2] * x[2])) * x[1] - pars[15] * x[2], 
+
+Pm = pars[14] * (x[3]) * (1 - (pars[10]*x[2] + x[3] + pars[12] * x[4])/pars[13]) + pars[15] * x[2], 
+
+U = pars[16] * x[4] * (1 - (pars[17] * (x[2] + x[3]) + x[4])/pars[18]))
+
+pars  <- c(exp(-0.0015), #from Lunberg and Danelle 1990
+            1/(44.8), # 1/max intake in Mg per Mg moose per year (similar to handling time of Lunberg and Denelle)
+            0.45,
+            0.083*0.34, # 1/lifespan
+            0.13*0.34,
+            0.0442, # equal to immigration at 1 moose
+            20,
+            0.15,
+            0.1,
+            0.9999998,
+            0.6,
+            0.3,
+            3263925, # includes only live veg
+            0.1,
+            0.464,
+            0.3,
+            0.7, 
+            1530999)
+
+multiroot(MCmod2, start = c(0,1, 1, 0), pos = T)
+
+multiroot(MCmod2, start = c(1,1, 1, 1), pos = T) 
+
+multiroot(MCmod2, start = c(0,1, 1, 1), pos = T)
+```
