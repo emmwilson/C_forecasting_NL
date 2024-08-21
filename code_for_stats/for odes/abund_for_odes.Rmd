@@ -11,6 +11,7 @@ setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes")
 
 # 2022 data
 ```{r}
+library(readxl)
  # palatable
  c_2022_Pm <- read_xlsx("~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data required/c_data_2022/Tree_Biomass_NEW.xlsm", sheet = "Tree carbon") %>%
    dplyr::select(c(Site_Subplot_ID, te_carbon_9m2))
@@ -47,6 +48,8 @@ setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes")
 
  c_20222 <- c_2022_list2 %>% reduce(full_join, by='Site_Subplot_ID')
 
+library(janitor) 
+ 
  c_2022_mess2 <- c_20222 %>%
    replace(is.na(.), 0) %>% 
    left_join(site_data_2022) %>% # add subplot info
@@ -198,6 +201,10 @@ carryingcap_Pm2 <- c_22_23_rel %>%
 carryingcap2 <- carryingcap_unpal2 %>% 
   full_join(carryingcap_Py2) %>% 
   full_join(carryingcap_Pm2)
+
+  mean(na.omit(carryingcap2)$capU)
+  mean(na.omit(carryingcap2)$capPy, na.rm = T)
+    mean(na.omit(carryingcap2)$capPm, na.rm = T)
 ```
 
 ```{r}
@@ -242,16 +249,16 @@ avgs <- avg_unpal2 %>%
 
 avgs_caps <- avgs %>% full_join(carryingcap2)
 
-ggplot(filter(full_join(c_2023_relative,c_2022_mess2), ex_ctrl =="EX"), aes(Pm, U)) +
+ggplot(full_join(c_2023_relative,c_2022_mess2), aes(Pm, U)) +
   geom_point() +
   geom_smooth(method = "lm")
 
-ggplot(full_join(c_2023_relative,c_2022_mess2), aes(Py, U)) +
+ggplot(filter(full_join(c_2023_relative,c_2022_mess2), ex_ctrl =="EX"), aes(Py, U)) +
   geom_point() +
   geom_smooth(method = "lm") +
   xlim(c(0,15000))
 
-ggplot(full_join(c_2023_relative,c_2022_mess2), aes(U, Py)) +
+ggplot(filter(full_join(c_2023_relative,c_2022_mess2), ex_ctrl =="EX"), aes(U, Py)) +
   geom_point() +
   geom_smooth(method = "lm")+
   ylim(c(0,15000))
@@ -259,6 +266,23 @@ ggplot(full_join(c_2023_relative,c_2022_mess2), aes(U, Py)) +
 ggplot(filter(full_join(c_2023_relative,c_2022_mess2), ex_ctrl =="EX"), aes(U, Pm)) +
   geom_point() +
   geom_smooth(method = "lm")
+
+c_22_23_rel <- full_join(c_2023_relative,c_2022_mess2)
+
+ggplot(filter(c_22_23_rel, Pm == 0), aes(U, Py)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+ggplot(filter(c_22_23_rel, gap == "Mature" | Py == 0), aes(U, Pm)) +
+  geom_point() +
+  geom_smooth(method = "lm") # effect of U on Pm essentially 0
+
+ggplot(filter(c_22_23_rel, ex_ctrl == "EX" | Py == 0), aes(Pm, U)) +
+  geom_point() +
+  geom_smooth(method = "lm") # efect of Pm on U clsoer to 0.01
+
+
+
 ```
 
 

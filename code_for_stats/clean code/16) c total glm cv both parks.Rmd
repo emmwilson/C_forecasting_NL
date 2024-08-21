@@ -1,0 +1,385 @@
+---
+title: "16) c total glm cv both parks"
+author: "Emmerson Wilson"
+date: "2024-07-15"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra,
+  boot,
+  setRNG,
+  brglm2,
+  stringr)
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# data
+
+## carbon 
+
+```{r}
+c_m2_sites <- read_xlsx("data created/c_m2_site.xlsx")
+```
+
+
+## environmental data
+
+```{r}
+env_site_final <- read_xlsx("data created/env_sites_final.xlsx")
+```
+
+## join env and c data
+
+```{r}
+c_env_sites <- full_join(c_m2_sites, env_site_final) %>%
+  dplyr::select(!c(FAC, SPC, CC, CEC_LCT)) # remvoe unwated columns
+```
+
+#### scale
+should do separately fro each park
+```{r}
+c_env_sites_scale <- c_env_sites
+c_env_sites_scale[c(11:16, 18)] <- scale(c_env_sites[c(11:16, 18)], center = F) # select continuous variabes to scale
+```
+
+#### make moose characters not numbers
+```{r}
+c_env_sites_scale$Moose_new <- as.character(c_env_sites_scale$Moose_new) # make moose categories characters
+
+c_env_sites_scale["Moose_new"][c_env_sites_scale["Moose_new"] == 1] <- "aL"
+c_env_sites_scale["Moose_new"][c_env_sites_scale["Moose_new"] == 2] <- "aL"
+c_env_sites_scale["Moose_new"][c_env_sites_scale["Moose_new"] == 3] <- "bH"
+c_env_sites_scale["Moose_new"][c_env_sites_scale["Moose_new"] == 4] <- "cX"
+
+c_env_sites_scale$Moose_new <- as.factor(c_env_sites_scale$Moose_new)
+
+write.xlsx(c_env_sites_scale, file = "data created/c_env_sites_scale_GT.xlsx")
+```
+
+
+
+# glm function
+extremely useful for univariate models
+```{r}
+source("4) glm function.R")
+```
+
+# models
+
+### null
+
+```{r}
+#run the model
+GT_lm_null <- lm_glm(c_env_sites_scale, "c_m2_site", "1")
+```
+
+```{r}
+# get the summary of the model into a dataframe
+GT_lm_null_summary <- as.data.frame(summary(GT_lm_null)$coefficients) %>% 
+  mutate(model = "GT_lm_null") 
+GT_lm_null_summary <- GT_lm_null_summary %>% 
+  add_column("predictor" = rownames(GT_lm_null_summary))
+
+# reorder columns so model name first
+GT_lm_null_summary <- GT_lm_null_summary[,c(5,6,1:4)]
+GT_lm_null_summary
+```
+
+### full
+
+```{r}
+# make list of all variables to be included in full model
+full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS", "Moose_new")
+
+# run the model
+GT_lm_full <- lm_glm(c_env_sites_scale, "c_m2_site", full_var)
+```
+
+```{r}
+# add summary of model to dataframe
+GT_lm_full_summary <- as.data.frame(summary(GT_lm_full)$coefficients) %>% 
+  mutate(model = "GT_lm_full") 
+GT_lm_full_summary <- GT_lm_full_summary %>% 
+  add_column("predictor" = rownames(GT_lm_full_summary))
+
+GT_lm_full_summary <- GT_lm_full_summary[,c(5,6,1:4)]
+GT_lm_full_summary
+
+```
+
+### univariate
+
+```{r}
+# run model with each predictor variable on own
+
+GT_lm_uni <- lapply(full_var, lm_glm, df = c_env_sites_scale, c = "c_m2_site")
+
+names(GT_lm_uni) <- full_var # make sure names of objects in list consistent
+```
+
+```{r}
+GT_lm_uni_summary <- lapply(GT_lm_uni, summary)
+
+GT_lm_uni_summary
+
+GT_lm_uni_AIC <- as.data.frame(t(as.data.frame(lapply(GT_lm_uni, AICc)))) 
+GT_lm_uni_AIC$model <- rownames(GT_lm_uni_AIC)
+
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
+
+GT_uni_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(GT_lm_uni_summary, coef), as.data.frame), "model"=names(GT_lm_uni_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+GT_uni_summary_all <- GT_uni_summary_all[,c(5,6,1:4)]
+GT_uni_summary_all
+```
+
+## summary of uni, null and full
+
+```{r}
+# combine summary dataframes for null, full and univariate models
+GT_lm_summary <- rbind(GT_lm_null_summary, GT_lm_full_summary, GT_uni_summary_all) 
+GT_lm_summary <- GT_lm_summary %>% 
+  mutate(significance = ifelse(GT_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(GT_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(GT_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(GT_lm_summary$`Pr(>|t|)` < 0.1, ".", "  "))))) # add symbols for easy visualization of sigificance
+```
+
+### reduced
+```{r}
+# find possible reduced model to add to 
+# need to input full model not through function 
+GT_lm_full2 <- glm(formula = c_m2_site ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_env_sites_scale, family = Gamma(link = "log")) 
+
+GT_lm_red <- step(GT_lm_full2, direction = "backward", trace = F)
+
+```
+
+```{r}
+GT_lm_red_summary <- as.data.frame(summary(GT_lm_red)$coefficients) %>% 
+  mutate(model = "GT_lm_red") 
+GT_lm_red_summary <- GT_lm_red_summary %>% 
+  add_column("predictor" = rownames(GT_lm_red_summary))
+
+GT_lm_red_summary <- GT_lm_red_summary[,c(5,6,1:4)]
+GT_lm_red_summary
+```
+```{r}
+# check for uninformative parameters and add next most important parameter (EVIamp is actually a better univariate model than EVImed)
+GT_lm_red2 <- glm(formula = c_m2_site ~ FHT + EVImed, data = c_env_sites_scale, family = Gamma(link = "log")) 
+GT_lm_red3 <- glm(formula = c_m2_site ~ FHT + EVIamp, data = c_env_sites_scale, family = Gamma(link = "log")) 
+GT_lm_red4 <- glm(formula = c_m2_site ~ EVImed + EVIamp, data = c_env_sites_scale, family = Gamma(link = "log")) 
+
+GT_red_models_r <- list()
+GT_red_models_r[[names(GT_lm_uni)[1]]] <- GT_lm_uni[[1]]
+GT_red_models_r[[names(GT_lm_uni)[2]]] <- GT_lm_uni[[2]]
+GT_red_models_r[[names(GT_lm_uni)[3]]] <- GT_lm_uni[[3]]
+GT_red_models_r[["GT_lm_red"]] <- GT_lm_red
+GT_red_models_r[["GT_lm_red2"]] <- GT_lm_red2
+GT_red_models_r[["GT_lm_red3"]] <- GT_lm_red3
+GT_red_models_r[["GT_lm_red4"]] <- GT_lm_red4
+Modnames_GT_red <- paste(names(GT_red_models_r))
+
+# get table
+aic_GTred <- aictab(cand.set = GT_red_models_r, modnames = Modnames_GT_red, sort = TRUE) 
+
+# including both improves model by more than 2 AICc, neither variable uninfomrative because model with an additional parameter ranked below both
+
+GT_lm_red_summary2 <- as.data.frame(summary(GT_lm_red2)$coefficients) %>% 
+  mutate(model = "GT_lm_red") 
+GT_lm_red_summary2 <- GT_lm_red_summary2 %>% 
+  add_column("predictor" = rownames(GT_lm_red_summary2))
+
+GT_lm_red_summary2 <- GT_lm_red_summary2[,c(5,6,1:4)]
+GT_lm_red_summary2
+
+GT_lm_red_summary <- as.data.frame(summary(GT_lm_red)$coefficients) %>% 
+  mutate(model = "GT_lm_red") 
+GT_lm_red_summary <- GT_lm_red_summary %>% 
+  add_column("predictor" = rownames(GT_lm_red_summary))
+
+GT_lm_red_summary <- GT_lm_red_summary[,c(5,6,1:4)]
+GT_lm_red_summary
+
+GT_lm_red_summary3 <- as.data.frame(summary(GT_lm_red3)$coefficients) %>% 
+  mutate(model = "GT_lm_red") 
+GT_lm_red_summary3 <- GT_lm_red_summary3 %>% 
+  add_column("predictor" = rownames(GT_lm_red_summary3))
+
+GT_lm_red_summary3 <- GT_lm_red_summary3[,c(5,6,1:4)]
+GT_lm_red_summary3
+
+lapply(GT_red_models_r, confint)
+
+```
+
+## compare
+
+```{r}
+# add univariate, null and full models into a list
+GT_models_r <- list()
+
+GT_models_r[["GT_lm_null"]] <- GT_lm_null
+GT_models_r[["GT_lm_full"]] <- GT_lm_full
+GT_models_r[[names(GT_lm_uni)[1]]] <- GT_lm_uni[[1]]
+GT_models_r[[names(GT_lm_uni)[2]]] <- GT_lm_uni[[2]]
+GT_models_r[[names(GT_lm_uni)[3]]] <- GT_lm_uni[[3]]
+GT_models_r[[names(GT_lm_uni)[4]]] <- GT_lm_uni[[4]]
+GT_models_r[[names(GT_lm_uni)[5]]] <- GT_lm_uni[[5]]
+GT_models_r[[names(GT_lm_uni)[6]]] <- GT_lm_uni[[6]]
+GT_models_r[[names(GT_lm_uni)[7]]] <- GT_lm_uni[[7]]
+GT_models_r[[names(GT_lm_uni)[8]]] <- GT_lm_uni[[8]]
+GT_models_r[["GT_lm_red2"]] <- GT_lm_red2
+GT_models_r[["GT_lm_red"]] <- GT_lm_red
+GT_models_r[["GT_lm_red3"]] <- GT_lm_red3
+GT_models_r[["GT_lm_red4"]] <- GT_lm_red4
+
+Modnames_GT_r <- paste(names(GT_models_r)) # make sure names are same as model name
+
+# get table
+aic_GT <- as.data.frame(aictab(cand.set = GT_models_r, modnames = Modnames_GT_r, sort = TRUE))
+
+
+#add R2 to AIC table
+R2_GT <- data.frame(lapply(lapply(GT_models_r, nagelkerke, null = GT_lm_null), function(x) x$Pseudo.R.squared.for.model.vs.null[[3]])) %>% 
+  pivot_longer(cols = c(1:14), values_to = "R2", names_to = "Modnames")
+R2_GT
+aic_GT
+
+aic_R2_GT <- full_join(aic_GT, R2_GT) # table of AIC values for null, full and univariate models
+```
+
+# cv
+
+
+# cross validation and glm functions
+```{r}
+source("4) glm function.R")
+
+# glm cv function
+cv_cv.glm2 <- function(data, vars,  k) {
+c_Output <- NULL
+
+#Do it 100 times
+for(x in seq(1,100,1)){
+  
+  #Step 1 - Re-shuffle the response
+  #Reshuffle stoich data and place in new file
+  c_Shuf <- transform(data, c_m2_site = sample(c_m2_site))
+  
+  #Step 2
+  #Run the model
+  #Need to do glm because boot works on glm. Normal distribution so same as lm.
+  c_Rand <- lm_glm(vars, df = c_Shuf, c = "c_m2_site")
+  
+  #Step 3
+  #Run cross validation
+  cv <-cv.glm(data=c_Shuf, glmfit=c_Rand, K=k)
+  
+  
+  #Step 4
+  #Collect the cv values for each model. For each iteration x save the cv.
+  c_Output <- rbind(c_Output, data.frame(Iteration = x, CV = cv$delta[2]))
+  
+  print (x)
+}
+
+#Step 5
+#Sort random set to calculate 90% CI for cv$delta[2]
+c_Output_Sort <- c_Output[order(c_Output$CV),]
+
+t.test(c_Output_Sort$CV)
+}
+
+
+```
+
+## GT
+
+### top models from AIC
+```{r}
+# list of variables in best models from 5) c lm total.Rmd
+# run them
+var_GT_lm_red <- list("FHT", "EVImed")
+GT_c_red <- lm_glm(var_GT_lm_red, df = c_env_sites_scale, c = "c_m2_site")
+
+var_GT_lm_red2 <- list("FHT", "EVIamp", "EVImed")
+GT_c_red2 <- lm_glm(var_GT_lm_red2, df = c_env_sites_scale, c = "c_m2_site")
+
+var_GT_lm_red3 <- list("FHT", "EVIamp")
+GT_c_red3 <- lm_glm(var_GT_lm_red3, df = c_env_sites_scale, c = "c_m2_site")
+
+var_GT_lm_FHT <- list("FHT")
+GT_c_FHT <- lm_glm(var_GT_lm_FHT, df = c_env_sites_scale, c = "c_m2_site")
+
+GT_var_lists <- list(var_GT_lm_red, var_GT_lm_red2, var_GT_lm_red3, var_GT_lm_FHT)
+GT_c_top_models <- list(GT_c_red, GT_c_red2, GT_c_red3, GT_c_FHT)
+
+# do cross validation on models themselves
+k <- 10
+GT_cv_Output <- NULL
+
+for(x in seq(1,100,1)){
+GT_c_cv <- lapply(GT_c_top_models, cv.glm, data=c_env_sites_scale, K = k)
+names(GT_c_cv) <- GT_var_lists
+
+GT_c_cv_delta <- lapply(GT_c_cv, `[`, c('delta'))
+
+GT_c_cv_delta <- do.call(rbind.data.frame, GT_c_cv_delta)
+GT_c_cv_delta$names <- rownames(GT_c_cv_delta)
+
+GT_cv_Output <- rbind(GT_cv_Output, data.frame(Iteration = x, model = GT_c_cv_delta$names, delta = GT_c_cv_delta$delta))
+}
+
+GT_avg_cv <- GT_cv_Output %>% 
+  group_by(model) %>% 
+  summarize(mean_delta1 = mean(delta)) 
+  
+GT_cv_Output_delta1_2 <- GT_cv_Output %>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("delta_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = delta, names_from = n)
+```
+
+### cross validation of random 
+```{r}
+GT_c_cvrand <- lapply(GT_var_lists, FUN = cv_cv.glm2, d = c_env_sites_scale, k = k)
+names(GT_c_cvrand) <- GT_var_lists
+
+GT_c_cvrand_95 <- lapply(GT_c_cvrand, `[`, c('conf.int'))
+
+GT_c_cvrand_95 <- do.call(rbind.data.frame, GT_c_cvrand_95)
+GT_c_cvrand_95$model <- rownames(GT_c_cvrand_95)
+
+GT_c_cvrand_95_1_2 <- GT_c_cvrand_95%>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("ci95_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = conf.int, names_from = n)
+```
+
+## put random with cv
+```{r}
+GT_val_cv <- GT_cv_Output_delta1_2 %>% 
+  full_join(GT_c_cvrand_95_1_2) %>% 
+  mutate(diff = ci95_1 - delta_1) %>% 
+  mutate(validate = ifelse(diff<0.0, "no", "yes"))
+GT_nval_cv <- GT_val_cv %>% 
+  group_by(model_2) %>% 
+  summarize(n_y = sum(validate == "yes"), n_n = sum(validate == "no"))
+```
+
+## together
+```{r}
+GMTc_delta_95 <- inner_join(GT_avg_cv, GT_c_cvrand_95) %>% 
+  mutate(diff = conf.int - mean_delta1)
+```

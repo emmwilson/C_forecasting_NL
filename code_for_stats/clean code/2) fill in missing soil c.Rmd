@@ -57,13 +57,14 @@ c_2023_missin_jn2 <- c_2023_missing_jn1 %>%
   mutate(unique_id = paste0(park_id, "_", site_id, "_", subplot_id)) # create a unique id for eahc subplot
 ```
 
-## fill in values
+
+## fill in values for 35
 ```{r}
 c_23_matGM <- subset(c_2023_missin_jn2, park_id == "GM" & disturbance == "Mature")
 
-c_23_matGM_avg <- mean(c_23_matGM$sl_carbon_9m2)
-c_23_matGM_sd <- sd(c_23_matGM$sl_carbon_9m2)/sqrt(length(c_23_matGM$unique_id))
-c_23_matGM_med <- median(c_23_matGM$sl_carbon_9m2)
+c_23_matGM_avg <- mean(subset(c_23_matGM, sl_carbon_9m2!= 0)$sl_carbon_9m2)
+c_23_matGM_sd <- sd(subset(c_23_matGM, sl_carbon_9m2!= 0)$sl_carbon_9m2)/sqrt(length(subset(c_23_matGM, sl_carbon_9m2!= 0)$sl_carbon_9m2))
+c_23_matGM_med <- median(subset(c_23_matGM, sl_carbon_9m2!= 0)$sl_carbon_9m2)
 
 c_2023_fill <- c_2023_missin_jn2
 

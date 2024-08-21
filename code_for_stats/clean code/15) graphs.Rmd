@@ -301,6 +301,56 @@ mi_boxplot_nolegend
 ## Stop writing to the PDF file
 dev.off()
 ```
+### with dots beside boxplots
+
+```{r}
+c_22_23_mi2$gap <- factor(c_22_23_mi2$gap , levels=c("Gap (excl)", "Mature", "Gap"), labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"))
+c_22_23_mi2$park_id <- factor(c_22_23_mi2$park_id  , levels=c("TN", "GM"), labels = c("A. Terra Nova", "B. Gros Morne"))
+
+miGMvsTN_boxplot_nolegend2 <- ggplot(c_22_23_mi2, aes(x=positional, y=log(carbon), fill = gap, colour = gap)) + 
+  stat_boxplot(aes(x = "1"), geom ='errorbar', width = 0.25) +
+  geom_boxplot(aes(x = "1"), alpha = 1/9, outlier.shape = NA, width = .85)+
+  facet_grid(cols = vars(gap), rows = vars(park_id), switch = "x")+
+  geom_jitter(aes(x = "2"), shape = 1, stroke = 1, alpha = 1/4) +
+  labs(y = expression("log(Total Carbon) (" ~ g/m^2~")"),x = "Stand type") +  
+  scale_x_discrete(expand = c(0.25,0.25))+
+  scale_color_manual(values = c("#304426","#EF5755", "#3A3759"))+
+  scale_fill_manual(values = c("#304426","#EF5755", "#3A3759"))+
+  theme_classic()+
+  theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), plot.background = element_rect(fill='transparent', color=NA), strip.text = element_text(size=12),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(), strip.placement = "outside", panel.spacing.x = unit(0, "null"), strip.text.y = element_blank())
+miGMvsTN_boxplot_nolegend2
+
+annotate_figure(miGMvsTN_boxplot_nolegend2, left = text_grob("B. Gros Morne", hjust = -1.15, vjust = -1.3))
+
+
+library(ggpol)
+
+miGMvsTN_boxplot_ggpol <- ggplot(c_22_23_mi2, aes(x = gap, y = log(carbon))) + 
+  geom_boxjitter(aes(fill = gap, color = gap), alpha = 0.3,
+                 jitter.shape = 21, jitter.size = 2,
+                 jitter.alpha = 0.3, 
+                 outlier.shape = NA,
+                 errorbar.draw = TRUE, errorbar.length = 0.25, width = 0.95) +
+  facet_wrap(~park_id, ncol = 1, nrow = 2, labeller = park_id.labs)+
+  labs(y = expression("log(Total Carbon) (" ~ g/m^2~")"),x = "Stand type") +  
+  scale_x_discrete(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"))+
+  scale_color_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
+  scale_fill_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
+  theme_classic()+
+  theme(text = element_text(size = 12), legend.position = "none", strip.text.x = element_text(hjust = 0, margin=margin(l=3, t = 3)), strip.background = element_blank())
+
+miGMvsTN_boxplot_ggpol
+
+jpeg("data created/graphs/herbivory_effect_bothparks_pts_beside.jpg", height = 13, width = 10, units = "cm", res = 600)
+
+## Create a graphical object g here
+miGMvsTN_boxplot_ggpol
+
+## Stop writing to the PDF file
+dev.off()
+```
 
 # error graphs
 ```{r}
@@ -311,16 +361,55 @@ se_df <- mutate(TN_se_s_df, p = "TN_carbon", park = "TN", model = "carbon")  %>%
   rbind(mutate(TN_se_s_df_gap, p = "TN_gap", park = "TN", model = "gap")) %>%
   rbind(mutate(GM_se_s_df_gap, p = "GM_gap", park = "GM", model = "gap")) %>% 
   na.omit()
-se_df$park <- factor(se_df$park , levels=c("TN", "GM"))
+se_df$park <- factor(se_df$park , levels=c("TN", "GM"), labels = c("A. Terra Nova", "B. Gros Morne"))
 
-ggplot(se_df, aes(rastername, value, fill = rastername)) +
+se_df$model <- factor(se_df$model , levels=c("carbon", "gap"), labels = c(expression("log(Total Carbon) (" ~ g/m^2~")"), "Probability area is mature forest"))
+
+model_name <- c("carbon" = expression("log(Total Carbon) (" ~ g/m^2~")"), "gap" = "Probability area is mature forest")
+
+ggplot(subset(se_df, park != "A. Terra Nova"), aes(rastername, value, fill = rastername))+
+  ggh4x::facet_grid2(cols =vars(model), scales = "free_y", independent = "y", switch = "x") +
   geom_violin() +
-  ggh4x::facet_grid2(model ~ park, scales = "free_y") +
-  theme_bw() +
   xlab("Error term") +
-  ylab("Error Value")
+  ylab("Error Value")+
+  theme_classic()+
+  theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), strip.placement = "outside", strip.text = element_blank())
+
+se_GM <- ggplot(subset(se_df, park != "A. Terra Nova"), aes(rastername, value, fill = rastername))+
+  ggh4x::facet_grid2(cols = vars(model), scales = "free_y", independent = "y") +
+  geom_violin() +
+  xlab("Error term") +
+  ylab("Error Value") + 
+  scale_y_continuous(labels=scaleFUN) +
+  theme_classic()+
+  scale_x_discrete(labels = c("Residual standard\nerror", "Standard error\nof the 95%\nconfidence interval", "Standard error\nof the 95%\nprediction interval"))+
+  theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), strip.placement = "outside", plot.margin = margin(1,0.5,0,0, "cm"), strip.text = element_blank())
+
+se_GM_label <- annotate_figure(se_GM, top = text_grob(expression("B. Gros Morne\nlog(Total Carbon) (" ~ g/m^2~")                                              Probability area is mature forest"), vjust = 2.65, hjust = 0.57, size = 12))
+
+scaleFUN <- function(x) sprintf("%.1f", x)
+
+se_TN <- ggplot(subset(se_df, park == "A. Terra Nova"), aes(rastername, value, fill = rastername))+
+  ggh4x::facet_grid2(cols = vars(model), scales = "free_y", independent = "y") +
+  geom_violin() +
+  xlab("Error term") +
+  ylab("Error Value") + 
+  scale_y_continuous(labels=scaleFUN) +
+  theme_classic()+
+  scale_x_discrete(labels = c("Residual standard\nerror", "Standard error\nof the 95%\nconfidence interval", "Standard error\nof the 95%\nprediction interval"))+
+  theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), strip.placement = "outside", plot.margin = margin(1,0.5,0,0, "cm"), strip.text = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+se_TN_label <- annotate_figure(se_TN, top = text_grob(expression("A. Terra Nova\nlog(Total Carbon) (" ~ g/m^2~")                                             Probability area is mature forest"), vjust = 2.65, hjust = 0.569, size = 12))
+
+TNGM_error <- ggarrange(se_TN_label, se_GM_label, nrow = 2)
+
+TNGM_error
+
+jpeg("data created/graphs/TNGM_errors.jpg", height = 18, width = 21, units = "cm", res = 600)
+
+## Create a graphical object g here
+TNGM_error
+
+## Stop writing to the PDF file
+dev.off()
 ```
-
-
-
-

@@ -222,6 +222,7 @@ predictors_site_env_TN <- TN_env_sites[,-c(1:7)]
 # correlation structure
 varCor_TN <- cor(predictors_site_env_TN, use="pairwise.complete.obs")
 corrplot(varCor_TN,  tl.col='black')
+as.data.frame(varCor_TN)
 chart.Correlation(predictors_site_env_TN, histogram=F, pch=19)
 ```
 

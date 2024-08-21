@@ -1,0 +1,1412 @@
+---
+title: "heatmap of moose x Pyoung run across distriubtion of parameters"
+author: "Emmerson Wilson"
+date: "2024-06-21"
+output: html_document
+---
+
+# make lists of initial conditions and parameters
+```{r}
+# make datafram with distribution of parameters
+
+LVlow <-  c(0.996, #a
+            0.0207933, # h
+            0.01, #e
+            0.1536332, # lM
+            0.1, #rP
+            0.0088, #s
+            0.0005, #alphaUPy
+            0.000, #alphaUPm
+            400, #kPy
+            20000, # kPm
+            0.1, # g
+            0.005, #lPm
+            0.3,#rU
+            0.002, # alphaPyU
+            0.004, # alphaPmU
+            300, #kU
+            0.05) #lU
+
+LVhigh <-  c(1.005, #a
+            0.038735, # h
+            0.03, #e
+            0.3, # lM
+            0.3, #rP
+            0.053, #s
+            0.0019, #alphaUPy
+            0.0002, #alphaUPm
+            8000, #kPy
+            200000, # kPm
+            0.2, # g
+            0.06, #lPm
+            0.6,#rU
+            0.0039, # alphaPyU
+            0.008, # alphaPmU
+            2500, #kU
+            0.168) #lU
+
+param_dist <- data.frame(min = LVlow, max = LVhigh, mean = parms)
+
+#select from parameter space randomly 100 time (for now)
+library(truncnorm)
+
+sampled_param <- list()
+
+n_p <- 50
+
+for(i in rownames(param_dist)){
+sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]]), 4)
+}
+
+sampled_param_list <-  split(as.matrix(as.data.frame(sampled_param)), row(as.data.frame(sampled_param))) %>% 
+  lapply(setNames, nm = names(parms))
+
+sampled_param_list_final <- list()
+sampled_param_list_final[[1]] <- parms
+sampled_param_list_final[[2]] <- parms
+sampled_param_list_final[[1]] <- sampled_param_list[[1]]
+
+
+
+# remove combinations that don't meet assumptions (around competative effects, growth rates, carrying capacities, and death rates)
+
+# relative growth rate
+sampled_param_list2 <-  sampled_param_list[sapply(sampled_param_list, `[`, 'rP') < sapply(sampled_param_list, `[`, 'rU')]
+
+# competative effects
+sampled_param_list3 <-  sampled_param_list2[sapply(sampled_param_list2, `[`, 'alphaUPm') < sapply(sampled_param_list2, `[`, 'alphaUPy') & sapply(sampled_param_list2, `[`, 'alphaUPy') < sapply(sampled_param_list2, `[`, 'alphaPyU') & sapply(sampled_param_list2, `[`, 'alphaPyU') < sapply(sampled_param_list2, `[`, 'alphaPmU')]
+
+# carrying capacities
+sampled_param_list4 <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'kU') < sapply(sampled_param_list3, `[`, 'kPy') & sapply(sampled_param_list3, `[`, 'kPy') < sapply(sampled_param_list3, `[`, 'kPm')]
+
+# loss
+sampled_param_list_final <-  sampled_param_list4[sapply(sampled_param_list4, `[`, 'lPm') < sapply(sampled_param_list4, `[`, 'lU')]
+
+# make dataframe with sequence of initial conditions to sample over
+# always starting from no mature and some level of unpal
+# smallest values 0 for both, moose up to 5 Mg moose, and 4000 Py
+
+n_i <- 30
+
+M_init <- seq(0, 6, length.out = n_i)
+Py_init <- seq(0, 500, length.out = n_i) # determine reasonable maximum young palatable biomass left after disturbance
+Pm_init <- rep(0, n_i)
+U_init <- rep(100, n_i)
+
+init_seq <- data.frame(Moose=rep(M_init, each = n_i), Pyoung = rep(Py_init, n_i), Pmature = rep(Pm_init,n_i), Unpal = rep(U_init,n_i))
+
+y_0d <- split(as.matrix(init_seq), row(init_seq)) %>% 
+  lapply(setNames, nm = c("Moose", "Pyoung", "Pmature", "Unpal"))
+```
+
+# run over both pramaters space and initial conditions
+```{r}
+# make ode into function where parameters and initial conditions can be used
+out_end <- list()                     
+out <- list()        
+
+ode_reps <- function(parameters, initial_conditions) {
+  out <- ode(y = initial_conditions, times = time_vec1, func = lv, parms = parameters, events=list(func = eventfun, time = time_vec1))
+}
+
+args <- expand.grid(
+  parameters=sampled_param_list_final,
+  initial_conditions=y_0d) 
+args_id <- args %>% mutate(id = seq(1, nrow(args), by = 1))
+list2env(args, envir=.GlobalEnv)
+args$output <- mapply(ode_reps, parameters, initial_conditions, SIMPLIFY = F)
+names(args$output) <- seq(1, nrow(args_id), by = 1)
+
+args_less <- purrr::discard(args$output, ~nrow(.) < 3)
+arg_removed <- purrr::keep(args$output, ~nrow(.) < 3)
+
+arg_less_last <- lapply(args_less,tail, 1, SIMPLIFY = T) 
+
+# how to make this info a heat map
+
+# if pmature = 0, and/or Unpal ≠ 0 then grassland
+# if pmature ≠ 0 then forest
+
+names(arg_less_last) <- paste(names(arg_less_last), ifelse(map(arg_less_last, pluck, 4) > 0, "forest", "grassland"))
+
+g_vs_f <- data.frame(id = parse_number(names(arg_less_last)), g_or_f = str_remove_all(names(arg_less_last), "[:digit:]")) %>% 
+  left_join(args_id) %>% 
+  mutate(Moose = unlist(map(initial_conditions, pluck, 1)), By = unlist(map(initial_conditions, pluck, 2))) %>% 
+  select(!c(1,3,4))
+
+n_g_vs_f <- g_vs_f %>% 
+  group_by(as.factor(Moose), as.factor(By), as.factor(g_or_f), .drop=FALSE) %>% 
+  count(.drop=FALSE) %>% 
+  ungroup() %>% 
+  mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
+  mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
+  rename(g_or_f = `as.factor(g_or_f)`) %>% 
+  select(c(3:6))
+
+
+ggplot(subset(n_g_vs_f, g_or_f == " forest"), aes(Moose, By, fill = n)) +
+  geom_tile() + 
+  scale_fill_continuous(limits=c(16, 59), breaks=seq(16,59,by=10), type = "viridis")
+
+# into %
+
+n_f <- subset(n_g_vs_f, g_or_f == " forest") %>% 
+  mutate(percent_recover = (n/length(sampled_param_list_final))*100)
+
+ggplot(n_f, aes(Moose, By, fill = percent_recover)) +
+  geom_tile() + 
+  scale_fill_continuous(limits=c(min(n_f$percent_recover), 100), breaks=seq(min(n_f$percent_recover),100,by=9), type = "viridis")
+
+# marking 50/50
+
+library(viridis)
+
+n_f2 <- n_f %>% 
+  filter(percent_recover >= 50) %>% 
+  group_by(Moose,  .drop=FALSE) %>% 
+  filter(By == min(By)) %>%
+  mutate(Moose = Moose - 0.2068966/2, By = By - 17.24138/2	) %>%
+  arrange(Moose)
+
+n_f2 <- n_f2 %>% bind_rows(n_f2[nrow(n_f2), ] %>% mutate(Moose = Moose))
+n_f2
+
+heatmap_moose_By <- ggplot() +
+  geom_tile(data = n_f, aes(x = Moose, y = By, fill = percent_recover)) +
+  geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
+  scale_fill_viridis_c() +
+  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Percent\nrecovered") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_x_continuous(expand = c(0,0))
+
+heatmap_moose_By
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/heatmap_moose_By.jpg", height = 10, width = 13, units = "cm", res = 600)
+heatmap_moose_By
+dev.off()
+```
+
+## zoom into lower right corner
+```{r}
+
+
+argsz <- expand.grid(
+  parametersz=sampled_param_list_final,
+  initial_conditionsz=y_0dz) 
+args_idz <- argsz %>% mutate(id = seq(1, nrow(argsz), by = 1))
+list2env(argsz, envir=.GlobalEnv)
+argsz$output <- mapply(ode_reps, parametersz, initial_conditionsz, SIMPLIFY = F)
+names(argsz$output) <- seq(1, nrow(args_idz), by = 1)
+
+args_lessz <- purrr::discard(argsz$output, ~nrow(.) < 3)
+arg_removedz <- purrr::keep(argsz$output, ~nrow(.) < 3)
+
+arg_less_lastz <- lapply(args_lessz,tail, 1, SIMPLIFY = T) 
+
+# how to make this info a heat map
+
+# if pmature = 0, and/or Unpal ≠ 0 then grassland
+# if pmature ≠ 0 then forest
+
+names(arg_less_lastz) <- paste(names(arg_less_lastz), ifelse(map(arg_less_lastz, pluck, 4) > 0, "forest", "grassland"))
+
+g_vs_fz <- data.frame(id = parse_number(names(arg_less_lastz)), g_or_f = str_remove_all(names(arg_less_lastz), "[:digit:]")) %>% 
+  left_join(args_idz) %>% 
+  mutate(Moose = unlist(map(initial_conditionsz, pluck, 1)), By = unlist(map(initial_conditionsz, pluck, 2))) %>% 
+  select(!c(1,3,4))
+
+n_g_vs_fz <- g_vs_fz %>% 
+  group_by(Moose, By, g_or_f) %>% 
+  count() %>% 
+  ungroup()
+
+n_fz <- subset(n_g_vs_fz, g_or_f == " forest") %>% 
+  mutate(percent_recover = (n/59)*100)
+
+ggplot(n_fz, aes(Moose, By, fill = percent_recover)) +
+  geom_tile() + 
+  scale_fill_continuous(limits=c(min(n_fz$percent_recover), 100), breaks=seq(min(n_fz$percent_recover),100,by=9), type = "viridis")
+
+
+# make a line between instead
+n_fz2 <- n_fz %>% 
+  filter(percent_recover >= 50) %>% 
+  group_by(Moose) %>% 
+  filter(By == min(By)) %>%
+  mutate(Moose = Moose - .333333/2, By = By - 13.88889/2	) %>%
+  arrange(Moose)
+
+n_fz2 <- n_fz2 %>% bind_rows(n_fz2[nrow(n_fz2), ] %>% mutate(Moose = Moose + .333333))
+n_fz2
+
+ggplot() +
+  geom_tile(data = n_fz, aes(x = Moose, y = By, fill = percent_recover)) +
+  geom_step(data = n_fz2, aes(x = Moose, y = By), size = 0.5) +
+  scale_fill_viridis_c()
+
+```
+
+# just run ode over initial conditions with lit parameters
+```{r}
+out_param <- lapply(y_0dz, ode_reps, parameters = parms)
+
+names(out_param) <- seq(1, length(y_0dz), by = 1)
+out_param_less <- purrr::discard(out_param, ~nrow(.) < 3)
+out_param_less_last <- lapply(out_param_less,tail, 1, SIMPLIFY = T) 
+
+names(out_param_less_last) <- paste(names(out_param_less_last), ifelse(map(out_param_less_last, pluck, 4) > 0, "forest", "grassland"))
+
+
+
+
+g_vs_f_param <- data.frame(id = parse_number(names(out_param_less_last)), g_or_f = str_remove_all(names(out_param_less_last), "[:digit:]")) %>% 
+  left_join(y_0d_id) %>% 
+  mutate(Moose = unlist(map(y_0dz, pluck, 1)), By = unlist(map(y_0dz, pluck, 2))) %>% 
+  select(!c(1,4,5,6))
+
+ggplot(g_vs_f_param, aes(Moose, By, fill = g_or_f)) +
+  geom_tile() 
+
+#make line
+g_vs_f_param2 <- g_vs_f_param %>% 
+  filter(g_or_f == " forest") %>% 
+  group_by(Moose) %>% 
+  filter(By == min(By))
+
+g_vs_f_param2_add <- rbind(g_vs_f_param2,data.frame(g_or_f = " forest", Moose =  max(g_vs_f_param2$Moose), By = max(g_vs_f_param2$By))) %>% 
+  arrange(Moose)
+
+ggplot() +
+  geom_step(data = g_vs_f_param2, aes(x = Moose, y = By), size = 0.5)
+
+```
+
+```{r}
+# add slight pertebation to paramaters e, h, lPm and rP
+parms2  <- c(a = 0.9985, #from Lunberg and Danelle 1990
+            h = 0.0223, # 1/max intake in Mg per Mg moose per year (similar to handling time of Lunberg and Denelle)
+            e = 0.01, #0.02 leads to max reasonable stable moose pop, prefer 0.01
+            lM = 0.2451, # 1/lifespan
+            rP = 0.2+0.2*0.05,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, # should have almost no effect
+            kPy = 4000,
+            kPm = 200000, # includes only live veg
+            g = 0.133, # 1/time to reach 3m
+            lPm = 0.01,
+            rU = 0.4,
+            alphaPyU = 0.003, # less than alphaPmU, but more than alphaUpy
+            alphaPmU = 0.0065, # level so that kPm*alpha < kU, so that some upalatable species do persist, as seen in field
+            kU = 1300,
+            lU = 0.05)
+
+out_param2 <- lapply(y_0dz, ode_reps, parameters = parms2)
+
+names(out_param2) <- seq(1, length(y_0dz), by = 1)
+out_param_less2 <- purrr::discard(out_param2, ~nrow(.) < 3)
+out_param_less_last2 <- lapply(out_param_less2,tail, 1, SIMPLIFY = T) 
+
+names(out_param_less_last2) <- paste(names(out_param_less_last2), ifelse(map(out_param_less_last2, pluck, 4) > 0, "forest", "grassland"))
+
+
+g_vs_f_param2 <- data.frame(id = parse_number(names(out_param_less_last2)), g_or_f = str_remove_all(names(out_param_less_last2), "[:digit:]")) %>% 
+  left_join(y_0d_id) %>% 
+  mutate(Moose = unlist(map(y_0dz, pluck, 1)), By = unlist(map(y_0dz, pluck, 2))) %>% 
+  select(!c(1,4,5,6))
+
+g_vs_f_param22 <- g_vs_f_param2 %>% 
+  filter(g_or_f == " forest") %>% 
+  group_by(Moose) %>% 
+  filter(By == min(By))
+
+g_vs_f_param22_add <- rbind(g_vs_f_param22,data.frame(g_or_f = " forest", Moose =  max(g_vs_f_param22$Moose), By = max(g_vs_f_param22$By))) %>% 
+  arrange(Moose)
+
+ggplot() +
+  geom_step(data = g_vs_f_param2, aes(x = Moose, y = By), size = 0.5, colour = "red", alpha = 0.5) +
+  geom_step(data = g_vs_f_param22, aes(x = Moose, y = By), size = 0.5, colour = "blue", alpha = 0.5)
+
+# loop over list of values for rP
+```
+
+## rP loop 
+```{r}
+rP_list <- as.list(signif(seq(from = 0.1, to = 0.3, by = (0.3 - 0.1)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_rp <- list()
+
+for(i in 1:length(rP_list)){
+param_list_rp[[i]] <- c(a = 0.9985,
+            h = 0.0223, 
+            e = 0.01,
+            lM = 0.2451, 
+            rP = rP_list[[i]],
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, 
+            kPy = 4000,
+            kPm = 200000,
+            g = 0.133,
+            lPm = 0.01,
+            rU = 0.4,
+            alphaPyU = 0.003,
+            alphaPmU = 0.0065, 
+            kU = 1300,
+            lU = 0.05)
+}
+
+
+run_ode_get_fvsg <- function(param_list) {
+out_param2 <- lapply(y_0dz, ode_reps, parameters = param_list)
+
+names(out_param2) <- seq(1, length(y_0dz), by = 1)
+out_param_less2 <- purrr::discard(out_param2, ~nrow(.) < 3)
+out_param_less_last2 <- lapply(out_param_less2,tail, 1, SIMPLIFY = T) 
+
+names(out_param_less_last2) <- paste(names(out_param_less_last2), ifelse(map(out_param_less_last2, pluck, 4) > 0, "forest", "grassland"))
+
+
+g_vs_f_param2 <- data.frame(id = parse_number(names(out_param_less_last2)), g_or_f = str_remove_all(names(out_param_less_last2), "[:digit:]")) %>% 
+  left_join(y_0d_id) %>% 
+  mutate(Moose = unlist(map(y_0dz, pluck, 1)), By = unlist(map(y_0dz, pluck, 2))) %>% 
+  select(!c(1,4,5,6))
+
+g_vs_f_param22 <- g_vs_f_param2 %>% 
+  filter(g_or_f == " forest") %>% 
+  group_by(Moose) %>% 
+  filter(By == min(By))
+  
+g_vs_f_param22_add <- if(nrow(g_vs_f_param22) == 0) rbind(g_vs_f_param22,data.frame(g_or_f = " forest", Moose =  min(g_vs_f_param2$Moose), By = max(g_vs_f_param2$By))) %>%
+  rbind(data.frame(g_or_f = " forest", Moose =  min(g_vs_f_param2$Moose), By = min(g_vs_f_param2$By))) %>% 
+  rbind(data.frame(g_or_f = " forest", Moose =  max(g_vs_f_param2$Moose), By = max(g_vs_f_param2$By))) %>% 
+  arrange(Moose, By) else if(nrow(g_vs_f_param22) < 9)  rbind(g_vs_f_param22, data.frame(g_or_f = " forest", Moose =  max(g_vs_f_param22$Moose), By = max(g_vs_f_param2$By))) %>% 
+  arrange(Moose) else g_vs_f_param22 %>%  arrange()
+
+return(g_vs_f_param22_add)
+}
+  
+g_vs_f_param_rP <- lapply(param_list_rp, run_ode_get_fvsg)
+names(g_vs_f_param_rP) <- lapply(rP_list, pluck, 1)
+
+g_vs_f_param_rP2 <- mapply(cbind, g_vs_f_param_rP, "rP"=rP_list, SIMPLIFY=F)
+
+
+colour_list_rP <- scales::viridis_pal()(length(g_vs_f_param_rP2))
+
+rP_c <- do.call(rbind, Map(data.frame, rP=rP_list, c=colour_list_rP)) 
+
+g_vs_f_param_rP2_NAs <- g_vs_f_param_rP2
+
+for(j in 1:length(g_vs_f_param_rP2)){
+  g_vs_f_param_rP2_NAs[[j]][['rP']] <- c(rep(NA,ifelse(length(g_vs_f_param_rP2[[j]][['rP']])>0, length(g_vs_f_param_rP2[[j]][['rP']])-1,0)), names(g_vs_f_param_rP2)[[j]])
+}
+
+plot_param <- function(df, colour, param) {
+  return(
+    list(geom_step(data = df, aes(x = Moose, y = By), size = 0.5, colour = colour, alpha = 0.5),
+  geom_text_repel(
+    aes(label = df[[param]], x = Moose, y = By), data = df,
+    fontface ="plain", color = colour, size = 3)
+    ))
+}
+
+library(ggrepel)
+
+ggplot() +
+  mapply(plot_param, g_vs_f_param_rP2_NAs, colour_list_rP, param = 'rP')
+
+# changing rP from 0.1 to 0.3 increases the likelihood the system recovers
+## calculate area under the curve? as a quantitative measure of how much it reduces?
+## not management related, but informs how we see the system
+
+# change look of graphs
+plot_param2 <- function(df1, df2, colour, param) {
+  return(
+    list(geom_step(data = df1, aes(x = Moose, y = By), size = 0.5, colour = colour, alpha = 0.5),
+  geom_text_repel(
+    aes(label = df1[[param]], x = Moose, y = By), data = df1,
+    fontface ="plain", color = colour, size = 3), geom_rect(data = df2, aes(xmin = Moose, xmax = lead(Moose), 
+                ymin = 0, ymax = By), alpha = 0.09)
+    ))
+}
+
+ggplot() +
+  mapply(plot_param2, df1 = g_vs_f_param_rP2_NAs, df2 =g_vs_f_param_rP2_NAs2, colour_list_rP2, param = 'rP')
+
+```
+
+## lPm loop
+```{r}
+lPm_list <- as.list(signif(seq(from = 0.0001, to = 0.1, by = 0.01),4))
+param_list_lPm <- list()
+
+for(i in 1:length(lPm_list)){
+param_list_lPm[[i]] <- c(a = 0.9985,
+            h = 0.0223, 
+            e = 0.01,
+            lM = 0.2451, 
+            rP = 0.2,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, 
+            kPy = 4000,
+            kPm = 200000,
+            g = 0.133,
+            lPm = lPm_list[[i]],
+            rU = 0.4,
+            alphaPyU = 0.003,
+            alphaPmU = 0.0065, 
+            kU = 1300,
+            lU = 0.05)
+}
+
+  
+g_vs_f_param_lPm <- lapply(param_list_lPm, run_ode_get_fvsg)
+names(g_vs_f_param_lPm) <- lapply(lPm_list, pluck, 1)
+
+g_vs_f_param_lPm2 <- mapply(cbind, g_vs_f_param_lPm, "lPm"=lPm_list, SIMPLIFY=F)
+
+colour_list_lPm <- scales::viridis_pal()(length(g_vs_f_param_lPm2))
+
+lPm_c <- do.call(rbind, Map(data.frame, lPm=lPm_list, c=colour_list_lPm)) 
+ 
+g_vs_f_param_lPm2_NAs <- g_vs_f_param_lPm2
+
+for(j in 1:length(g_vs_f_param_lPm2)){
+  g_vs_f_param_lPm2_NAs[[j]][['lPm']] <- c(rep(NA,ifelse(length(g_vs_f_param_lPm2[[j]][['lPm']])>0, length(g_vs_f_param_lPm2[[j]][['lPm']])-1,0)), names(g_vs_f_param_lPm2)[[j]])
+}
+
+
+ggplot() +
+  mapply(plot_param, g_vs_f_param_lPm2_NAs, colour_list_lPm, param = "lPm")
+
+# changing lPm from 0.0001 to 0.1 just barely decreases the likelihood fo recovery at lower moose densities
+# makes me think I should relook at teh sensitivity analysis (scale?)
+```
+
+## kPm loop
+```{r}
+kPm_list <- as.list(signif(seq(from = 50000, to = 500000, by = (500000 - 50000 )/10),4))
+param_list_kPm <- list()
+
+for(i in 1:length(kPm_list)){
+param_list_kPm[[i]] <- c(a = 0.9985,
+            h = 0.0223, 
+            e = 0.01,
+            lM = 0.2451, 
+            rP = 0.2,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, 
+            kPy = 4000,
+            kPm =  kPm_list[[i]],
+            g = 0.133,
+            lPm = 0.01,
+            rU = 0.4,
+            alphaPyU = 0.003,
+            alphaPmU = 0.0065, 
+            kU = 1300,
+            lU = 0.05)
+}
+
+  
+g_vs_f_param_kPm <- lapply(param_list_kPm, run_ode_get_fvsg)
+names(g_vs_f_param_kPm) <- lapply(kPm_list, pluck, 1)
+
+g_vs_f_param_kPm2 <- mapply(cbind, g_vs_f_param_kPm, "kPm"=kPm_list, SIMPLIFY=F)
+
+colour_list_kPm <- scales::viridis_pal()(length(g_vs_f_param_kPm2))
+
+kPm_c <- do.call(rbind, Map(data.frame, kPm=kPm_list, c=colour_list_kPm)) 
+  
+g_vs_f_param_kPm2_NAs <- g_vs_f_param_kPm2
+
+for(j in 1:length(g_vs_f_param_kPm2)){
+  g_vs_f_param_kPm2_NAs[[j]][['kPm']] <- c(rep(NA,ifelse(length(g_vs_f_param_kPm2[[j]][['kPm']])>0, length(g_vs_f_param_kPm2[[j]][['kPm']])-1,0)), names(g_vs_f_param_kPm2)[[j]])
+}
+
+
+ggplot() +
+  mapply(plot_param, g_vs_f_param_kPm2_NAs, colour_list_kPm, param = "kPm")
+
+# changing kPm doesnt do anything
+```
+
+## e loop
+```{r}
+e_list <- as.list(signif(seq(from = 0.005, to = 0.05, by = (0.05 - 0.005 )/10),4))
+param_list_e <- list()
+
+for(i in 1:length(e_list)){
+param_list_e[[i]] <- c(a = 0.9985,
+            h = 0.0223, 
+            e = e_list[[i]],
+            lM = 0.2451, 
+            rP = 0.2,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, 
+            kPy = 4000,
+            kPm = 200000,
+            g = 0.133,
+            lPm = 0.01,
+            rU = 0.4,
+            alphaPyU = 0.003,
+            alphaPmU = 0.0065, 
+            kU = 1300,
+            lU = 0.05)
+}
+
+  
+g_vs_f_param_e <- lapply(param_list_e, run_ode_get_fvsg) # slight bug with teh function where if none recover it fails
+
+names(g_vs_f_param_e) <- lapply(e_list, pluck, 1)
+
+g_vs_f_param_e2 <- mapply(cbind, g_vs_f_param_e, "e"=e_list, SIMPLIFY=F)
+
+colour_list_e <- scales::viridis_pal()(length(g_vs_f_param_e2))
+
+e_c <- do.call(rbind, Map(data.frame, e=e_list, c=colour_list_e)) 
+
+g_vs_f_param_e2_NAs <- g_vs_f_param_e2
+
+for(j in 1:length(g_vs_f_param_e2)){
+  g_vs_f_param_e2_NAs[[j]][['e']] <- c(rep(NA,ifelse(length(g_vs_f_param_e2[[j]][['e']])>0, length(g_vs_f_param_e2[[j]][['e']])-1,0)), names(g_vs_f_param_e2)[[j]])
+}
+
+ggplot() +
+  mapply(plot_param, g_vs_f_param_e2_NAs, colour_list_e, param = "e")
+
+# changing e cahnges it quit a bit (except change in e for each run is a bigger proportional change than rP), increasing e decreases the likelihood to system recovers 
+```
+
+## h loop
+```{r}
+upper_h <- 0.02232143 + 0.02079331*0.1
+lower_h <- 0.02079331
+h_list <- as.list(signif(seq(from = lower_h, to = upper_h, by = (upper_h - lower_h )/10),4))
+param_list_h <- list()
+
+for(i in 1:length(h_list)){
+param_list_h[[i]] <- c(a = 0.9985,
+            h = h_list[[i]], 
+            e = 0.01,
+            lM = 0.2451, 
+            rP = 0.2,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, 
+            kPy = 4000,
+            kPm = 200000,
+            g = 0.133,
+            lPm = 0.01,
+            rU = 0.4,
+            alphaPyU = 0.003,
+            alphaPmU = 0.0065, 
+            kU = 1300,
+            lU = 0.05)
+}
+
+  
+g_vs_f_param_h <- lapply(param_list_h, run_ode_get_fvsg)
+names(g_vs_f_param_h) <- lapply(h_list, pluck, 1)
+
+g_vs_f_param_h2 <- mapply(cbind, g_vs_f_param_h, "h"=h_list, SIMPLIFY=F)
+
+colour_list_h <- scales::viridis_pal()(length(g_vs_f_param_h2))
+
+h_c <- do.call(rbind, Map(data.frame, h=h_list, c=colour_list_h)) 
+
+g_vs_f_param_h2_NAs <- g_vs_f_param_h2
+
+for(j in 1:length(g_vs_f_param_h2)){
+  g_vs_f_param_h2_NAs[[j]][['h']] <- c(rep(NA,ifelse(length(g_vs_f_param_h2[[j]][['h']])>0, length(g_vs_f_param_h2[[j]][['h']])-1,0)), names(g_vs_f_param_h2)[[j]])
+}
+
+ggplot() +
+  mapply(plot_param, g_vs_f_param_h2_NAs, colour_list_h, param = "h")
+
+
+
+# 
+```
+
+
+
+# change way present graphs
+this doesn;t actually take too long so try with all params
+make range: found in literature
+```{r}
+library(pracma)
+
+# focus in on the 50% threshold for starting conditions to testover
+
+n_iz <- 30 ## do for whole range of starting conditions for box**
+
+M_initz <- seq(0, 6, length.out = n_iz)
+Py_initz <- seq(0, 500, length.out = n_iz)
+Pm_initz <- rep(0, n_iz)
+U_initz <- rep(300, n_iz)
+
+init_seqz <- data.frame(Moose=rep(M_initz, each = n_iz), Pyoung = rep(Py_initz, n_iz), Pmature = rep(Pm_initz,n_iz), Unpal = rep(U_initz,n_iz))
+
+y_0dz <- split(as.matrix(init_seqz), row(init_seqz)) %>% 
+  lapply(setNames, nm = c("Moose", "Pyoung", "Pmature", "Unpal"))
+
+y_0d_id <- as.data.frame(t(as.data.frame(y_0dz))) %>% 
+  mutate(id = seq(1, length(y_0dz), by = 1))
+
+out_end <- list()                     
+out <- list()        
+
+ode_reps <- function(parameters, initial_conditions) {
+  out <- ode(y = initial_conditions, times = time_vec1, func = lv, parms = parameters, events=list(func = eventfun, time = time_vec1))
+}
+
+args <- expand.grid(
+  parameters=sampled_param_list_final,
+  initial_conditions=y_0d) 
+args_id <- args %>% mutate(id = seq(1, nrow(args), by = 1))
+list2env(args, envir=.GlobalEnv)
+
+# trapz_MBy <- function(df) {
+# trapz(x = df[[Moose]], y = df[[By]]) # this misses where the system always goes to grass
+# }
+# 
+# 
+# # change function
+# run_ode_get_fvsg2 <- function(param_list) {
+# out_param2 <- lapply(y_0dz, ode_reps, parameters = param_list)
+# 
+# names(out_param2) <- seq(1, length(y_0dz), by = 1)
+# out_param_less2 <- purrr::discard(out_param2, ~nrow(.) < 3)
+# out_param_less_last2 <- lapply(out_param_less2,tail, 1, SIMPLIFY = T) 
+# 
+# names(out_param_less_last2) <- paste(names(out_param_less_last2), ifelse(map(out_param_less_last2, pluck, 4) > 0, "forest", "grassland"))
+# 
+# 
+# g_vs_f_param2 <- data.frame(id = parse_number(names(out_param_less_last2)), g_or_f = str_remove_all(names(out_param_less_last2), "[:digit:]")) %>% 
+#   left_join(y_0d_id) %>% 
+#   mutate(Moose = unlist(map(y_0dz, pluck, 1)), By = unlist(map(y_0dz, pluck, 2))) %>% 
+#   select(!c(1,4,5,6))
+# 
+# g_vs_f_param22 <- g_vs_f_param2 %>% 
+#   filter(g_or_f == " forest") %>% 
+#   group_by(Moose) %>% 
+#   filter(By == min(By))
+#   
+# g_vs_f_param22_add <- if(nrow(g_vs_f_param22) == 0) rbind(g_vs_f_param22,data.frame(g_or_f = " forest", Moose =  min(g_vs_f_param2$Moose), By = max(g_vs_f_param2$By))) %>%
+#   rbind(data.frame(g_or_f = " forest", Moose =  min(g_vs_f_param2$Moose), By = min(g_vs_f_param2$By))) %>% 
+#   rbind(data.frame(g_or_f = " forest", Moose =  max(g_vs_f_param2$Moose), By = max(g_vs_f_param2$By))) %>% 
+#   arrange(Moose, By) else if(nrow(g_vs_f_param22) < 10)  rbind(g_vs_f_param22, data.frame(g_or_f = " forest", Moose =  max(g_vs_f_param22$Moose), By = max(g_vs_f_param2$By))) %>% rbind(data.frame(g_or_f = " forest", Moose =  max(g_vs_f_param2$Moose), By = max(g_vs_f_param2$By))) %>% 
+#   arrange(By, Moose) else g_vs_f_param22 %>%  arrange()
+# 
+# return(g_vs_f_param22_add)
+# }
+# 
+# g_vs_f_param_rP2 <- lapply(param_list_rp, run_ode_get_fvsg2)
+# names(g_vs_f_param_rP2) <- lapply(rP_list, pluck, 1)
+# 
+# g_vs_f_param_rP22 <- mapply(cbind, g_vs_f_param_rP2, "rP"=rP_list, SIMPLIFY=F)
+# 
+# 
+# colour_list_rP2 <- scales::viridis_pal()(length(g_vs_f_param_rP22))
+# 
+# rP_c2 <- do.call(rbind, Map(data.frame, rP=rP_list, c=colour_list_rP2)) 
+# 
+# g_vs_f_param_rP2_NAs2 <- g_vs_f_param_rP22
+# 
+# for(j in 1:length(g_vs_f_param_rP22)){
+#   g_vs_f_param_rP2_NAs2[[j]][['rP']] <- c(rep(NA,ifelse(length(g_vs_f_param_rP22[[j]][['rP']])>0, length(g_vs_f_param_rP22[[j]][['rP']])-1,0)), names(g_vs_f_param_rP22)[[j]])
+# }
+# 
+# 
+# area_MBy_grass2_rP <- list()
+# 
+# for(j in 1:length(g_vs_f_param_rP2_NAs2)){
+#   area_MBy_grass2_rP[[j]] <- 1- trapz(g_vs_f_param_rP2_NAs2[[j]]$Moose, g_vs_f_param_rP2_NAs2[[j]]$By)/(125 * 3)
+# }
+# 
+# 
+# ggplot() +
+#   mapply(plot_param, g_vs_f_param_rP2_NAs2, colour_list_rP2, param = 'rP')
+# 
+# area_MBy_grass_df_rP <- data.frame(param = names(g_vs_f_param_rP2_NAs2), prob_forest = unlist(area_MBy_grass2))
+# 
+# plot(area_MBy_grass_df_rP)
+# 
+# 
+# 
+# 
+# # how to explain this graph: each point is the proportion of times the system recovers across a range of initial conditons of Py and M for that value of the parameter
+
+# or n times recovers at that level of parameter across all starting conditions, would need to redo function
+
+run_ode_get_fvsg3 <- function(param_list) {
+out_param2 <- lapply(y_0dz, ode_reps, parameters = param_list)
+
+names(out_param2) <- seq(1, length(y_0dz), by = 1)
+out_param_less2 <- purrr::discard(out_param2, ~nrow(.) < 3)
+out_param_less_last2 <- lapply(out_param_less2,tail, 1, SIMPLIFY = T) 
+
+names(out_param_less_last2) <- paste(names(out_param_less_last2), ifelse(map(out_param_less_last2, pluck, 4) > 0, "forest", "grassland"))
+
+
+g_vs_f_param2 <- data.frame(id = parse_number(names(out_param_less_last2)), g_or_f = str_remove_all(names(out_param_less_last2), "[:digit:]")) %>% 
+  left_join(y_0d_id) %>% 
+  mutate(Moose = unlist(map(y_0dz, pluck, 1)), By = unlist(map(y_0dz, pluck, 2))) %>% 
+  select(!c(1,4,5,6))
+
+
+return(g_vs_f_param2)
+}
+
+lower_rP <- 0.1 # maybe streamline this to draw from vector for heatmap
+upper_rP <- 0.3
+
+rP_list <- as.list(signif(seq(from = lower_rP, to = upper_rP, by = (upper_rP - lower_rP)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_rp <- list()
+
+for(i in 1:length(rP_list)){
+  param_list_rp[[i]] <- parms
+  param_list_rp[[i]][['rP']] <- rP_list[[i]]
+}
+
+g_vs_f_param_rP3 <- lapply(param_list_rp, run_ode_get_fvsg3)
+names(g_vs_f_param_rP3) <- lapply(rP_list, pluck, 1)
+
+g_vs_f_param_rP23 <- mapply(cbind, g_vs_f_param_rP3, "rP"=rP_list, SIMPLIFY=F)
+
+g_vs_f_param_rP23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_rP23)) %>% 
+  mutate(rP = as.factor(rP), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(rP, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE) %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_rP23_new, aes(x = rP, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_rP23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_rP23_new, aes(x = rP, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## lPm
+```{r}
+lower_lPm <- 0.005 
+upper_lPm <- 0.06 
+
+lPm_list <- as.list(signif(seq(from = lower_lPm, to = upper_lPm, by = (upper_lPm - lower_lPm)/10),4))
+param_list_lPm <- list()
+
+for(i in 1:length(lPm_list)){
+  param_list_lPm[[i]] <- parms
+  param_list_lPm[[i]][['lPm']] <- lPm_list[[i]]
+}
+
+g_vs_f_param_lPm3 <- lapply(param_list_lPm, run_ode_get_fvsg3)
+names(g_vs_f_param_lPm3) <- lapply(lPm_list, pluck, 1)
+
+g_vs_f_param_lPm23 <- mapply(cbind, g_vs_f_param_lPm3, "lPm"=lPm_list, SIMPLIFY=F)
+
+g_vs_f_param_lPm23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_lPm23)) %>% 
+  mutate(lPm = as.factor(lPm), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(lPm, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE) %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_lPm23_new, aes(x = lPm, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_lPm23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_lPm23_new, aes(x = lPm, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## kPm
+```{r}
+lower_kPm <- 20000 
+upper_kPm <- 200000 
+
+kPm_list <- as.list(signif(seq(from = lower_kPm, to = upper_kPm, by = (upper_kPm - lower_kPm )/10),4))
+param_list_kPm <- list()
+
+for(i in 1:length(kPm_list)){
+  param_list_kPm[[i]] <- parms
+  param_list_kPm[[i]][['kPm']] <- kPm_list[[i]]
+}
+
+g_vs_f_param_kPm3 <- lapply(param_list_kPm, run_ode_get_fvsg3)
+names(g_vs_f_param_kPm3) <- lapply(kPm_list, pluck, 1)
+
+g_vs_f_param_kPm23 <- mapply(cbind, g_vs_f_param_kPm3, "kPm"=kPm_list, SIMPLIFY=F)
+
+g_vs_f_param_kPm23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_kPm23)) %>% 
+  mutate(kPm = as.factor(kPm), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(kPm, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_kPm23_new, aes(x = kPm, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_kPm23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_kPm23_new, aes(x = kPm, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+
+## e
+```{r}
+lower_e <- 0.01 
+upper_e <- 0.03 
+e_list <- as.list(signif(seq(from = lower_e, to = upper_e, by = (upper_e - lower_e )/10),4))
+param_list_e <- list()
+
+for(i in 1:length(e_list)){
+  param_list_e[[i]] <- parms
+  param_list_e[[i]][['e']] <- e_list[[i]]
+}
+
+g_vs_f_param_e3 <- lapply(param_list_e, run_ode_get_fvsg3)
+names(g_vs_f_param_e3) <- lapply(e_list, pluck, 1)
+
+g_vs_f_param_e23 <- mapply(cbind, g_vs_f_param_e3, "e"=e_list, SIMPLIFY=F)
+
+g_vs_f_param_e23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_e23)) %>% 
+  mutate(e = as.factor(e), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(e, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE) %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = ifelse(n == 0, 0, n/nrow(g_vs_f_param_rP23[[1]]))) %>% 
+  ungroup()
+
+ggplot(g_vs_f_param_e23_new, aes(x = e, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_e23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_e23_new, aes(x = e, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+
+## h
+```{r}
+upper_h <- 0.038735 
+lower_h <- 0.02079331
+
+h_list <- as.list(signif(seq(from = lower_h, to = upper_h, by = (upper_h - lower_h )/10),4))
+param_list_h <- list()
+
+for(i in 1:length(h_list)){
+  param_list_h[[i]] <- parms
+  param_list_h[[i]][['h']] <- h_list[[i]]
+}
+
+g_vs_f_param_h3 <- lapply(param_list_h, run_ode_get_fvsg3)
+names(g_vs_f_param_h3) <- lapply(h_list, pluck, 1)
+
+g_vs_f_param_h23 <- mapply(cbind, g_vs_f_param_h3, "h"=h_list, SIMPLIFY=F)
+
+g_vs_f_param_h23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_h23)) %>% 
+  mutate(h = as.factor(h), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(h, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+
+ggplot(g_vs_f_param_h23_new, aes(x = h, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_h23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_h23_new, aes(x = h, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## a
+```{r}
+lower_a <- 0.996 
+upper_a <- 1.005 
+a_list <- as.list(signif(seq(from = lower_a, to = upper_a, by = (upper_a - lower_a)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_a <- list()
+
+for(i in 1:length(a_list)){
+  param_list_a[[i]] <- parms
+  param_list_a[[i]][['a']] <- a_list[[i]]
+}
+
+g_vs_f_param_a3 <- lapply(param_list_a, run_ode_get_fvsg3)
+names(g_vs_f_param_a3) <- lapply(a_list, pluck, 1)
+
+g_vs_f_param_a23 <- mapply(cbind, g_vs_f_param_a3, "a"=a_list, SIMPLIFY=F)
+
+g_vs_f_param_a23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_a23)) %>% 
+  mutate(a = as.factor(a), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(a, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_a23_new, aes(x = a, y = percent)) +
+  geom_point()
+
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_a23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_a23_new, aes(x = a, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## lM
+```{r}
+lower_lM <- 0.1536332 
+upper_lM <- 0.3
+
+lM_list <- as.list(signif(seq(from = lower_lM, to = upper_lM, by = (upper_lM - lower_lM)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_lM <- list()
+
+for(i in 1:length(lM_list)){
+  param_list_lM[[i]] <- parms
+  param_list_lM[[i]][['lM']] <- lM_list[[i]]
+}
+
+g_vs_f_param_lM3 <- lapply(param_list_lM, run_ode_get_fvsg3)
+names(g_vs_f_param_lM3) <- lapply(lM_list, pluck, 1)
+
+g_vs_f_param_lM23 <- mapply(cbind, g_vs_f_param_lM3, "lM"=lM_list, SIMPLIFY=F)
+
+g_vs_f_param_lM23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_lM23)) %>% 
+  mutate(lM = as.factor(lM), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(lM, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_lM23_new, aes(x = lM, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_lM23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_lM23_new, aes(x = lM, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+
+## s
+```{r}
+lower_s <- 0.0088 
+upper_s <- 0.053 
+
+s_list <- as.list(signif(seq(from = lower_s, to = upper_s, by = (upper_s - lower_s)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_s <- list()
+
+for(i in 1:length(s_list)){
+  param_list_s[[i]] <- parms
+  param_list_s[[i]][['s']] <- s_list[[i]]
+}
+
+g_vs_f_param_s3 <- lapply(param_list_s, run_ode_get_fvsg3)
+names(g_vs_f_param_s3) <- lapply(s_list, pluck, 1)
+
+g_vs_f_param_s23 <- mapply(cbind, g_vs_f_param_s3, "s"=s_list, SIMPLIFY=F)
+
+g_vs_f_param_s23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_s23)) %>% 
+  mutate(s = as.factor(s), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(s, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_s23_new, aes(x = s, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_s23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_s23_new, aes(x = s, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## alphaUPy
+```{r}
+lower_aUPy <- 0.0005 
+upper_aUPy <- 0.0019 
+
+alphaUPy_list <- as.list(signif(seq(from = lower_aUPy, to = upper_aUPy, by = (upper_aUPy - lower_aUPy)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_alphaUPy <- list()
+
+for(i in 1:length(alphaUPy_list)){
+  param_list_alphaUPy[[i]] <- parms
+  param_list_alphaUPy[[i]][['alphaUPy']] <- alphaUPy_list[[i]]
+}
+
+g_vs_f_param_alphaUPy3 <- lapply(param_list_alphaUPy, run_ode_get_fvsg3)
+names(g_vs_f_param_alphaUPy3) <- lapply(alphaUPy_list, pluck, 1)
+
+g_vs_f_param_alphaUPy23 <- mapply(cbind, g_vs_f_param_alphaUPy3, "alphaUPy"=alphaUPy_list, SIMPLIFY=F)
+
+g_vs_f_param_alphaUPy23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_alphaUPy23)) %>% 
+  mutate(alphaUPy = as.factor(alphaUPy), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(alphaUPy, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_alphaUPy23_new, aes(x = alphaUPy, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_alphaUPy23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_alphaUPy23_new, aes(x = alphaUPy, y = percent)) +
+  geom_point()
+dev.off()
+
+```
+
+## alphaUPm
+```{r}
+lower_aUPm <- 0
+upper_aUPm <- 0.0002 
+
+alphaUPm_list <- as.list(signif(seq(from = lower_aUPm, to = upper_aUPm, by = (upper_aUPm - lower_aUPm)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_alphaUPm <- list()
+
+for(i in 1:length(alphaUPm_list)){
+  param_list_alphaUPm[[i]] <- parms
+  param_list_alphaUPm[[i]][['alphaUPm']] <- alphaUPm_list[[i]]
+}
+
+g_vs_f_param_alphaUPm3 <- lapply(param_list_alphaUPm, run_ode_get_fvsg3)
+names(g_vs_f_param_alphaUPm3) <- lapply(alphaUPm_list, pluck, 1)
+
+g_vs_f_param_alphaUPm23 <- mapply(cbind, g_vs_f_param_alphaUPm3, "alphaUPm"=alphaUPm_list, SIMPLIFY=F)
+
+g_vs_f_param_alphaUPm23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_alphaUPm23)) %>% 
+  mutate(alphaUPm = as.factor(alphaUPm), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(alphaUPm, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_alphaUPm23_new, aes(x = alphaUPm, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_alphaUPm23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_alphaUPm23_new, aes(x = alphaUPm, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## kPy
+```{r}
+lower_kPy <- 400 
+upper_kPy <- 8000 
+
+kPy_list <- as.list(signif(seq(from = lower_kPy, to = upper_kPy, by = (upper_kPy - lower_kPy)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_kPy <- list()
+
+for(i in 1:length(kPy_list)){
+  param_list_kPy[[i]] <- parms
+  param_list_kPy[[i]][['kPy']] <- kPy_list[[i]]
+}
+
+g_vs_f_param_kPy3 <- lapply(param_list_kPy, run_ode_get_fvsg3)
+names(g_vs_f_param_kPy3) <- lapply(kPy_list, pluck, 1)
+
+g_vs_f_param_kPy23 <- mapply(cbind, g_vs_f_param_kPy3, "kPy"=kPy_list, SIMPLIFY=F)
+
+g_vs_f_param_kPy23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_kPy23)) %>% 
+  mutate(kPy = as.factor(kPy), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(kPy, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_kPy23_new, aes(x = kPy, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_kPy23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_kPy23_new, aes(x = kPy, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## g
+```{r}
+lower_g <- 0.1 
+upper_g <- 0.2
+
+g_list <- as.list(signif(seq(from = lower_g, to = upper_g, by = (upper_g - lower_g)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_g <- list()
+
+for(i in 1:length(g_list)){
+  param_list_g[[i]] <- parms
+  param_list_g[[i]][['g']] <- g_list[[i]]
+}
+
+g_vs_f_param_g3 <- lapply(param_list_g, run_ode_get_fvsg3)
+names(g_vs_f_param_g3) <- lapply(g_list, pluck, 1)
+
+g_vs_f_param_g23 <- mapply(cbind, g_vs_f_param_g3, "g"=g_list, SIMPLIFY=F)
+
+g_vs_f_param_g23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_g23)) %>% 
+  mutate(g = as.factor(g), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(g, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_g23_new, aes(x = g, y = percent)) +
+  geom_point()
+
+# g is looking super weird, the relationship is a v shape if value low enough
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_g23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_g23_new, aes(x = g, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## rU
+```{r}
+lower_rU <- 0.21 
+upper_rU <- 0.6 
+
+rU_list <- as.list(signif(seq(from = lower_rU, to = upper_rU, by = (upper_rU - lower_rU)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_rU <- list()
+
+for(i in 1:length(rU_list)){
+  param_list_rU[[i]] <- parms
+  param_list_rU[[i]][['rU']] <- rU_list[[i]]
+}
+
+g_vs_f_param_rU3 <- lapply(param_list_rU, run_ode_get_fvsg3)
+names(g_vs_f_param_rU3) <- lapply(rU_list, pluck, 1)
+
+g_vs_f_param_rU23 <- mapply(cbind, g_vs_f_param_rU3, "rU"=rU_list, SIMPLIFY=F)
+
+g_vs_f_param_rU23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_rU23)) %>% 
+  mutate(rU = as.factor(rU), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(rU, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_rU23_new, aes(x = rU, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_rU23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_rU23_new, aes(x = rU, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## alphaPyU
+```{r}
+lower_aPyU <- 0.002 
+upper_aPyU <- 0.0039
+
+alphaPyU_list <- as.list(signif(seq(from = lower_aPyU, to = upper_aPyU, by = (upper_aPyU - lower_aPyU)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_alphaPyU <- list()
+
+for(i in 1:length(alphaPyU_list)){
+  param_list_alphaPyU[[i]] <- parms
+  param_list_alphaPyU[[i]][['alphaPyU']] <- alphaPyU_list[[i]]
+}
+
+g_vs_f_param_alphaPyU3 <- lapply(param_list_alphaPyU, run_ode_get_fvsg3)
+names(g_vs_f_param_alphaPyU3) <- lapply(alphaPyU_list, pluck, 1)
+
+g_vs_f_param_alphaPyU23 <- mapply(cbind, g_vs_f_param_alphaPyU3, "alphaPyU"=alphaPyU_list, SIMPLIFY=F)
+
+g_vs_f_param_alphaPyU23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_alphaPyU23)) %>% 
+  mutate(alphaPyU = as.factor(alphaPyU), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(alphaPyU, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_alphaPyU23_new, aes(x = alphaPyU, y = percent)) +
+  geom_point()
+
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_alphaPyU23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_alphaPyU23_new, aes(x = alphaPyU, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## alphaPmU
+```{r}
+lower_aPmU <- 0.004 
+upper_aPmU <- 0.009 
+
+alphaPmU_list <- as.list(signif(seq(from = lower_aPmU, to = upper_aPmU, by = (upper_aPmU - lower_aPmU)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_alphaPmU <- list()
+
+for(i in 1:length(alphaPmU_list)){
+  param_list_alphaPmU[[i]] <- parms
+  param_list_alphaPmU[[i]][['alphaPmU']] <- alphaPmU_list[[i]]
+}
+
+g_vs_f_param_alphaPmU3 <- lapply(param_list_alphaPmU, run_ode_get_fvsg3)
+names(g_vs_f_param_alphaPmU3) <- lapply(alphaPmU_list, pluck, 1)
+
+g_vs_f_param_alphaPmU23 <- mapply(cbind, g_vs_f_param_alphaPmU3, "alphaPmU"=alphaPmU_list, SIMPLIFY=F)
+
+g_vs_f_param_alphaPmU23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_alphaPmU23)) %>% 
+  mutate(alphaPmU = as.factor(alphaPmU), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(alphaPmU, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_alphaPmU23_new, aes(x = alphaPmU, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_alphaPmU23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_alphaPmU23_new, aes(x = alphaPmU, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## kU
+```{r}
+lower_kU <- 300 
+upper_kU <- 2600 
+
+kU_list <- as.list(signif(seq(from = lower_kU, to = upper_kU, by = (upper_kU - lower_kU)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_kU<- list()
+
+for(i in 1:length(kU_list)){
+  param_list_kU[[i]] <- parms
+  param_list_kU[[i]][['kU']] <- kU_list[[i]]
+}
+
+g_vs_f_param_kU3 <- lapply(param_list_kU, run_ode_get_fvsg3)
+names(g_vs_f_param_kU3) <- lapply(kU_list, pluck, 1)
+
+g_vs_f_param_kU23 <- mapply(cbind, g_vs_f_param_kU3, "kU"=kU_list, SIMPLIFY=F)
+
+g_vs_f_param_kU23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_kU23)) %>% 
+  mutate(kU = as.factor(kU), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(kU, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_kU23_new, aes(x = kU, y = percent)) +
+  geom_point()
+
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_kU23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_kU23_new, aes(x = kU, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+## lU
+```{r}
+lower_lU <- 0.05 
+upper_lU <- 0.168
+
+lU_list <- as.list(signif(seq(from = lower_lU, to = upper_lU, by = (upper_lU - lower_lU)/10),4)) # oen thing to keep in mind is that the growth rate would probably change along with the mortality
+param_list_lU<- list()
+
+for(i in 1:length(lU_list)){
+  param_list_lU[[i]] <- parms
+  param_list_lU[[i]][['lU']] <- lU_list[[i]]
+}
+
+g_vs_f_param_lU3 <- lapply(param_list_lU, run_ode_get_fvsg3)
+names(g_vs_f_param_lU3) <- lapply(lU_list, pluck, 1)
+
+g_vs_f_param_lU23 <- mapply(cbind, g_vs_f_param_lU3, "lU"=lU_list, SIMPLIFY=F)
+
+g_vs_f_param_lU23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_lU23)) %>% 
+  mutate(lU = as.factor(lU), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(lU, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE)  %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+
+ggplot(g_vs_f_param_lU23_new, aes(x = lU, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_lU23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_lU23_new, aes(x = lU, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+# discuss
+the parameters that impact are: rP, lPm, g, e, h, a, lM, kPy
+so governing factors are rates governing moose consumption an dthe growth of browsed trees. by far the largest change in proportion recovered per change in parameter is for e, then g, lM, rP, h, a, lPm
+
+list out what biological things could make these paramaters change:
+rP: different enviornmental conditions may affect growth rates, different species of plants (within browsed species) have different growth rates
+
+lPm: similar to above. different environmental conditions may influence the lifespan of trees, and different tree species have different lifespans
+
+g: I am not sure I understand the v shape, but similar things woudl influence the valeu of g as rP and lPm 
+
+e: depending on avialable browse, some plants woudl be more palatable and therefore conversion efficiency would be higher, and vice versa
+
+h: look up
+
+a: ease of movement through the landscape (topography, snow cover), size of patch seems to determine attack rate
+
+lM: hunting would be a big one here
+
+## graph together
+
+```{r}
+a23_new <- g_vs_f_param_a23_new %>% 
+  mutate(parameter = "a") %>% 
+  rename(value = a)
+e23_new <- g_vs_f_param_e23_new %>% 
+  mutate(parameter = "e") %>% 
+  rename(value = e)
+h23_new <- g_vs_f_param_h23_new %>% 
+  mutate(parameter = "h") %>% 
+  rename(value = h)
+lM23_new <- g_vs_f_param_lM23_new %>% 
+  mutate(parameter = "lM") %>% 
+  rename(value = lM)
+rP23_new <- g_vs_f_param_rP23_new %>% 
+  mutate(parameter = "rP") %>% 
+  rename(value = rP)
+g23_new <- g_vs_f_param_g23_new %>% 
+  mutate(parameter = "g") %>% 
+  rename(value = g)
+kPy23_new <- g_vs_f_param_kPy23_new %>% 
+  mutate(parameter = "kPy") %>% 
+  rename(value = kPy)
+lPm23_new <- g_vs_f_param_lPm23_new %>% 
+  mutate(parameter = "lPm") %>% 
+  rename(value = lPm)
+
+list_g_vs_f_params <- list(a23_new, e23_new, h23_new, lM23_new, rP23_new, g23_new, kPy23_new, lPm23_new)
+
+g_vs_f_params <- lapply(list_g_vs_f_params, as.data.frame) 
+df_g_vs_f_params <- do.call(rbind,g_vs_f_params)
+df_g_vs_f_params$value <- as.numeric(as.character(df_g_vs_f_params$value))
+
+param_effect_recover <- ggplot(df_g_vs_f_params, aes(value, percent)) +
+  geom_point() +
+  facet_wrap(~parameter, ncol = 4, scales = "free_x") +
+  theme_bw()
+param_effect_recover
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/param_effect_recover.jpg", height = 10, width = 13, units = "cm", res = 600)
+param_effect_recover
+dev.off()
+```
+

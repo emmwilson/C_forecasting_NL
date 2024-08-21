@@ -16,12 +16,17 @@ GM_predict_tot_gap <- 1 / (1 + exp(-GM_predict_tot_gap1))
 ```{r}
 GM_predict_tot_gap_se1 <- GM_predict_tot_gap1$se.fit
 GM_predict_tot_gap_se <- 1 / (1 + exp(-GM_predict_tot_gap_se1))
+
+#export
+writeRaster(GM_predict_tot_gap_se, filename="data created/GM_predict_tot_gap_se.tif", overwrite=TRUE)
 ```
 
 ## calculate CI from se of fit
 ```{r}
 GM_CI_upper_95_gap <- 1 / (1 + exp(-(GM_predict_tot_gap1$fit + 1.96*GM_predict_tot_gap_se1)))
 GM_CI_lower_95_gap <- 1 / (1 + exp(-(GM_predict_tot_gap1$fit - 1.96*GM_predict_tot_gap_se1)))
+
+
 ```
 
 
@@ -29,6 +34,9 @@ GM_CI_lower_95_gap <- 1 / (1 + exp(-(GM_predict_tot_gap1$fit - 1.96*GM_predict_t
 ```{r}
 GM_se.PI_gap1 <- sqrt(GM_predict_tot_gap_se1$se.fit ^ 2 + GM_predict_tot_gap1$residual.scale ^ 2)
 GM_se.PI_gap <- 1 / (1 + exp(-GM_se.PI_gap1))
+
+writeRaster(GM_se.PI_gap, filename="data created/GM_predict_tot_gap_pse.tif", overwrite=TRUE)
+
 ```
 
 ## calculate PI from se fo residual variance
@@ -94,6 +102,9 @@ TN_predict_tot_gap <- 1 / (1 + exp(-TN_predict_tot_gap1))
 ```{r}
 TN_predict_tot_gap_se1 <- TN_predict_tot_gap1$se.fit
 TN_predict_tot_gap_se <- 1 / (1 + exp(-TN_predict_tot_gap_se1))
+
+writeRaster(TN_predict_tot_gap_se, filename="data created/TN_predict_tot_gap_se.tif", overwrite=TRUE)
+
 ```
 
 ## calculate CI from se of fit
@@ -107,6 +118,8 @@ TN_CI_lower_95_gap <- 1 / (1 + exp(-(TN_predict_tot_gap1$fit - 1.96*TN_predict_t
 ```{r}
 TN_se.PI_gap1 <- sqrt(TN_predict_tot_gap_se1$se.fit ^ 2 + TN_predict_tot_gap1$residual.scale ^ 2)
 TN_se.PI_gap <- 1 / (1 + exp(-TN_se.PI_gap1))
+
+writeRaster(TN_se.PI_gap, filename="data created/TN_predict_tot_gap_pse.tif", overwrite=TRUE)
 ```
 
 ## calculate PI from se fo residual variance

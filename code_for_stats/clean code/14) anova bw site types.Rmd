@@ -133,6 +133,7 @@ c_22_23_mi2 <- rbind(subset(dplyr::select(c_22_23_moosegap, c(1,2,5,6,16))), dpl
   summarize(carbon = mean(new_tot)/9)
 c_22_23_mi2$gap <- factor(c_22_23_mi2$gap , levels=c("Gap (excl)", "Mature", "Gap"))
 
+summarize(group_by(c_22_23_mi2, gap), mean(carbon))
 
 write.xlsx(c_22_23_mi2, file = "data created/c_22_23_distvsmat.xlsx")
 ```
@@ -150,6 +151,7 @@ disturbance_GM_model <- aov(carbon~gap, data = subset(c_22_23_mi2, park_id == "G
 
 anova(disturbance_GM_model)
 TukeyHSD(disturbance_GM_model)
+plot(TukeyHSD(disturbance_GM_model))
 
 # TN
 disturbance_TN_model <- aov(carbon~gap, data = subset(c_22_23_mi2, park_id == "TN"))

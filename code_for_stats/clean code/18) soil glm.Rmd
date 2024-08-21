@@ -1,0 +1,172 @@
+---
+title: "17) soil glm"
+author: "Emmerson Wilson"
+date: "2024-07-15"
+output: html_document
+---
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+```{r}
+c_22_23 <- read_xlsx("data created/c_22_23.xlsx")
+
+c_22_23_m2s <- c_22_23 %>%
+  mutate(unique_id = paste0(park_id, "_",site_id)) %>% 
+  group_by(unique_id, park_id, gap) %>% # group by id, and still want park_id and gao columns in output
+  summarize(slc_m2_site = sum(sl_carbon_9m2)/36) # divide by 36 because each of the 4 subplots is 9m2
+```
+
+## environmental data
+
+```{r}
+env_site_final <- read_xlsx("data created/env_sites_final.xlsx")
+```
+
+## join env and c data
+
+```{r}
+slc_env_sites <- full_join(c_22_23_m2s, env_site_final) %>%
+  dplyr::select(!c(FAC, SPC, CC, CEC_LCT)) # remvoe unwated columns
+```
+
+#### scale
+should do separately fro each park
+```{r}
+slc_env_sites_scale <- slc_env_sites
+slc_env_sites_scale[c(11:16, 18)] <- scale(slc_env_sites[c(11:16, 18)], center = F) # select continuous variabes to scale
+```
+
+#### make moose characters not numbers
+```{r}
+slc_env_sites_scale$Moose_new <- as.character(slc_env_sites_scale$Moose_new) # make moose categories characters
+
+slc_env_sites_scale["Moose_new"][slc_env_sites_scale["Moose_new"] == 1] <- "aL"
+slc_env_sites_scale["Moose_new"][slc_env_sites_scale["Moose_new"] == 2] <- "aL"
+slc_env_sites_scale["Moose_new"][slc_env_sites_scale["Moose_new"] == 3] <- "bH"
+slc_env_sites_scale["Moose_new"][slc_env_sites_scale["Moose_new"] == 4] <- "cX"
+
+slc_env_sites_scale$Moose_new <- as.factor(slc_env_sites_scale$Moose_new)
+
+```
+
+# models
+
+### null
+
+```{r}
+#run the model
+slGT_lm_null <- lm_glm(slc_env_sites_scale, "slc_m2_site", "1")
+```
+
+```{r}
+# get the summary of the model into a dataframe
+slGT_lm_null_summary <- as.data.frame(summary(slGT_lm_null)$coefficients) %>% 
+  mutate(model = "slGT_lm_null") 
+slGT_lm_null_summary <- slGT_lm_null_summary %>% 
+  add_column("predictor" = rownames(slGT_lm_null_summary))
+
+# reorder columns so model name first
+slGT_lm_null_summary <- slGT_lm_null_summary[,c(5,6,1:4)]
+slGT_lm_null_summary
+```
+
+### full
+
+```{r}
+# make list of all variables to be included in full model
+full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS", "Moose_new")
+
+# run the model
+slGT_lm_full <- lm_glm(slc_env_sites_scale, "slc_m2_site", full_var)
+```
+
+```{r}
+# add summary of model to dataframe
+slGT_lm_full_summary <- as.data.frame(summary(slGT_lm_full)$coefficients) %>% 
+  mutate(model = "slGT_lm_full") 
+slGT_lm_full_summary <- slGT_lm_full_summary %>% 
+  add_column("predictor" = rownames(slGT_lm_full_summary))
+
+slGT_lm_full_summary <- slGT_lm_full_summary[,c(5,6,1:4)]
+slGT_lm_full_summary
+
+```
+
+### univariate
+
+```{r}
+# run model with each predictor variable on own
+
+slGT_lm_uni <- lapply(full_var, lm_glm, df = slc_env_sites_scale, c = "slc_m2_site")
+
+names(slGT_lm_uni) <- full_var # make sure names of objects in list consistent
+```
+
+```{r}
+slGT_lm_uni_summary <- lapply(slGT_lm_uni, summary)
+
+slGT_lm_uni_summary
+
+slGT_lm_uni_AIC <- as.data.frame(t(as.data.frame(lapply(slGT_lm_uni, AICc)))) 
+slGT_lm_uni_AIC$model <- rownames(slGT_lm_uni_AIC)
+
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
+
+slGT_uni_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(slGT_lm_uni_summary, coef), as.data.frame), "model"=names(slGT_lm_uni_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+slGT_uni_summary_all <- slGT_uni_summary_all[,c(5,6,1:4)]
+slGT_uni_summary_all
+```
+
+## summary of uni, null and full
+
+```{r}
+# combine summary dataframes for null, full and univariate models
+slGT_lm_summary <- rbind(slGT_lm_null_summary, slGT_lm_full_summary, slGT_uni_summary_all) 
+slGT_lm_summary <- slGT_lm_summary %>% 
+  mutate(significance = ifelse(slGT_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(GT_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(GT_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(GT_lm_summary$`Pr(>|t|)` < 0.1, ".", "  "))))) # add symbols for easy visualization of sigificance
+```
+
+### reduced
+```{r}
+# find possible reduced model to add to 
+# need to input full model not through function 
+slGT_lm_full2 <- glm(formula = slc_m2_site ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = slc_env_sites_scale, family = Gamma(link = "log")) 
+
+slGT_lm_red <- step(slGT_lm_full2, direction = "backward", trace = F)
+
+```
+
+```{r}
+# add univariate, null and full models into a list
+slGT_models_r <- list()
+
+slGT_models_r[["slGT_lm_null"]] <- slGT_lm_null
+slGT_models_r[["slGT_lm_full"]] <- slGT_lm_full
+slGT_models_r[[names(slGT_lm_uni)[1]]] <- slGT_lm_uni[[1]]
+slGT_models_r[[names(slGT_lm_uni)[2]]] <- slGT_lm_uni[[2]]
+slGT_models_r[[names(slGT_lm_uni)[3]]] <- slGT_lm_uni[[3]]
+slGT_models_r[[names(slGT_lm_uni)[4]]] <- slGT_lm_uni[[4]]
+slGT_models_r[[names(slGT_lm_uni)[5]]] <- slGT_lm_uni[[5]]
+slGT_models_r[[names(slGT_lm_uni)[6]]] <- slGT_lm_uni[[6]]
+slGT_models_r[[names(slGT_lm_uni)[7]]] <- slGT_lm_uni[[7]]
+slGT_models_r[[names(slGT_lm_uni)[8]]] <- slGT_lm_uni[[8]]
+slGT_models_r[["slGT_lm_red"]] <- slGT_lm_red
+
+
+slModnames_GT_r <- paste(names(slGT_models_r)) # make sure names are same as model name
+
+# get table
+slaic_GT <- as.data.frame(aictab(cand.set = slGT_models_r, modnames = slModnames_GT_r, sort = TRUE))
+
+
+#add R2 to AIC table
+slR2_GT <- data.frame(lapply(lapply(slGT_models_r, nagelkerke, null = slGT_lm_null), function(x) x$Pseudo.R.squared.for.model.vs.null[[3]])) %>% 
+  pivot_longer(cols = c(1:11), values_to = "R2", names_to = "Modnames")
+slR2_GT
+slaic_GT
+
+slaic_R2_GT <- full_join(slaic_GT, slR2_GT) # table of AIC values for null, full and univariate models
+```

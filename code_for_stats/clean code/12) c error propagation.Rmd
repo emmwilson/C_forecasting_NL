@@ -16,6 +16,9 @@ GM_predict_tot <- exp(GM_predict_tot1)
 ```{r}
 GM_predict_tot_se1 <- GM_predict_tot1$se.fit
 GM_predict_tot_se <- exp(GM_predict_tot_se1)
+
+# export
+writeRaster(GM_predict_tot_se, filename="data created/GM_predict_tot_se.tif", overwrite=TRUE)
 ```
 
 ## calculate CI from se of fit
@@ -29,6 +32,9 @@ GM_CI_lower_95 <- exp(GM_predict_tot1$fit - 1.96*GM_predict_tot_se1)
 ```{r}
 GM_se.PI1 <- sqrt(GM_predict_tot_se1$se.fit ^ 2 + GM_predict_tot1$residual.scale ^ 2)
 GM_se.PI <- exp(GM_se.PI1)
+
+# export
+writeRaster(GM_se.PI, filename="data created/GM_predict_tot_pse.tif", overwrite=TRUE)
 ```
 
 ## calculate PI from se fo residual variance
@@ -89,6 +95,10 @@ TN_predict_tot <- exp(TN_predict_tot1)
 ```{r}
 TN_predict_tot_se1 <- TN_predict_tot1$se.fit
 TN_predict_tot_se <- exp(TN_predict_tot_se1)
+
+# export
+writeRaster(TN_predict_tot_se, filename="data created/TN_predict_tot_se.tif", overwrite=TRUE)
+
 ```
 
 ## calculate CI from se of fit
@@ -102,6 +112,9 @@ TN_CI_lower_95 <- exp(TN_predict_tot1$fit - 1.96*TN_predict_tot_se1)
 ```{r}
 TN_se.PI1 <- sqrt(TN_predict_tot_se1$se.fit ^ 2 + TN_predict_tot1$residual.scale ^ 2)
 TN_se.PI <- exp(TN_se.PI1)
+
+#export
+writeRaster(TN_se.PI, filename="data created/TN_predict_tot_pse.tif", overwrite=TRUE)
 ```
 
 ## calculate PI from se fo residual variance

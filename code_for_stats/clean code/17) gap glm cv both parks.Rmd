@@ -1,0 +1,311 @@
+---
+title: "17) gap glm cv both parks"
+author: "Emmerson Wilson"
+date: "2024-07-15"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  AICcmodavg,
+  brglm2,
+  rcompanion)
+  
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# data
+
+## carbon and scaled environmental variables
+```{r}
+# made in 5) c lm total.Rmd
+c_env_sites_scale <- read_xlsx("data created/c_env_sites_scale_GT.xlsx")
+
+```
+
+## make gap binomial (1,0)
+```{r}
+c_env_sites_scale_gap <- c_env_sites_scale
+c_env_sites_scale_gap$gap[c_env_sites_scale_gap$gap == "Gap"] <- 0
+c_env_sites_scale_gap$gap[c_env_sites_scale_gap$gap == "Mature"] <- 1
+c_env_sites_scale_gap$gap <- as.integer(c_env_sites_scale_gap$gap)
+```
+
+## export
+```{r}
+write.xlsx(c_env_sites_scale_gap, file = "data created/c_env_sites_scale_GT_gap.xlsx")
+```
+
+
+# glm function
+extremely useful for univariate models
+```{r}
+source("./4) glm function.R")
+
+```
+
+# GT
+
+## null
+```{r}
+#run the model
+GT_lm_null_gap <- firths_glm(c_env_sites_scale_gap, "gap", "1")
+```
+
+```{r}
+# get the summary of the model into a dataframe
+GT_lm_null_gap_summary <- as.data.frame(summary(GT_lm_null_gap)$coefficients) %>% 
+  mutate(model = "GT_lm_null") 
+GT_lm_null_gap_summary <- GT_lm_null_gap_summary %>% 
+  add_column("predictor" = rownames(GT_lm_null_gap_summary))
+
+# reorder columns so model name first
+GT_lm_null_gap_summary <- GT_lm_null_gap_summary[,c(5,6,1:4)]
+GT_lm_null_gap_summary
+```
+
+
+
+## full
+```{r}
+# make list of all variables to be included in full model
+full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS", "Moose_new")
+
+# run the model
+GT_lm_full_gap <- firths_glm(c_env_sites_scale_gap, "gap", full_var)
+summary(GT_lm_full_gap)
+```
+
+
+```{r}
+# add summary of model to dataframe
+GT_lm_full_gap_summary <- as.data.frame(summary(GT_lm_full_gap)$coefficients) %>% 
+  mutate(model = "GT_lm_full") 
+GT_lm_full_gap_summary <- GT_lm_full_gap_summary %>% 
+  add_column("predictor" = rownames(GT_lm_full_gap_summary))
+
+GT_lm_full_gap_summary <- GT_lm_full_gap_summary[,c(5,6,1:4)]
+GT_lm_full_gap_summary
+```
+
+
+
+
+## univariate
+```{r}
+GT_lm_uni_gap <- lapply(full_var, firths_glm, df = c_env_sites_scale_gap, c = "gap")
+
+names(GT_lm_uni_gap) <- full_var # make sure names of objects in list consistent
+```
+
+```{r}
+GT_lm_uni_gap_summary <- lapply(GT_lm_uni_gap, summary)
+
+GT_lm_uni_gap_summary
+
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
+
+GT_uni_gap_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(GT_lm_uni_gap_summary, coef), as.data.frame), "model"=names(GT_lm_uni_gap_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+GT_uni_gap_summary_all <- GT_uni_gap_summary_all[,c(5,6,1:4)]
+GT_uni_gap_summary_all
+```
+
+## reduced
+```{r}
+
+GT_lm_full_gap2 <- glm(formula = gap ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_env_sites_scale_gap, family = binomial(link = "logit"), method = "brglmFit") 
+
+GT_lm_red_gap <- step(GT_lm_full_gap2, direction = "backward", trace = F)
+```
+
+```{r}
+# check for uninformative parameters
+# and check against model with one extra variable, chosen based on univariate model with highest AIC
+GT_lm_red_gap2 <-  glm(formula = gap ~ FHT + EVIamp + LGS, data = c_env_sites_scale_gap, family = binomial(link = "logit"), method = "brglmFit") 
+
+Cand.models <- list(GT_lm_uni_gap[[1]], GT_lm_uni_gap[[3]], GT_lm_red_gap, GT_lm_red_gap2)
+
+lapply(Cand.models, AICc)
+
+GT_lm_red_gap_summary2 <- as.data.frame(summary(GT_lm_red_gap2)$coefficients) %>% 
+  mutate(model = "GT_lm_red2") 
+GT_lm_red_gap_summary2 <- GT_lm_red_gap_summary2 %>% 
+  add_column("predictor" = rownames(GT_lm_red_gap_summary2))
+
+GT_lm_red_gap_summary2 <- GT_lm_red_gap_summary2[,c(5,6,1:4)]
+GT_lm_red_gap_summary2
+
+GT_lm_red_gap_summary <- as.data.frame(summary(GT_lm_red_gap)$coefficients) %>% 
+  mutate(model = "GT_lm_red") 
+
+lapply(Cand.models, confint)
+confint(GT_lm_uni_gap[[7]])
+confint(GT_lm_uni_gap[[2]])
+```
+
+## compare
+
+```{r}
+# add univariate, null and full models into a list
+GT_models_gap_r <- list()
+
+GT_models_gap_r[["GT_lm_null_gap"]] <- GT_lm_null_gap
+GT_models_gap_r[["GT_lm_full_gap"]] <- GT_lm_full_gap
+GT_models_gap_r[[names(GT_lm_uni_gap)[1]]] <- GT_lm_uni_gap[[1]]
+GT_models_gap_r[[names(GT_lm_uni_gap)[2]]] <- GT_lm_uni_gap[[2]]
+GT_models_gap_r[[names(GT_lm_uni_gap)[3]]] <- GT_lm_uni_gap[[3]]
+GT_models_gap_r[[names(GT_lm_uni_gap)[4]]] <- GT_lm_uni_gap[[4]]
+GT_models_gap_r[[names(GT_lm_uni_gap)[5]]] <- GT_lm_uni_gap[[5]]
+GT_models_gap_r[[names(GT_lm_uni_gap)[6]]] <- GT_lm_uni_gap[[6]]
+GT_models_gap_r[[names(GT_lm_uni_gap)[7]]] <- GT_lm_uni_gap[[7]]
+GT_models_gap_r[[names(GT_lm_uni_gap)[8]]] <- GT_lm_uni_gap[[8]]
+GT_models_gap_r[["GT_lm_red_gap"]] <- GT_lm_red_gap
+GT_models_gap_r[["GT_lm_red_gap2"]] <- GT_lm_red_gap2
+
+Modnames_GT_gap_r <- paste(names(GT_models_gap_r)) # make sure names are same as model name
+
+GT_N <- length(c_env_sites_scale_gap$unique_id)
+
+#add R2 to AIC table
+NagelkerkeR2_own <- function(model, null, N) {
+1 - ((((exp(logLik(null)[[1]]))/exp(logLik(model)[[1]])))^(2/N))/(1-exp(logLik(null)[[1]])^(2/N))
+}
+
+summary(GT_lm_uni_gap[[1]])
+
+LL_GT_gap <- data.frame(lapply(lapply(GT_models_gap_r, logLik), function(x) x[[1]])) %>% 
+  pivot_longer(cols = c(1:12), values_to = "LL", names_to = "Modnames")
+
+R2_GT_gap <- data.frame(lapply(GT_models_gap_r, NagelkerkeR2_own, null = GT_lm_null_gap, N= GT_N)) %>% 
+  pivot_longer(cols = c(1:12), values_to = "R2", names_to = "Modnames")
+
+AICc_GT_gap <- data.frame(lapply(GT_models_gap_r, AICc)) %>% 
+  pivot_longer(cols = c(1:12), values_to = "AICc", names_to = "Modnames") 
+
+aic_R2_LL_GT_gap <- full_join(LL_GT_gap, AICc_GT_gap) %>% 
+  full_join(R2_GT_gap) # table of AIC values for null, full and univariate models
+```
+
+#CV
+
+```{r}
+source("4) glm function.R")
+## brglm cv function
+gap_cv.brgml <- function(data, vars,  k) {
+gap_Output <- NULL
+
+#Do it 100 times
+for(x in seq(1,100,1)){
+  
+  #Step 1 - Re-shuffle the response
+  #Reshuffle stoich data and place in new file
+  gap_Shuf <- transform(data, gap = sample(gap))
+  
+  #Step 2
+  #Run the model
+  #Need to do glm because boot works on glm. Normal distribution so same as lm.
+  gap_Rand <- firths_glm(vars, df = gap_Shuf, c = "gap")
+  
+  #Step 3
+  #Run cross validation
+  cv.gap <-cv.glm(data=gap_Shuf, glmfit=gap_Rand, K=k)
+  
+  
+  #Step 4
+  #Collect the cv values for each model. For each iteration x save the cv.
+  gap_Output <- rbind(gap_Output, data.frame(Iteration = x, CV = cv.gap$delta[2]))
+  
+  print (x)
+}
+
+#Step 5
+#Sort random set to calculate 90% CI for cv$delta[2]
+gap_Output_Sort <- gap_Output[order(gap_Output$CV),]
+
+t.test(gap_Output_Sort$CV)
+}
+```
+
+### top models from 
+```{r}
+# list of variables in best models from 5) c lm total.Rmd
+# run them
+var_GT_bi_red <- list("FHT", "EVIamp")
+GT_gap_red <- firths_glm(var_GT_bi_red, df = c_env_sites_scale_gap, c = "gap")
+
+var_GT_bi_red2 <- list("FHT", "EVIamp", "LGS")
+GT_gap_red2 <- firths_glm(var_GT_bi_red2, df = c_env_sites_scale_gap, c = "gap")
+
+GT_var_lists_gap <- list(var_GT_bi_red, var_GT_bi_red2)
+GT_gap_top_models <- list(GT_gap_red, GT_gap_red2)
+
+# do cross validation on models themselves
+k <- 5
+GT_cv_gap_Output <- NULL
+
+for(x in seq(1,100,1)){
+GT_gap_cv <- lapply(GT_gap_top_models, cv.glm, data=c_env_sites_scale_gap, K = k)
+names(GT_gap_cv) <- GT_var_lists_gap
+
+GT_gap_cv_delta <- lapply(GT_gap_cv, `[`, c('delta'))
+
+GT_gap_cv_delta <- do.call(rbind.data.frame, GT_gap_cv_delta)
+GT_gap_cv_delta$names <- rownames(GT_gap_cv_delta)
+
+GT_cv_gap_Output <- rbind(GT_cv_gap_Output, data.frame(Iteration = x, model = GT_gap_cv_delta$names, delta = GT_gap_cv_delta$delta))
+}
+
+GT_avg_cv <- GT_cv_gap_Output %>% 
+  group_by(model) %>% 
+  summarize(mean_delta1 = mean(delta))
+
+GT_cv_gap_Output_delta1_2 <- GT_cv_gap_Output %>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("delta_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = delta, names_from = n)
+```
+
+### cross validation of random 
+```{r}
+GT_gap_cvrand <- lapply(GT_var_lists_gap, FUN = gap_cv.brgml, d = c_env_sites_scale_gap, k = k)
+names(GT_gap_cvrand) <- GT_var_lists_gap
+
+GT_gap_cvrand_95 <- lapply(GT_gap_cvrand, `[`, c('conf.int'))
+
+GT_gap_cvrand_95 <- do.call(rbind.data.frame, GT_gap_cvrand_95)
+GT_gap_cvrand_95$model <- rownames(GT_gap_cvrand_95)
+
+GT_gap_cvrand_95_1_2 <- GT_gap_cvrand_95%>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("ci95_",str_sub(model, -1, -1)))  %>% 
+  select(!2) %>% 
+  pivot_wider(values_from = conf.int, names_from = n)
+```
+
+## put random with cv
+```{r}
+GT_val_cv_gap <- GT_cv_gap_Output_delta1_2 %>% 
+  full_join(GT_gap_cvrand_95_1_2) %>% 
+  mutate(diff = ci95_1 - delta_1) %>% 
+  mutate(validate = ifelse(diff<0.0, "no", "yes"))
+GT_nval_cv_gap <- GT_val_cv_gap %>% 
+  group_by(model_2) %>% 
+  summarize(n_y = sum(validate == "yes"), n_n = sum(validate == "no"))
+```
+
+## together
+```{r}
+GT_gap_delta_95 <- inner_join(GT_avg_cv, GT_gap_cvrand_95) %>% 
+  mutate(diff = conf.int - mean_delta1)
+```
