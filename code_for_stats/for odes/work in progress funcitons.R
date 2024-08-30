@@ -1,6 +1,6 @@
 # make small subset for testing
-  parameters2 <- parameters[25:30]
-  initial_conditions2 <- initial_conditions[seq(1, length(initial_conditions), 1000)]
+  parameters2 <- parameters[seq(1, length(parameters), 200)]
+  initial_conditions2 <- initial_conditions[seq(1, length(initial_conditions), 500)]
 
   args2_l <- expand.grid(
     parameters2=parameters2,
@@ -9,7 +9,7 @@
   args_id2 <- args2_l %>% mutate(id = seq(1, nrow(args2_l), by = 1))
   list2env(args2_l, envir=.GlobalEnv)
 
-  time_vec1 <- seq(from = 1, to = 1000, length.out = 1000)
+  time_vec1 <- seq(from = 1, to = 600, length.out = 600)
   
   args2_l$output <- mapply(ode_reps, parameters =parameters2, initial_conditions = initial_conditions2, SIMPLIFY = F)
 
@@ -59,10 +59,6 @@ max(unlist(arg_cv_less_l[[2]]))
 max(unlist(arg_cv_less_l[[3]]))
 max(unlist(arg_cv_less_l[[4]]))
 
-max(unlist(arg_cv_less[[1]]))
-max(unlist(arg_cv_less[[2]]))
-max(unlist(arg_cv_less[[3]]))
-max(unlist(arg_cv_less[[4]]))
 
 arg_cv_less_l1 <- as.data.frame(do.call(rbind, arg_cv_less_l[[1]])) %>% mutate(id = as.numeric(names(arg_cv_less_l[[1]])))
 arg_cv_less_l1_add <- left_join(arg_cv_less_l1, args_id)
@@ -77,13 +73,52 @@ arg_cv_less_l4 <- as.data.frame(do.call(rbind, arg_cv_less_l[[4]])) %>% mutate(i
 arg_cv_less_l4_add <- left_join(arg_cv_less_l4, args_id)
 
 
+plot(subset(as.data.frame(args2_l$output[[5326]]), time %in% 200:1500)$time, subset(as.data.frame(args2_l$output[[5326]]), time %in% 200:1500)$Moose) +
+  lines(subset(as.data.frame(args2_l$output[[5326]]), time %in% 200:1500)$time, subset(as.data.frame(args2_l$output[[5326]]), time %in% 200:1500)$Moose)
+
+# compare to earlier on in simulation
+
+arg_last_25M_le <- lapply(lapply(lapply(args_less2_l, head, 500), tail, 25, SIMPLIFY = T), "[", , 'Moose')
+arg_last_25Py_le <- lapply(lapply(lapply(args_less2_l, head, 500), tail, 25, SIMPLIFY = T), "[", , 'Pyoung')
+arg_last_25Pm_le <- lapply(lapply(lapply(args_less2_l, head, 500), tail, 25, SIMPLIFY = T), "[", , 'Pmature')
+arg_last_25U_le <- lapply(lapply(lapply(args_less2_l, head, 500), tail, 25, SIMPLIFY = T), "[", , 'Unpal')
+
+arg_last_25_le <- list(arg_last_25M_le, arg_last_25Py_le, arg_last_25Pm_le, arg_last_25U_le)
+
+arg_cv_le <- lapply(arg_last_25_le, lapply, cv)
+
+library(rlist)
+# return any that aren't 0 
+arg_cv_less_le <- lapply(arg_cv_le, list.filter, . != 0)
+
+max(unlist(arg_cv_less_le[[1]]))
+max(unlist(arg_cv_less_le[[2]]))
+max(unlist(arg_cv_less_le[[3]]))
+max(unlist(arg_cv_less_le[[4]]))
+
+
+arg_cv_less_le1 <- as.data.frame(do.call(rbind, arg_cv_less_le[[1]])) %>% mutate(id = as.numeric(names(arg_cv_less_le[[1]])))
+arg_cv_less_le1_add <- left_join(arg_cv_less_le1, args_id)
+
+arg_cv_less_le2 <- as.data.frame(do.call(rbind, arg_cv_less_le[[2]])) %>% mutate(id = as.numeric(names(arg_cv_less_le[[2]])))
+arg_cv_less_le2_add <- left_join(arg_cv_less_l2, args_id)
+
+arg_cv_less_le3 <- as.data.frame(do.call(rbind, arg_cv_less_le[[3]])) %>% mutate(id = as.numeric(names(arg_cv_less_le[[3]])))
+arg_cv_less_le3_add <- left_join(arg_cv_less_l3, args_id)
+
+arg_cv_less_le4 <- as.data.frame(do.call(rbind, arg_cv_less_le[[4]])) %>% mutate(id = as.numeric(names(arg_cv_less_le[[4]])))
+arg_cv_less_le4_add <- left_join(arg_cv_less_le4, args_id)
+
+
+
+
 
 
 
 ## for n samples of random parameter combos vs n recover
 # will take a long time so do on computer at school
 
-n_p_list <- as.list(seq(25, 150, by = 25))
+n_p_list <- as.list(rgamma(100, 4, 0.0175), 1000)
 
 rep_over_n_param_samples <- function (n_param) {
   

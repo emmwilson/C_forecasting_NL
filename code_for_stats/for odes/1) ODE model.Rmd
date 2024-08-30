@@ -67,9 +67,9 @@ parms  <- c(a = 0.9985, #from Lunberg and Danelle 1990
 
 ## starting conditions
 ```{r}
-time_vec1 <- seq(from = 1, to = 200, length.out = 200)
+time_vec1 <- seq(from = 1, to = 600, length.out = 600)
 
-y_0 <- c(Moose =2, Pyoung = 10, Pmature = 0, Unpal = 100)
+y_0 <- c(Moose =2, Pyoung = 1, Pmature = 0, Unpal = 100)
 ```
 
 ## extinction

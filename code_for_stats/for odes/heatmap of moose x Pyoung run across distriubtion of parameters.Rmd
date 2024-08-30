@@ -101,6 +101,9 @@ y_0d <- split(as.matrix(init_seq), row(init_seq)) %>%
 
 # run over both pramaters space and initial conditions
 ```{r}
+pacman::p_load(
+  tidyverse,
+  deSolve)
 # make ode into function where parameters and initial conditions can be used
 out_end <- list()                     
 out <- list()        
