@@ -1,0 +1,591 @@
+---
+title: "run in bioinfo"
+author: "Emmerson Wilson"
+date: "2024-08-27"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  deSolve)
+```
+
+# model
+## structure
+```{r}
+lv <- function(times, state, parms) {
+  with(as.list(c(state, parms)), {
+# moose
+    Consumption    <- ((a * Pyoung)/(1 + a * h * Pyoung)) * Moose
+    Death <- lM * (Moose^2)
+    
+    # palatable 
+    GrowthPy <- rPy * Pyoung * (1 - (Pyoung + Pmature + alphaUPy * Unpal)/kPy)
+    NewSeed <- s * Pmature
+    DeathPy <- lPy * Pyoung
+    GrowthPm <- rPm * Pmature * (1 - (Pyoung + Pmature + alphaUPm * Unpal)/kPm)
+    Ageing <- g*(g^(3*(Consumption)/(Pyoung+0.01))) * Pyoung #need to add small amount to Pyoung in denominator
+    DeathPm <- lPm * Pmature
+    
+    # unpalatable
+    GrowthU <- rU * Unpal * (1 - (alphaPyU * Pyoung + alphaPmU * Pmature + Unpal)/kU)
+    DeathU <- lU * Unpal
+
+    # odes
+    dMoose  <- Consumption*e - Death 
+    dPyoung <- GrowthPy + NewSeed - Consumption - Ageing - DeathPy
+    dPmature <- GrowthPm + Ageing - DeathPm
+    dUnpal <- GrowthU - DeathU
+    
+
+    list(c(dMoose, dPyoung, dPmature, dUnpal))
+  })
+}
+```
+
+## parameters
+```{r}
+parms  <- c(a = 0.9985, 
+            h = 0.0223,
+            e = 0.02,
+            lM = 0.3234,
+            rPy = 0.2,
+            rPm = 0.14,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, 
+            kPy = 1000,
+            kPm = 68000, 
+            g = 0.133,
+            lPm = 0.01,
+            lPy = 0.2,
+            rU = 0.9,
+            alphaPyU = 0.002, 
+            alphaPmU = 0.006, 
+            kU = 900,
+            lU = 0.4)
+```
+
+## initial conditions
+```{r}
+time_vec1 <- seq(from = 1, to = 600, length.out = 600)
+
+y_0 <- c(Moose =2, Pyoung = 50, Pmature = 0, Unpal = 100)
+```
+
+## extinction
+```{r}
+eps <- 1e-2
+## event triggered if state variable <= eps
+eventfun <- function(times, y, parms) {
+  y[which(y<eps | y<0)] <- 0 
+  return(y)
+}
+```
+
+## run model
+```{r}
+out2 <- ode(y = y_0, times = time_vec1, func = lv, parms = parms, method = "lsode", events=list(func = eventfun, time = time_vec1), atol = 1e-21)
+
+plot(out2)
+```
+
+# ranges
+
+## initial conditions
+```{r}
+# make dataframe with sequence of initial conditions to sample over
+# always starting from no mature and some level of unpal
+# smallest values 0 for both, moose up to 6 Mg moose, and 500 Py
+
+n_i <- 20
+
+M_init <- seq(0, 6, length.out = n_i)
+Py_init <- seq(0, 500, length.out = n_i) 
+Pm_init <- rep(0, n_i)
+U_init <- rep(100, n_i)
+
+init_seq <- data.frame(Moose=rep(M_init, each = n_i), Pyoung = rep(Py_init, n_i), Pmature = rep(Pm_init,n_i), Unpal = rep(U_init,n_i))
+
+y_0d <- split(as.matrix(init_seq), row(init_seq)) %>% 
+  lapply(setNames, nm = c("Moose", "Pyoung", "Pmature", "Unpal"))
+
+y_0d_id <- as.data.frame(t(as.data.frame(y_0d))) %>% 
+  mutate(id = seq(1, length(y_0d), by = 1))
+```
+
+## parameters
+```{r}
+# make datafram with distribution of parameters
+
+LVlow <-  c(0.996, #a
+            0.0207933, # h
+            0.01, #e
+            0.2647, # lM
+            0.15, #rPy
+            0.1, #rPm
+            0.0088, #s
+            0.0005, #alphaUPy
+            0.000, #alphaUPm
+            400, #kPy
+            20000, # kPm
+            0.09, # g
+            0.005, #lPm
+            0.1, #lPy
+            0.6,#rU
+            0.001, # alphaPyU
+            0.004, # alphaPmU
+            300, #kU
+            0.168) #lU
+
+LVhigh <-  c(1.005, #a
+            0.038735, # h
+            0.03, #e
+            0.3765, # lM
+            0.325, #rPy
+            0.2, #rPm
+            0.053, #s
+            0.002, #alphaUPy
+            0.0002, #alphaUPm
+            2000, #kPy
+            80000, # kPm
+            0.2, # g
+            0.06, #lPm
+            0.3, #lPy
+            1.3 ,#rU
+            0.003, # alphaPyU
+            0.008, # alphaPmU
+            1200, #kU
+            1) #lU
+
+
+param_dist <- data.frame(min = LVlow, max = LVhigh, mean = parms)
+
+library(truncnorm)
+```
+
+### how many samples
+number of parameter combos vs number recovered
+```{r}
+## for n samples of random parameter combos vs n recover
+
+
+
+# make list of number of sampls to try
+n_p_list <- as.list(rgamma(100, 4, 0.0175), 1000) 
+
+# function to repeat ode across initial conditions and each combination of parameters, for each number of samples in list 
+rep_over_n_param_samples <- function (n_param) {
+  
+# make n random combinations of paramaters
+  n_p <- n_param
+  
+# sample from distribution of each parameter n times
+  for(i in rownames(param_dist)){
+    sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]]), 4)
+  }
+
+# make list of possible parameter combinations
+  sampled_param_list <-  split(as.matrix(as.data.frame(sampled_param)), row(as.data.frame(sampled_param))) %>% 
+    lapply(setNames, nm = names(parms))
+  
+  sampled_param_list_final <- list()
+  # remove combinations that don't meet assumptions (around competative effects, growth rates, carrying capacities, and death rates)
+  
+  # relative growth rate
+  sampled_param_list2 <-  sampled_param_list[sapply(sampled_param_list, `[`, 'rP') < sapply(sampled_param_list, `[`, 'rU')]
+  
+  # competative effects
+  sampled_param_list3 <-  sampled_param_list2[sapply(sampled_param_list2, `[`, 'alphaUPm') < sapply(sampled_param_list2, `[`, 'alphaUPy') & sapply(sampled_param_list2, `[`, 'alphaUPy') < sapply(sampled_param_list2, `[`, 'alphaPyU') & sapply(sampled_param_list2, `[`, 'alphaPyU') < sapply(sampled_param_list2, `[`, 'alphaPmU')]
+  
+  # carrying capacities
+  sampled_param_list4 <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'kU') < sapply(sampled_param_list3, `[`, 'kPy') & sapply(sampled_param_list3, `[`, 'kPy') < sapply(sampled_param_list3, `[`, 'kPm')]
+  
+  # loss
+  sampled_param_list_final <-  sampled_param_list4[sapply(sampled_param_list4, `[`, 'lPm') < sapply(sampled_param_list4, `[`, 'lU')]
+
+# combine with initial values (constant) 
+  args <- expand.grid(
+    parameters=sampled_param_list_final,
+    initial_conditions=y_0d) 
+  args_id <- args %>% mutate(id = seq(1, nrow(args), by = 1))
+  list2env(args, envir=.GlobalEnv)
+  
+# run ode
+  args$output <- mapply(ode_reps, parameters, initial_conditions, SIMPLIFY = F)
+  names(args$output) <- seq(1, nrow(args_id), by = 1)
+  
+# remove runs that didn't go
+  args_less <- purrr::discard(args$output, ~nrow(.) < 3)
+  arg_less_last <- lapply(args_less,tail, 1, SIMPLIFY = T) 
+  
+# classify as recovered or not
+  names(arg_less_last) <- paste(names(arg_less_last), ifelse(map(arg_less_last, pluck, 4) > 0, "forest", "grassland"))
+
+# add initial condition run using
+  g_vs_f <- data.frame(id = parse_number(names(arg_less_last)), g_or_f = str_remove_all(names(arg_less_last), "[:digit:]")) %>% 
+    left_join(args_id) %>% 
+    mutate(Moose = unlist(map(initial_conditions, pluck, 1)), By = unlist(map(initial_conditions, pluck, 2))) %>% 
+    select(!c(1,3,4))
+
+# cound number recovered
+  n_g_vs_f <- g_vs_f %>% 
+    group_by(as.factor(Moose), as.factor(By), as.factor(g_or_f), .drop=FALSE) %>% 
+    count(.drop=FALSE) %>% 
+    ungroup() %>% 
+    mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
+    mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
+    rename(g_or_f = `as.factor(g_or_f)`) %>% 
+    select(c(3:6))
+
+# count total number recovered for all simulations relative to number of simulations
+  percent_rec <- sum(filter(n_g_vs_f, g_or_f == " forest")$n)/sum(n_g_vs_f$n)
+  
+  return(percent_rec)
+}
+
+# run function
+n_p_recoveries <- lapply(n_p_list, rep_over_n_param_samples)
+
+plot(n_p_list, n_p_recoveries)
+```
+
+### list for heatmap
+```{r}
+sampled_param <- list()
+
+n_p <- 30 # may change
+
+for(i in rownames(param_dist)){
+sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]]), 4)
+}
+
+sampled_param_list <-  split(as.matrix(as.data.frame(sampled_param)), row(as.data.frame(sampled_param))) %>% 
+  lapply(setNames, nm = names(parms))
+
+sampled_param_list_final <- list()
+sampled_param_list_final[[1]] <- parms
+sampled_param_list_final[[2]] <- parms
+sampled_param_list_final[[1]] <- sampled_param_list[[1]]
+
+# remove combinations that don't meet assumptions (around competative effects, growth rates, carrying capacities, and death rates)
+
+# relative growth rate
+sampled_param_list2 <-  sampled_param_list[sapply(sampled_param_list, `[`, 'rPy') < sapply(sampled_param_list, `[`, 'rU') & sapply(sampled_param_list, `[`, 'rPm') < sapply(sampled_param_list, `[`, 'rPy')]
+
+# competative effects
+sampled_param_list3 <-  sampled_param_list2[sapply(sampled_param_list2, `[`, 'alphaUPm') < sapply(sampled_param_list2, `[`, 'alphaUPy') & sapply(sampled_param_list2, `[`, 'alphaUPy') < sapply(sampled_param_list2, `[`, 'alphaPyU') & sapply(sampled_param_list2, `[`, 'alphaPyU') < sapply(sampled_param_list2, `[`, 'alphaPmU')]
+
+# carrying capacities
+sampled_param_list4 <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'kU') < sapply(sampled_param_list3, `[`, 'kPy') & sapply(sampled_param_list3, `[`, 'kPy') < sapply(sampled_param_list3, `[`, 'kPm')]
+
+# loss
+sampled_param_list_final <-  sampled_param_list4[sapply(sampled_param_list4, `[`, 'lPm') < sapply(sampled_param_list4, `[`, 'lU')]
+```
+
+
+# heatmap
+```{r}
+## give some result at each step so know loops aren't getting stuck
+
+# make ode into function where parameters and initial conditions can be used
+out_end <- list()                     
+out <- list()        
+
+ode_reps <- function(parameters, initial_conditions) {
+  out <- ode(y = initial_conditions, times = time_vec1, func = lv, parms = parameters, events=list(func = eventfun, time = time_vec1), method = "lsode", atol = 1e-21)
+}
+
+# make all combinations availabel in environment
+args <- expand.grid(
+  parameters=sampled_param_list_final,
+  initial_conditions=y_0d) 
+args_id <- args %>% mutate(id = seq(1, nrow(args), by = 1))
+list2env(args, envir=.GlobalEnv)
+
+# run over params and init conditions
+args$output <- mapply(ode_reps, parameters, initial_conditions, SIMPLIFY = F)
+
+# give simulations names based params and init conditions
+names(args$output) <- seq(1, nrow(args_id), by = 1)
+
+# remove any simulations that didnt run properly
+args_less <- purrr::discard(args$output, ~nrow(.) < 3)
+arg_removed <- purrr::keep(args$output, ~nrow(.) < 3)
+
+
+# # look at coefficient of variation for last 25 years
+# cv <- function(x)  sd(x)/mean(x)
+# 
+# # select only one column of 
+# arg_last_25M_l <- lapply(lapply(args_less,tail, 25, SIMPLIFY = T), "[", , 'Moose')
+# arg_last_25Py_l <- lapply(lapply(args_less,tail, 25, SIMPLIFY = T), "[", , 'Pyoung')
+# arg_last_25Pm_l <- lapply(lapply(args_less,tail, 25, SIMPLIFY = T), "[", , 'Pmature')
+# arg_last_25U_l <- lapply(lapply(args_less,tail, 25, SIMPLIFY = T), "[", , 'Unpal')
+# 
+# arg_last_25_l <- list(arg_last_25M_l, arg_last_25Py_l, arg_last_25Pm_l, arg_last_25U_l)
+# 
+# arg_cv_l <- lapply(arg_last_25_l, lapply, cv)
+# 
+# library(rlist)
+# 
+# # return any that are above some cut off (10e-7 for now)
+# arg_cv_less_l <- lapply(arg_cv_l, list.filter, . >= 10e-7)
+# 
+# 
+# arg_cv_less_cv <- args_less[ ! names(args_less) %in% names(arg_cv_less_l[[1]]) ]
+# 
+# # get final stocks from remaining simulations
+arg_less_last <- lapply(args_less,tail, 1, SIMPLIFY = T)
+
+# make this info a heat map
+
+# if pmature = 0, and/or Unpal ≠ 0 then grassland
+# if pmature ≠ 0 then forest
+
+names(arg_less_last) <- paste(names(arg_less_last), ifelse(map(arg_less_last, pluck, 4) > 0, "forest", "grassland"))
+
+# add info on initial conditions
+g_vs_f <- data.frame(id = parse_number(names(arg_less_last)), g_or_f = str_remove_all(names(arg_less_last), "[:digit:]")) %>% 
+  left_join(args_id) %>% 
+  mutate(Moose = unlist(map(initial_conditions, pluck, 1)), By = unlist(map(initial_conditions, pluck, 2))) %>% 
+  select(!c(1,3,4))
+
+# count number of recoveries
+n_g_vs_f <- g_vs_f %>% 
+  group_by(as.factor(Moose), as.factor(By), as.factor(g_or_f), .drop=FALSE) %>% 
+  count(.drop=FALSE) %>% 
+  ungroup() %>% 
+  mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
+  mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
+  rename(g_or_f = `as.factor(g_or_f)`) %>% 
+  select(c(3:6))
+
+# into %
+n_f <- subset(n_g_vs_f, g_or_f == " forest") %>% 
+  mutate(percent_recover = (n/length(sampled_param_list_final))*100)
+
+# mark 50/50
+
+library(viridis)
+
+n_f2 <- n_f %>% 
+  filter(percent_recover >= 50) %>% 
+  group_by(Moose,  .drop=FALSE) %>% 
+  filter(By == min(By)) %>%
+  mutate(Moose = Moose - 0.2068966/2, By = By - 17.24138/2	) %>%
+  arrange(Moose)
+
+n_f2 <- n_f2 %>% bind_rows(n_f2[nrow(n_f2), ] %>% mutate(Moose = Moose))
+n_f2
+
+# make heatmap
+heatmap_moose_By <- ggplot() +
+  geom_tile(data = n_f, aes(x = Moose, y = By, fill = percent_recover)) +
+  geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
+  scale_fill_viridis_c() +
+  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Percent\nrecovered") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_x_continuous(expand = c(0,0))
+
+heatmap_moose_By
+```
+
+## time for recovered to recover
+```{r}
+args_less2 <- args_less
+names(args_less2) <- names(arg_less_last)
+names(args_id) <- names(arg_less_last)
+
+
+# remove any that go to grassland
+args_recover <- args_less2[ ! names(args_less2) %>% str_detect("grassland") ]
+
+# get years to reach stable
+library(zoo)
+
+# function
+return_year_stable <- function(odes) {
+  test_rollcv <- rollapply(odes, width=10, FUN=cv, fill=NA, by.column = T)
+  
+  test_rollcv_stop <- test_rollcv %>% 
+    as.data.frame() %>% 
+    mutate(time = rownames(.)) %>% 
+    filter(if_all(c(2:5), ~. <= 0.001 | is.nan(.))) # change this to be more in line with rootSolve and deSolve steady state criteria
+  
+  test_rollcv_stopyr <- test_rollcv_stop[1,1]
+  return(test_rollcv_stopyr)
+}
+
+cv <- function(x)  sd(x)/mean(x)
+
+year_stable <- lapply(args_recover, return_year_stable)
+
+# add to simulation data
+f_yr <- data.frame(id = parse_number(names(year_stable)), g_or_f = str_remove_all(names(year_stable), "[:digit:]"), year = unlist(year_stable)) %>% 
+  left_join(args_id) %>% 
+  mutate(Moose = unlist(map(initial_conditions, pluck, 1)), By = unlist(map(initial_conditions, pluck, 2))) %>% 
+  na.omit() %>% 
+  select(!c(1,4,5))
+# seems to depend mostly on parameter
+
+avg_yr_f <- f_yr %>% 
+  group_by(as.factor(Moose), as.factor(By), .drop = F) %>% 
+  summarise(mean_yr = mean(as.numeric(f_yr$year))) %>% 
+  ungroup() %>% 
+  mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
+  mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
+  select(c(3:5))
+
+avg_yr_50_f <- avg_yr_f %>% 
+  right_join(filter(n_f, percent_recover >= 50))
+
+heatmap_yr_f <- ggplot() +
+  geom_tile(data = avg_yr_50_f, aes(x = Moose, y = By, fill = mean_yr)) +
+  geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
+  scale_fill_viridis_c() +
+  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Years to recover") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 500)) +
+  scale_x_continuous(expand = c(0,0), limits = c(0, 6))
+
+heatmap_yr_f
+```
+
+
+# parameters
+
+## functions
+```{r}
+# to repeat ode over initial conditions and parameter values
+
+ode_fvsg <- function(param_list_error) {
+  out_param2 <- lapply(y_0d, ode_reps, parameters = param_list_error)
+  
+  names(out_param2) <- seq(1, length(y_0d), by = 1)
+  out_param_less2 <- purrr::discard(out_param2, ~nrow(.) < 3)
+  out_param_less_last2 <- lapply(out_param_less2,tail, 1, SIMPLIFY = T) 
+  
+  names(out_param_less_last2) <- paste(names(out_param_less_last2), ifelse(map(out_param_less_last2, pluck, 4) > 0, "forest", "grassland"))
+  
+  
+  g_vs_f_param2 <- data.frame(id = parse_number(names(out_param_less_last2)), g_or_f = str_remove_all(names(out_param_less_last2), "[:digit:]")) %>% 
+    left_join(y_0d_id) %>% 
+    mutate(Moose = unlist(map(y_0d, pluck, 1)), By = unlist(map(y_0d, pluck, 2))) %>% 
+    select(!c(1,4,5,6))
+  
+  
+  return(g_vs_f_param2)
+}
+
+# to calculate percent recovered
+percent_recover_param <- function(x) {
+  df_list <- list()
+  n_rec_list <- list()
+  for(i in 1:ncol(x)){
+  df_list[[i]] <- as.data.frame(do.call(cbind, x[,i]))
+  n_rec_list[[i]] <- nrow(filter(df_list[[i]], g_or_f == " forest"))/nrow(df_list[[i]])
+  }
+  return(n_rec_list)
+}
+
+# to run above and create graph
+param_recovery <- function(parameter){
+
+  param_list <- list(rep(list(),11))
+
+  value_list <- as.list(signif(seq(from = param_dist[parameter,'min'], to = param_dist[parameter,'max'], by = (param_dist[parameter,'max'] - param_dist[parameter,'min'])/10),4))
+
+  for(i in 1:length(value_list)){
+   param_list[[i]] <- sampled_param_list_final
+    for(j in 1:length(sampled_param_list_final)){
+     param_list[[i]][[j]][[parameter]] <- value_list[[i]]
+    }
+  }
+
+  g_vs_f <- lapply(param_list, sapply, ode_fvsg)
+
+  g_vs_f_recover <- lapply(g_vs_f, percent_recover_param)
+  names(g_vs_f_recover) <- value_list
+
+  recover_df <- as.data.frame(do.call(rbind, g_vs_f_recover)) %>% 
+   mutate(parameter = rownames(.)) %>% 
+    mutate(across(contains("V"), ~ unlist(.))) %>% 
+   pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "recover")
+  
+  param_plot <- ggplot(recover_df, aes(x = parameter, y = recover, colour = recover)) +
+  geom_violin() +
+  geom_jitter(width = 0.05, height = 0, size = 1) +
+  scale_color_viridis() +
+  geom_point(stat = 'summary', fun = 'mean', size = 2)
+
+  return(param_plot)
+}
+```
+
+## across list of parameters
+```{r}
+ode_recovery <- lapply(names(parms), param_recovery)
+```
+
+
+## time to recovery based on parameters
+```{r}
+# function to get time to recovery
+param_time_rec <- function(param_list_error) {
+  out_param2 <- lapply(y_0dz2, ode_reps, parameters = param_list_error)
+  
+  names(out_param2) <- seq(1, length(y_0dz2), by = 1)
+  out_param_less2 <- purrr::discard(out_param2, ~nrow(.) < 3)
+  
+  out_param_less_last2 <- lapply(out_param_less2,tail, 1, SIMPLIFY = T) 
+  
+  names(out_param_less2) <- paste(names(out_param_less_last2), ifelse(map(out_param_less_last2, pluck, 4) > 0, "forest", "grassland"))
+  
+  args_recover <- out_param_less2[ ! names(out_param_less2) %>% str_detect("grassland") ]
+  
+  args_recover_yr <- lapply(args_recover, return_year_stable)
+  
+  args_recover_yravg <- mean(as.numeric(args_recover_yr))
+  
+  return(args_recover_yravg)
+}
+
+# to return year stable for each parameter
+
+return_year_stable_param <- function(param) {
+  param_listat <- list(rep(list(),11))
+  
+  value_listat <- as.list(signif(seq(from = param_dist[param,'min'], to = param_dist[param,'max'], by = (param_dist[param,'max'] - param_dist[param,'min'])/10),4))
+  
+  for(i in 1:length(value_listat)){
+    param_listat[[i]] <- sampled_param_list_final[seq(1, length(sampled_param_list_final), 10)] # will not be seq for full simulation
+    for(j in 1:length(sampled_param_list_final[seq(1, length(sampled_param_list_final), 10)])){
+      param_listat[[i]][[j]][['a']] <- value_listat[[i]]
+    }
+  }
+  
+  gf_param_yr <- lapply(param_listat, sapply, param_time_rec) 
+  names(gf_param_yr) <- value_listat
+  
+  
+  gf_param_yrdf <- as.data.frame(do.call(rbind, gf_param_yr)) %>% 
+    mutate(parameter = rownames(.)) %>% 
+    pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "yr_recover")
+  
+  param_plot <- ggplot(gf_param_yrdf, aes(x = parameter, y = yr_recover, colour = yr_recover)) +
+  geom_violin() +
+  geom_jitter(width = 0.1, height = 0, size = 1) +
+  scale_color_viridis(direction = -1) +
+  geom_point(stat = 'summary', fun = 'mean', size = 2)
+}
+
+
+
+param_recovery <- lapply(names(parms), return_year_stable_param)
+```
+
+
+

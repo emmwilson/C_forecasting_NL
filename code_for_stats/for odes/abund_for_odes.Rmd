@@ -185,24 +185,24 @@ c_22_23_rel <- c_2022_mess2 %>%
 
 carryingcap_unpal2 <- c_22_23_rel %>% 
   group_by(ex_ctrl, gap) %>% 
-  slice_max(U, n = 5) %>% 
+  slice_max(U, n = 10) %>% 
   summarize(capU = (mean(U)*2/9))
 
 carryingcap_Py2 <- c_22_23_rel %>% 
   group_by(ex_ctrl, gap) %>% 
-  slice_max(Py, n = 5) %>% 
+  slice_max(Py, n = 10) %>% 
   summarize(capPy = (mean(Py)*2/9))
 
 carryingcap_Pm2 <- c_22_23_rel %>% 
   group_by(ex_ctrl, gap) %>% 
-  slice_max(Pm, n = 5) %>% 
+  slice_max(Pm, n = 10) %>% 
   summarize(capPm = (mean(Pm)*2/9))
 
 carryingcap2 <- carryingcap_unpal2 %>% 
   full_join(carryingcap_Py2) %>% 
   full_join(carryingcap_Pm2)
 
-  mean(na.omit(carryingcap2)$capU)
+  mean(na.omit(carryingcap2)$capU, na.rm = T)
   mean(na.omit(carryingcap2)$capPy, na.rm = T)
     mean(na.omit(carryingcap2)$capPm, na.rm = T)
 ```
@@ -229,6 +229,7 @@ mins <- min_unpal2 %>%
   full_join(min_Py2) %>% 
   full_join(min_Pm2)
 
+
 mins_caps <- mins %>% full_join(carryingcap2)
 
 avg_unpal2 <- c_22_23_rel %>% 
@@ -249,6 +250,14 @@ avgs <- avg_unpal2 %>%
 
 avgs_caps <- avgs %>% full_join(carryingcap2)
 
+  mean(na.omit(avgs)$avgU)
+  mean(na.omit(avgs)$avgPy, na.rm = T)
+    mean(na.omit(avgs)$avgPm, na.rm = T)
+    
+    mean(na.omit(avgs_caps)$avgPy,na.rm = T)
+```
+
+```{r}
 ggplot(full_join(c_2023_relative,c_2022_mess2), aes(Pm, U)) +
   geom_point() +
   geom_smooth(method = "lm")

@@ -22,10 +22,12 @@ lv <- function(times, state, parms) {
     Death <- lM * (Moose^2)
     
     # palatable 
-    GrowthPy <- rP * Pyoung * (1 - (Pyoung + Pmature + alphaUPy * Unpal)/kPy)
+    GrowthPy <- rPy * Pyoung * (1 - (Pyoung + Pmature + alphaUPy * Unpal)/kPy)
     NewSeed <- s * Pmature
-    GrowthPm <- rP * Pmature * (1 - (Pyoung + Pmature + alphaUPm * Unpal)/kPm)
-    Ageing <- if(times <= 1/g) 0 else g * Pyoung  
+    DeathPy <- lPy * Pyoung
+    GrowthPm <- rPm * Pmature * (1 - (Pyoung + Pmature + alphaUPm * Unpal)/kPm) # rate of growth decreases by at least a third by the time a tree reaches 10 yrs (or approximately 3 m)
+    #Ageing <- if(times <= 1/g) 0 else g * Pyoung  
+    Ageing <- (g^(3*(Consumption)/(Pyoung+0.01))) * Pyoung #need to add small amount to Pyoung in denominator
     DeathPm <- lPm * Pmature
     
     # unpalatable
@@ -34,7 +36,7 @@ lv <- function(times, state, parms) {
 
     # odes
     dMoose  <- Consumption*e - Death 
-    dPyoung <- GrowthPy + NewSeed - Consumption - Ageing
+    dPyoung <- GrowthPy + NewSeed - Consumption - Ageing - DeathPy
     dPmature <- GrowthPm + Ageing - DeathPm
     dUnpal <- GrowthU - DeathU
     
@@ -49,27 +51,29 @@ lv <- function(times, state, parms) {
 parms  <- c(a = 0.9985, #from Lunberg and Danelle 1990
             h = 0.0223, # 1/max intake in Mg per Mg moose per year (similar to handling time of Lunberg and Denelle)
             e = 0.02, #0.02 leads to max reasonable stable moose pop, prefer 0.01
-            lM = 0.2451, # 1/lifespan
-            rP = 0.2,
+            lM = 0.3234,
+            rPy = 0.2,
+            rPm = 0.14,
             s = 0.011,
             alphaUPy = 0.001,
             alphaUPm = 0.0001, # should have almost no effect
-            kPy = 2000,
-            kPm = 85000, # includes only live veg
+            kPy = 1000,
+            kPm = 68000, # includes only live veg
             g = 0.133, # 1/time to reach 3m
             lPm = 0.01,
-            rU = 0.4,
-            alphaPyU = 0.003, # less than alphaPmU, but more than alphaUpy
-            alphaPmU = 0.0065, # level so that kPm*alpha < kU, so that some upalatable species do persist, as seen in field
-            kU = 1000,
-            lU = 0.05)
+            lPy = 0.2,
+            rU = 0.9,
+            alphaPyU = 0.002, # less than alphaPmU, but more than alphaUpy
+            alphaPmU = 0.006, # level so that kPm*alpha < kU, so that some upalatable species do persist, as seen in field
+            kU = 900,
+            lU = 0.4)
 ```
 
 ## starting conditions
 ```{r}
-time_vec1 <- seq(from = 1, to = 600, length.out = 600)
+time_vec1 <- seq(from = 1, to = 1500, length.out = 1500)
 
-y_0 <- c(Moose =2, Pyoung = 1, Pmature = 0, Unpal = 100)
+y_0 <- c(Moose = 0.2068966, Pyoung = 172.41379, Pmature = 0, Unpal = 100)
 ```
 
 ## extinction
@@ -90,6 +94,7 @@ eventfun <- function(times, y, parms) {
 # with Alex's code
 # Run ode - supply the whole time vector as event times
 out2 <- ode(y = y_0, times = time_vec1, func = lv, parms = parms, events=list(func = eventfun, time = time_vec1))
+
 ```
 
 ## plot
@@ -101,6 +106,65 @@ ggplot(long_out2, aes(x = time, y = value)) +
   geom_line() +
   facet_wrap(~name, scales = "free") +
   theme_bw() 
+
+out2_tol <- ode(y = y_0, times = time_vec1, func = lv, parms = parms, events=list(func = eventfun, time = time_vec1, atol = 1e-4, rtol = 1e-4))
+
+ggplot(subset(long_out2, time >= 207 & name == "Unpal"), aes(x = time, y = value)) +
+  geom_line() +
+  facet_wrap(~name, scales = "free") +
+  theme_bw() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.00001), limits = c(121.3138507038, 121.3138507043))
+
+as.numeric(sprintf("%.10f",max(subset(long_out2, time >= 400 & name == "Moose")$value))) - as.numeric(sprintf("%.10f",min(subset(long_out2, time >= 400 & name == "Moose")$value)))
+```
+
+
+```{r}
+#cycles happen in same way if start model at value found within cycles
+
+# psuedo phase portrait
+ggplot(subset(out2, time >= 1000), aes(x = Moose, y = Pmature)) +
+  geom_line() +
+  theme_bw() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.000000001))
+
+# zoom in on cycle
+ggplot(subset(long_out2, time >= 997 & time <=1142), aes(x = time, y = value)) + #cycles seem to be 105 years 
+  geom_line() +
+  facet_wrap(~name, scales = "free", ncol = 1) +
+  theme_bw() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.00000000001))
+
+#freq
+#after cycles start
+ggplot(subset(long_out2, time >= 997 & name == "Unpal"), aes(value)) +
+ geom_density() +
+  theme_bw()+ 
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.00000000001))
+
+#during one cycle
+ggplot(subset(long_out2, time >= 997 & time <=1142 & name == "Unpal"), aes(value)) +
+ geom_density() +
+  theme_bw()+ 
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.00000000001))
+
+# after reaches "regime" visually
+ggplot(subset(long_out2, time >= 400 & name == "Unpal"), aes(value)) +
+ geom_density() +
+  theme_bw()+ 
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.00000000001))
+
+#between 0 and end of first cycle
+ggplot(subset(long_out2, time >= 00 & time <= 1142 & name == "Unpal"), aes(value)) + 
+ geom_density() +
+  theme_bw()+ 
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.00000000001))
+
+# zoom in 
+ggplot(subset(long_out2, time >= 00 & time <= 1142 & name == "Unpal"), aes(value)) + #between 0 and end of first cycle
+ geom_density() +
+  theme_bw()+ 
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.00000000001), limits = c(121.4, 500))
 ```
 
 # sensitivity
@@ -196,6 +260,8 @@ solvelv <- function(param) {
     parms = param, method = "lsoda",
            events = list(func = eventfun, time = tout))))
 }
+
+
 
 s_out <- solvelv(parms)
 
@@ -444,5 +510,6 @@ steady_mat <- runsteady(y = c(Moose = 0.2, Pyoung = 100, Pmature = 80000, Unpal 
 
 steady_grass <- runsteady(y = c(Moose = 2, Pyoung = 9, Pmature = 0, Unpal = 200), time= c(0, Inf), func = lv_event3, parms = parms)
 ```
+
 
 

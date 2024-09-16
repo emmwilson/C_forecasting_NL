@@ -12,38 +12,42 @@ output: html_document
 LVlow <-  c(0.996, #a
             0.0207933, # h
             0.01, #e
-            0.1536332, # lM
-            0.1, #rP
+            0.2647, # lM
+            0.15, #rPy
+            0.1, #rPm
             0.0088, #s
             0.0005, #alphaUPy
             0.000, #alphaUPm
             400, #kPy
             20000, # kPm
-            0.1, # g
+            0.09, # g
             0.005, #lPm
-            0.3,#rU
-            0.002, # alphaPyU
+            0.1, #lPy
+            0.6,#rU
+            0.001, # alphaPyU
             0.004, # alphaPmU
             300, #kU
-            0.05) #lU
+            0.168) #lU
 
 LVhigh <-  c(1.005, #a
             0.038735, # h
             0.03, #e
-            0.3, # lM
-            0.3, #rP
+            0.3765, # lM
+            0.325, #rPy
+            0.2, #rPm
             0.053, #s
-            0.0019, #alphaUPy
+            0.002, #alphaUPy
             0.0002, #alphaUPm
-            8000, #kPy
-            200000, # kPm
+            2000, #kPy
+            80000, # kPm
             0.2, # g
             0.06, #lPm
-            0.6,#rU
-            0.0039, # alphaPyU
+            0.3, #lPy
+            1.3 ,#rU
+            0.003, # alphaPyU
             0.008, # alphaPmU
-            2500, #kU
-            0.168) #lU
+            1200, #kU
+            1) #lU
 
 param_dist <- data.frame(min = LVlow, max = LVhigh, mean = parms)
 
@@ -71,16 +75,16 @@ sampled_param_list_final[[1]] <- sampled_param_list[[1]]
 # remove combinations that don't meet assumptions (around competative effects, growth rates, carrying capacities, and death rates)
 
 # relative growth rate
-sampled_param_list2 <-  sampled_param_list[sapply(sampled_param_list, `[`, 'rP') < sapply(sampled_param_list, `[`, 'rU')]
+sampled_param_list2 <-  sampled_param_list[sapply(sampled_param_list, `[`, 'rPy') < sapply(sampled_param_list, `[`, 'rU')]
 
 # competative effects
 sampled_param_list3 <-  sampled_param_list2[sapply(sampled_param_list2, `[`, 'alphaUPm') < sapply(sampled_param_list2, `[`, 'alphaUPy') & sapply(sampled_param_list2, `[`, 'alphaUPy') < sapply(sampled_param_list2, `[`, 'alphaPyU') & sapply(sampled_param_list2, `[`, 'alphaPyU') < sapply(sampled_param_list2, `[`, 'alphaPmU')]
 
 # carrying capacities
-sampled_param_list4 <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'kU') < sapply(sampled_param_list3, `[`, 'kPy') & sapply(sampled_param_list3, `[`, 'kPy') < sapply(sampled_param_list3, `[`, 'kPm')]
+#sampled_param_list4 <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'kU') < sapply(sampled_param_list3, `[`, 'kPy') & sapply(sampled_param_list3, `[`, 'kPy') < sapply(sampled_param_list3, `[`, 'kPm')]
 
 # loss
-sampled_param_list_final <-  sampled_param_list4[sapply(sampled_param_list4, `[`, 'lPm') < sapply(sampled_param_list4, `[`, 'lU')]
+sampled_param_list_final <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'lPm') < sapply(sampled_param_list3, `[`, 'lU')]
 
 # make dataframe with sequence of initial conditions to sample over
 # always starting from no mature and some level of unpal
@@ -187,6 +191,8 @@ heatmap_moose_By
 jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/heatmap_moose_By.jpg", height = 10, width = 13, units = "cm", res = 600)
 heatmap_moose_By
 dev.off()
+
+# make heatmap that shows time recovered for all more likely to recover
 ```
 
 ## zoom into lower right corner
@@ -649,7 +655,7 @@ n_iz <- 30 ## do for whole range of starting conditions for box**
 M_initz <- seq(0, 6, length.out = n_iz)
 Py_initz <- seq(0, 500, length.out = n_iz)
 Pm_initz <- rep(0, n_iz)
-U_initz <- rep(300, n_iz)
+U_initz <- rep(100, n_iz)
 
 init_seqz <- data.frame(Moose=rep(M_initz, each = n_iz), Pyoung = rep(Py_initz, n_iz), Pmature = rep(Pm_initz,n_iz), Unpal = rep(U_initz,n_iz))
 
@@ -764,44 +770,71 @@ g_vs_f_param2 <- data.frame(id = parse_number(names(out_param_less_last2)), g_or
 return(g_vs_f_param2)
 }
 
-lower_rP <- 0.1 # maybe streamline this to draw from vector for heatmap
-upper_rP <- 0.3
 
-rP_list <- as.list(signif(seq(from = lower_rP, to = upper_rP, by = (upper_rP - lower_rP)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
-param_list_rp <- list()
+rPy_list <- as.list(signif(seq(from = param_dist['rPy','min'], to = param_dist['rPy','max'], by = (param_dist['rPy','max'] - param_dist['rPy','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_rpy <- list()
 
-for(i in 1:length(rP_list)){
-  param_list_rp[[i]] <- parms
-  param_list_rp[[i]][['rP']] <- rP_list[[i]]
+for(i in 1:length(rPy_list)){
+  param_list_rpy[[i]] <- parms
+  param_list_rpy[[i]][['rP']] <- rPy_list[[i]]
 }
 
-g_vs_f_param_rP3 <- lapply(param_list_rp, run_ode_get_fvsg3)
-names(g_vs_f_param_rP3) <- lapply(rP_list, pluck, 1)
+g_vs_f_param_rPy3 <- lapply(param_list_rpy, run_ode_get_fvsg3)
+names(g_vs_f_param_rPy3) <- lapply(rPy_list, pluck, 1)
 
-g_vs_f_param_rP23 <- mapply(cbind, g_vs_f_param_rP3, "rP"=rP_list, SIMPLIFY=F)
+g_vs_f_param_rPy23 <- mapply(cbind, g_vs_f_param_rPy3, "rPy"=rPy_list, SIMPLIFY=F)
 
-g_vs_f_param_rP23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_rP23)) %>% 
-  mutate(rP = as.factor(rP), g_or_f = as.factor(g_or_f)) %>% 
-  group_by(rP, g_or_f, .drop=FALSE) %>% 
+g_vs_f_param_rPy23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_rPy23)) %>% 
+  mutate(rPy = as.factor(rPy), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(rPy, g_or_f, .drop=FALSE) %>% 
   count(.drop = FALSE) %>% 
   filter(g_or_f == " forest") %>% 
-  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+  mutate(percent = n/nrow(g_vs_f_param_rPy23[[1]]))
 
-ggplot(g_vs_f_param_rP23_new, aes(x = rP, y = percent)) +
+ggplot(g_vs_f_param_rPy23_new, aes(x = rPy, y = percent)) +
   geom_point()
 
 jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_rP23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
-ggplot(g_vs_f_param_rP23_new, aes(x = rP, y = percent)) +
+ggplot(g_vs_f_param_rPy23_new, aes(x = rPy, y = percent)) +
   geom_point()
 dev.off()
 ```
 
+#rPm
+```{r}
+rPm_list <- as.list(signif(seq(from = param_dist['rPm','min'], to = param_dist['rPm','max'], by = (param_dist['rPm','max'] - param_dist['rPm','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+param_list_rpm <- list()
+
+for(i in 1:length(rPm_list)){
+  param_list_rpm[[i]] <- parms
+  param_list_rpm[[i]][['rP']] <- rPm_list[[i]]
+}
+
+g_vs_f_param_rPm3 <- lapply(param_list_rpm, run_ode_get_fvsg3)
+names(g_vs_f_param_rPm3) <- lapply(rPm_list, pluck, 1)
+
+g_vs_f_param_rPm23 <- mapply(cbind, g_vs_f_param_rPm3, "rPm"=rPm_list, SIMPLIFY=F)
+
+g_vs_f_param_rPm23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_rPm23)) %>% 
+  mutate(rPm = as.factor(rPm), g_or_f = as.factor(g_or_f)) %>% 
+  group_by(rPm, g_or_f, .drop=FALSE) %>% 
+  count(.drop = FALSE) %>% 
+  filter(g_or_f == " forest") %>% 
+  mutate(percent = n/nrow(g_vs_f_param_rPm23[[1]]))
+
+ggplot(g_vs_f_param_rPm23_new, aes(x = rP, y = percent)) +
+  geom_point()
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/g_vs_f_param_rPm23_new.jpg", height = 10, width = 13, units = "cm", res = 600)
+ggplot(g_vs_f_param_rPm23_new, aes(x = rP, y = percent)) +
+  geom_point()
+dev.off()
+```
+
+
 ## lPm
 ```{r}
-lower_lPm <- 0.005 
-upper_lPm <- 0.06 
-
-lPm_list <- as.list(signif(seq(from = lower_lPm, to = upper_lPm, by = (upper_lPm - lower_lPm)/10),4))
+lPm_list <- as.list(signif(seq(from = param_dist['lPm','min'], to = param_dist['lPm','max'], by = (param_dist['lPm','max'] - param_dist['lPm','min'])/10),4))
 param_list_lPm <- list()
 
 for(i in 1:length(lPm_list)){
@@ -832,10 +865,8 @@ dev.off()
 
 ## kPm
 ```{r}
-lower_kPm <- 20000 
-upper_kPm <- 200000 
 
-kPm_list <- as.list(signif(seq(from = lower_kPm, to = upper_kPm, by = (upper_kPm - lower_kPm )/10),4))
+kPm_list <- as.list(signif(seq(from = param_dist['kPm','min'], to =param_dist['kPm','max'], by = (param_dist['kPm','max'] - param_dist['kPm','min'] )/10),4))
 param_list_kPm <- list()
 
 for(i in 1:length(kPm_list)){
@@ -867,9 +898,7 @@ dev.off()
 
 ## e
 ```{r}
-lower_e <- 0.01 
-upper_e <- 0.03 
-e_list <- as.list(signif(seq(from = lower_e, to = upper_e, by = (upper_e - lower_e )/10),4))
+e_list <- as.list(signif(seq(from = param_dist['e','min'], to = param_dist['e','max'], by = (param_dist['e','max'] - param_dist['e','min'] )/10),4))
 param_list_e <- list()
 
 for(i in 1:length(e_list)){
@@ -902,10 +931,8 @@ dev.off()
 
 ## h
 ```{r}
-upper_h <- 0.038735 
-lower_h <- 0.02079331
 
-h_list <- as.list(signif(seq(from = lower_h, to = upper_h, by = (upper_h - lower_h )/10),4))
+h_list <- as.list(signif(seq(from = param_dist['h','min'], to = param_dist['h','max'], by = (param_dist['h','max'] - param_dist['h','min'] )/10),4))
 param_list_h <- list()
 
 for(i in 1:length(h_list)){
@@ -937,9 +964,7 @@ dev.off()
 
 ## a
 ```{r}
-lower_a <- 0.996 
-upper_a <- 1.005 
-a_list <- as.list(signif(seq(from = lower_a, to = upper_a, by = (upper_a - lower_a)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+a_list <- as.list(signif(seq(from = param_dist['a','min'], to = param_dist['a','max'], by = (param_dist['a','max'] - param_dist['a','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_a <- list()
 
 for(i in 1:length(a_list)){
@@ -957,7 +982,7 @@ g_vs_f_param_a23_new <- do.call(rbind, Map(data.frame, g_vs_f_param_a23)) %>%
   group_by(a, g_or_f, .drop=FALSE) %>% 
   count(.drop = FALSE)  %>% 
   filter(g_or_f == " forest") %>% 
-  mutate(percent = n/nrow(g_vs_f_param_rP23[[1]]))
+  mutate(percent = n/nrow(g_vs_f_param_a23[[1]]))
 
 ggplot(g_vs_f_param_a23_new, aes(x = a, y = percent)) +
   geom_point()
@@ -971,10 +996,8 @@ dev.off()
 
 ## lM
 ```{r}
-lower_lM <- 0.1536332 
-upper_lM <- 0.3
 
-lM_list <- as.list(signif(seq(from = lower_lM, to = upper_lM, by = (upper_lM - lower_lM)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+lM_list <- as.list(signif(seq(from = param_dist['lM','min'], to = param_dist['lM','max'], by = (param_dist['lM','max'] - param_dist['lM','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_lM <- list()
 
 for(i in 1:length(lM_list)){
@@ -1006,10 +1029,7 @@ dev.off()
 
 ## s
 ```{r}
-lower_s <- 0.0088 
-upper_s <- 0.053 
-
-s_list <- as.list(signif(seq(from = lower_s, to = upper_s, by = (upper_s - lower_s)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+s_list <- as.list(signif(seq(from = param_dist['s','min'], to = param_dist['s','max'], by = ( param_dist['s','max'] - param_dist['s','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_s <- list()
 
 for(i in 1:length(s_list)){
@@ -1040,10 +1060,8 @@ dev.off()
 
 ## alphaUPy
 ```{r}
-lower_aUPy <- 0.0005 
-upper_aUPy <- 0.0019 
 
-alphaUPy_list <- as.list(signif(seq(from = lower_aUPy, to = upper_aUPy, by = (upper_aUPy - lower_aUPy)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+alphaUPy_list <- as.list(signif(seq(from = param_dist['alphaUPy','min'], to = param_dist['alphaUPy','max'], by = (param_dist['alphaUPy','max'] - param_dist['alphaUPy','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_alphaUPy <- list()
 
 for(i in 1:length(alphaUPy_list)){
@@ -1075,10 +1093,8 @@ dev.off()
 
 ## alphaUPm
 ```{r}
-lower_aUPm <- 0
-upper_aUPm <- 0.0002 
 
-alphaUPm_list <- as.list(signif(seq(from = lower_aUPm, to = upper_aUPm, by = (upper_aUPm - lower_aUPm)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+alphaUPm_list <- as.list(signif(seq(from = param_dist['alphaUPm','min'], to = param_dist['alphaUPm','max'], by = (param_dist['alphaUPm','max'] - param_dist['alphaUPm','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_alphaUPm <- list()
 
 for(i in 1:length(alphaUPm_list)){
@@ -1109,10 +1125,8 @@ dev.off()
 
 ## kPy
 ```{r}
-lower_kPy <- 400 
-upper_kPy <- 8000 
 
-kPy_list <- as.list(signif(seq(from = lower_kPy, to = upper_kPy, by = (upper_kPy - lower_kPy)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+kPy_list <- as.list(signif(seq(from = param_dist['kPy','min'], to = param_dist['kPy','max'], by = (param_dist['kPy','max'] - param_dist['kPy','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_kPy <- list()
 
 for(i in 1:length(kPy_list)){
@@ -1143,10 +1157,7 @@ dev.off()
 
 ## g
 ```{r}
-lower_g <- 0.1 
-upper_g <- 0.2
-
-g_list <- as.list(signif(seq(from = lower_g, to = upper_g, by = (upper_g - lower_g)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+g_list <- as.list(signif(seq(from = param_dist['g','min'], to = param_dist['g','max'], by = (param_dist['g','max'] - param_dist['g','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_g <- list()
 
 for(i in 1:length(g_list)){
@@ -1179,10 +1190,7 @@ dev.off()
 
 ## rU
 ```{r}
-lower_rU <- 0.21 
-upper_rU <- 0.6 
-
-rU_list <- as.list(signif(seq(from = lower_rU, to = upper_rU, by = (upper_rU - lower_rU)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+rU_list <- as.list(signif(seq(from = param_dist['rU','min'], to = param_dist['rU','max'], by = (param_dist['rU','max'] - param_dist['rU','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_rU <- list()
 
 for(i in 1:length(rU_list)){
@@ -1213,10 +1221,8 @@ dev.off()
 
 ## alphaPyU
 ```{r}
-lower_aPyU <- 0.002 
-upper_aPyU <- 0.0039
 
-alphaPyU_list <- as.list(signif(seq(from = lower_aPyU, to = upper_aPyU, by = (upper_aPyU - lower_aPyU)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+alphaPyU_list <- as.list(signif(seq(from = param_dist['alphaPyU','min'], to = param_dist['alphaPyU','max'], by = (param_dist['alphaPyU','max'] - param_dist['alphaPyU','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_alphaPyU <- list()
 
 for(i in 1:length(alphaPyU_list)){
@@ -1248,10 +1254,8 @@ dev.off()
 
 ## alphaPmU
 ```{r}
-lower_aPmU <- 0.004 
-upper_aPmU <- 0.009 
 
-alphaPmU_list <- as.list(signif(seq(from = lower_aPmU, to = upper_aPmU, by = (upper_aPmU - lower_aPmU)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+alphaPmU_list <- as.list(signif(seq(from = param_dist['alphaPmU','min'], to = param_dist['alphaPmU','max'], by = (param_dist['alphaPmU','max'] - param_dist['alphaPmU','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_alphaPmU <- list()
 
 for(i in 1:length(alphaPmU_list)){
@@ -1282,10 +1286,7 @@ dev.off()
 
 ## kU
 ```{r}
-lower_kU <- 300 
-upper_kU <- 2600 
-
-kU_list <- as.list(signif(seq(from = lower_kU, to = upper_kU, by = (upper_kU - lower_kU)/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
+kU_list <- as.list(signif(seq(from = param_dist['kU','min'], to = param_dist['kU','max'], by = (param_dist['kU','max'] - param_dist['kU','min'])/10),4)) # should I standardize each step change in parameter value, or shoud it be across teh reasonable values from literature
 param_list_kU<- list()
 
 for(i in 1:length(kU_list)){
@@ -1317,10 +1318,8 @@ dev.off()
 
 ## lU
 ```{r}
-lower_lU <- 0.05 
-upper_lU <- 0.168
 
-lU_list <- as.list(signif(seq(from = lower_lU, to = upper_lU, by = (upper_lU - lower_lU)/10),4)) # oen thing to keep in mind is that the growth rate would probably change along with the mortality
+lU_list <- as.list(signif(seq(from = param_dist['lU','min'], to = param_dist['lU','max'], by = (param_dist['lU','max'] - param_dist['lU','min'])/10),4)) # oen thing to keep in mind is that the growth rate would probably change along with the mortality
 param_list_lU<- list()
 
 for(i in 1:length(lU_list)){
