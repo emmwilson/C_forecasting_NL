@@ -1,8 +1,6 @@
 ---
-title: "run in bioinfo"
-author: "Emmerson Wilson"
-date: "2024-08-27"
-output: html_document
+title: "R Notebook"
+output: html_notebook
 ---
 
 ```{r}
@@ -85,17 +83,16 @@ eventfun <- function(times, y, parms) {
 
 ## time
 ```{r}
-time_vec1 <- seq(from = 1, to = 1000, length.out = 1000)
+time_vec1 <- seq(from = 1, to = 600, length.out = 600)
 ```
 
 
 ## run model
 ```{r}
+
 out2 <- ode(y = y_0, times = time_vec1, func = lv, parms = parms, method = "lsode", events=list(func = eventfun, time = time_vec1), atol = 1e-21)
 
-plot(out2)
 ```
-# functions
 
 ## function to run model over different conditions
 ```{r}
@@ -103,38 +100,6 @@ ode_reps <- function(parameters, initial_conditions) {
   out <- ode(y = initial_conditions, times = time_vec1, func = lv, parms = parameters, events=list(func = eventfun, time = time_vec1), method = "lsode", atol = 1e-21)
 }
 ```
-
-## return year simulartion becomes stable
-```{r}
-# using delta
-return_year_stable_delta <- function(odes) {
-
-  args_recover_delta <- as.data.frame(odes) %>% 
-  mutate(dMoose = Moose - lag(Moose), dPyoung = Pyoung - lag(Pyoung), dPmature = Pmature - lag(Pmature), dUnpal = Unpal - lag(Unpal)) %>% 
-  filter(if_all(c(6:9), ~. <= 1e-8 | is.nan(.)))
-  
-  args_recover_deltayr <- args_recover_delta[1,1]
-  return(args_recover_deltayr)
-}
-
-# using cv
-# function
-return_year_stable_cv <- function(odes) {
-  test_rollcv <- rollapply(odes, width=10, FUN=cv, fill=NA, by.column = T)
-  
-  test_rollcv_stop <- test_rollcv %>% 
-    as.data.frame() %>% 
-    mutate(time = rownames(.)) %>% 
-    filter(if_all(c(2:5), ~. <= 0.001 | is.nan(.))) # change this to be more in line with rootSolve and deSolve steady state criteria
-  
-  test_rollcv_stopyr <- test_rollcv_stop[1,1]
-  return(test_rollcv_stopyr)
-}
-
-cv <- function(x)  sd(x)/mean(x)
-```
-
-
 
 
 # ranges
@@ -145,7 +110,7 @@ cv <- function(x)  sd(x)/mean(x)
 # always starting from no mature and some level of unpal
 # smallest values 0 for both, moose up to 6 Mg moose, and 500 Py
 
-n_i <- 30
+n_i <- 8
 
 M_init <- seq(0, 6, length.out = n_i)
 Py_init <- seq(0, 300, length.out = n_i) 
@@ -219,13 +184,16 @@ number of parameter combos vs number recovered
 
 
 # make list of number of sampls to try
-n_p_list <- as.list(rgamma(100, 4, 0.0175), 1000) 
+n_p_list <- as.list(rgamma(100, 4, 0.0175), 1000)
+
+n_p_list2 <- list(6, 12, 20)
 
 # function to repeat ode across initial conditions and each combination of parameters, for each number of samples in list 
 rep_over_n_param_samples <- function (n_param) {
   
 # make n random combinations of paramaters
   n_p <- n_param
+  sampled_param <- list()
   
 # sample from distribution of each parameter n times
   for(i in rownames(param_dist)){
@@ -292,16 +260,16 @@ rep_over_n_param_samples <- function (n_param) {
 }
 
 # run function
-n_p_recoveries <- lapply(n_p_list, rep_over_n_param_samples)
+n_p_recoveries <- lapply(n_p_list2, rep_over_n_param_samples)
 
-plot(n_p_list, n_p_recoveries)
+plot(n_p_list2, n_p_recoveries)
 ```
 
 ### list for heatmap
 ```{r}
 sampled_param <- list()
 
-n_p <- 50 # may change
+n_p <- 6 # may change
 
 for(i in rownames(param_dist)){
 sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]]), 4)
@@ -311,6 +279,9 @@ sampled_param_list <-  split(as.matrix(as.data.frame(sampled_param)), row(as.dat
   lapply(setNames, nm = names(parms))
 
 sampled_param_list_final <- list()
+sampled_param_list_final[[1]] <- parms
+sampled_param_list_final[[2]] <- parms
+sampled_param_list_final[[1]] <- sampled_param_list[[1]]
 
 # remove combinations that don't meet assumptions (around competative effects, growth rates, carrying capacities, and death rates)
 
@@ -333,7 +304,9 @@ sampled_param_list_final <-  sampled_param_list4[sapply(sampled_param_list4, `[`
 ## heatmap
 ```{r}
 ## give some result at each step so know loops aren't getting stuck
-
+pacman::p_load(
+  tidyverse,
+  deSolve)
 # make ode into function where parameters and initial conditions can be used
 out_end <- list()                     
 out <- list()        
@@ -346,7 +319,7 @@ args_id <- args %>% mutate(id = seq(1, nrow(args), by = 1))
 list2env(args, envir=.GlobalEnv)
 
 # run over params and init conditions
-args$output <- mapply(ode_reps, parameters, initial_conditions, SIMPLIFY = F) # add progress bar or periodic outputs and try to make parallel
+args$output <- mapply(ode_reps, parameters, initial_conditions, SIMPLIFY = F)
 
 # give simulations names based params and init conditions
 names(args$output) <- seq(1, nrow(args_id), by = 1)
@@ -356,15 +329,29 @@ args_less <- purrr::discard(args$output, ~nrow(.) < 3)
 arg_removed <- purrr::keep(args$output, ~nrow(.) < 3)
 
 
-# remove simulations that didn't reach steady state
-
-args_less_steady_NAs <- lapply(args_less, return_year_stable_delta) # this function returns NAs if the simulation doesn;t reach steady state
-
-args_less_steady <- args_less_steady_NAs[!is.na(args_less_steady_NAs)]
-
-
+# # look at coefficient of variation for last 25 years
+# cv <- function(x)  sd(x)/mean(x)
+# 
+# # select only one column of 
+# arg_last_25M_l <- lapply(lapply(args_less,tail, 25, SIMPLIFY = T), "[", , 'Moose')
+# arg_last_25Py_l <- lapply(lapply(args_less,tail, 25, SIMPLIFY = T), "[", , 'Pyoung')
+# arg_last_25Pm_l <- lapply(lapply(args_less,tail, 25, SIMPLIFY = T), "[", , 'Pmature')
+# arg_last_25U_l <- lapply(lapply(args_less,tail, 25, SIMPLIFY = T), "[", , 'Unpal')
+# 
+# arg_last_25_l <- list(arg_last_25M_l, arg_last_25Py_l, arg_last_25Pm_l, arg_last_25U_l)
+# 
+# arg_cv_l <- lapply(arg_last_25_l, lapply, cv)
+# 
+# library(rlist)
+# 
+# # return any that are above some cut off (10e-7 for now)
+# arg_cv_less_l <- lapply(arg_cv_l, list.filter, . >= 10e-7)
+# 
+# 
+# arg_cv_less_cv <- args_less[ ! names(args_less) %in% names(arg_cv_less_l[[1]]) ]
+# 
 # # get final stocks from remaining simulations
-arg_less_last <- lapply(args_less_steady,tail, 1, SIMPLIFY = T)
+arg_less_last <- lapply(args_less,tail, 1, SIMPLIFY = T)
 
 # make this info a heat map
 
@@ -411,7 +398,7 @@ n_f2
 heatmap_moose_By <- ggplot() +
   geom_tile(data = n_f, aes(x = Moose, y = By, fill = percent_recover)) +
   geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
-  scale_fill_gradient2(high = "#2b7a0e", low = "#f29414", mid = "#f3f59e", midpoint = 50) +
+  scale_fill_gradient2(high = "#4D8F26", low = "#f29414", mid = "#f3f59e", midpoint = 50) +
   labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Percent\nrecovered") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0), limits = c(- 10.34483/2, 300)) +
@@ -431,14 +418,37 @@ names(args_less2) <- names(arg_less_last)
 # remove any that go to grassland
 args_recover <- args_less2[ ! names(args_less2) %>% str_detect("grassland") ]
 
+# function
+return_year_stable_delta <- function(odes) {
+
+  args_recover_delta <- as.data.frame(odes) %>% 
+  mutate(dMoose = Moose - lag(Moose), dPyoung = Pyoung - lag(Pyoung), dPmature = Pmature - lag(Pmature), dUnpal = Unpal - lag(Unpal)) %>% 
+  filter(if_all(c(6:9), ~. <= 1e-8 | is.nan(.)))
+  
+  args_recover_deltayr <- args_recover_delta[1,1]
+  return(args_recover_deltayr)
+}
 
 library(zoo)
 
-year_stable_cv <- lapply(args_recover, return_year_stable)
-sum(is.na(year_stable_cv))
+# function
+return_year_stable_cv <- function(odes) {
+  test_rollcv <- rollapply(odes, width=10, FUN=cv, fill=NA, by.column = T)
+  
+  test_rollcv_stop <- test_rollcv %>% 
+    as.data.frame() %>% 
+    mutate(time = rownames(.)) %>% 
+    filter(if_all(c(2:5), ~. <= 0.001 | is.nan(.))) # change this to be more in line with rootSolve and deSolve steady state criteria
+  
+  test_rollcv_stopyr <- test_rollcv_stop[1,1]
+  return(test_rollcv_stopyr)
+}
 
-year_stable_delta <- lapply(args_recover, return_year_stable)
-sum(is.na(year_stable_delta)) # there are some that just take a long time to reach stable (because unpal very slowly going towards 0 and mature slowly reaching closer to carrying cap, same outcome with cv
+cv <- function(x)  sd(x)/mean(x)
+
+year_stable_delta <- lapply(args_recover, return_year_stable_delta)
+
+# there are some that just take a long time to reach stable (because unpal very slowly going towards 0 and mature slowly reaching closer to carrying cap, same outcome with cv
 
 # add to simulation data
 f_yr <- data.frame(id = parse_number(names(year_stable_delta)), g_or_f = str_remove_all(names(year_stable_delta), "[:digit:]"), year = unlist(year_stable_delta)) %>% 
@@ -472,64 +482,14 @@ n_f22100 <- n_f22100 %>% bind_rows(n_f22100[nrow(n_f22100), ] %>% mutate(Moose =
 
 heatmap_yr_f <- ggplot() +
   geom_tile(data = avg_yr_50_f, aes(x = Moose, y = By, fill = mean_yr)) +
-  # geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
-  #   geom_step(data = n_f22100, aes(x = Moose, y = By), size = 0.5, color = "white") +
-  scale_fill_gradient2(low = "#2171B4", high = "#F4002D", mid = "#CEC2F3", midpoint = 405, na.value = "white") +
+  scale_fill_gradient(low = "#421650", high = "white", na.value = "#C4C4C4") +
   labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Years to\nrecover") +
   theme_classic() +
   scale_y_continuous(expand = c(0, 0), limits = c(- 10.34483/2, 300)) +
   scale_x_continuous(expand = c(0,0))
 
-heatmap_yr_f
-```
 
-```{r}
-#bottom quartile
-q1_yr_f <- f_yr %>% 
-  group_by(as.factor(Moose), as.factor(By), .drop = F) %>% 
-  summarise(mean_yr = quantile(as.numeric(year),0.25)) %>% 
-  ungroup() %>% 
-  mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
-  mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
-  select(c(3:5))
 
-q1_yr_50_f <- q1_yr_f %>% 
-  right_join(filter(n_f, percent_recover >= 50))
-
-heatmap_yr_fq1 <- ggplot() +
-  geom_tile(data = q1_yr_50_f, aes(x = Moose, y = By, fill = mean_yr)) +
-  geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
-  scale_fill_viridis_c() +
-  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Years to recover") +
-  theme_classic() +
-  scale_y_continuous(expand = c(0,0), limits = c(0, 300)) +
-  scale_x_continuous(expand = c(0,0), limits = c(0, 6))
-
-heatmap_yr_fq1
-
-#bottom quartile
-q3_yr_f <- f_yr %>% 
-  group_by(as.factor(Moose), as.factor(By), .drop = F) %>% 
-  summarise(mean_yr = quantile(as.numeric(year),0.75)) %>% 
-  ungroup() %>% 
-  mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
-  mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
-  select(c(3:5))
-
-q3_yr_50_f <- q3_yr_f %>% 
-  right_join(filter(n_f, percent_recover >= 50))
-
-heatmap_yr_fq3 <- ggplot() +
-  geom_tile(data = q3_yr_50_f, aes(x = Moose, y = By, fill = mean_yr)) +
-  geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
-  scale_fill_viridis_c() +
-  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Years to recover") +
-  theme_classic() +
-  scale_y_continuous(expand = c(0,0), limits = c(0, 300)) +
-  scale_x_continuous(expand = c(0,0), limits = c(0, 6))
-
-heatmap_yr_fq3
-heatmap_yr_fq1
 heatmap_yr_f
 ```
 
@@ -593,6 +553,7 @@ param_recovery <- function(parameter){
     mutate(across(contains("V"), ~ unlist(.))) %>% 
    pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "recover")
 
+
   return(recover_df)
 }
 
@@ -611,10 +572,19 @@ pacman::p_load(
   tidyverse,
   deSolve)
 
-ode_recovery <- lapply(names(parms), param_recovery)
+parms_sub <- parms[c('e')]
+ode_recovery <- lapply(names(parms_sub), param_recovery)
 
+# check if change over values of parameter (cv?), for mean and upper and lower quantiles?
+cv_for_recovery <- function(recover_df) {
+recover_df_cv <- recover_df %>% 
+  group_by(parameter) %>% 
+  summarise(mean = mean(recover), q1 = quantile(recover, 0.25), q3 = quantile(recover, 0.75)) %>% 
+  summarise(cv_m = cv(mean), cv_q1 = cv(q1), cv_q3 = cv(q3))
+return(recover_df_cv)
+}
 
-
+ode_recovery_change <- lapply(names(parms_sub), cv_for_recovery)
 ```
 
 

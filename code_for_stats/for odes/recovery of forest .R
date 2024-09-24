@@ -190,13 +190,34 @@ names(args_less22) <- names(arg_less_last2)
 
 
 # remove any that go to grassland
-args_recover2 <- args_less22[ ! names(args_less22) %>% str_detect("grassland") ]
+args_recover2 <- args_less[ ! names(args_less) %>% str_detect("grassland") ]
 
 # get years to reach stable
 library(zoo)
 
+return_year_stable_delta2 <- function(odes) {
+  
+  args_recover_delta <- as.data.frame(args_recover2) %>% 
+    mutate(dMoose = Moose - lag(Moose), dPyoung = Pyoung - lag(Pyoung), dPmature = Pmature - lag(Pmature), dUnpal = Unpal - lag(Unpal)) %>% 
+    filter(if_all(c(6:9), ~. <= 1e-8 | is.nan(.)))
+  
+  return(args_recover_delta)
+}
 
-year_stable2 <- lapply(args_recover2, return_year_stable)
+args_recover_delta <- as.data.frame(args_recover2[[40]]) %>% 
+  mutate(dMoose = Moose - lag(Moose), dPyoung = Pyoung - lag(Pyoung), dPmature = Pmature - lag(Pmature), dUnpal = Unpal - lag(Unpal))
+
+ggplot(subset(args_recover_delta, time >250 & time < 270), aes(time, dMoose)) +
+  geom_line()
+ggplot(subset(args_recover_delta, time >240 & time < 350), aes(time, dPyoung)) +
+  geom_line()
+ggplot(subset(args_recover_delta, time >80 & time < 270), aes(time, dPmature)) +
+  geom_line()
+ggplot(subset(args_recover_delta, time >230 & time < 270), aes(time, dUnpal)) +
+  geom_line()
+
+
+year_stable2 <- lapply(args_recover2, return_year_stable_delta2)
 
 names(args_id2) <- names(arg_less_last2)
 
