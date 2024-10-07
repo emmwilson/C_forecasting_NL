@@ -4,9 +4,57 @@ author: "Emmerson Wilson"
 date: "2024-05-08"
 output: html_document
 ---
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# import training datasets
+```{r}
+# made in 5) c lm total.Rmd
+GM_c_env <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
+TN_c_env <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
+
+mean(GM_c_env$c_m2_site)/1000
+mean(TN_c_env$c_m2_site)/1000
+
+
+```
+
+# bring in files
+```{r}
+GM_env_raster_masked_scale_bm <- rast("data created/GM_env_raster_masked_scale_bm_nwl.tif")
+TN_env_raster_masked_scale_bm <- rast("data created/TN_env_raster_masked_scale_bm_nwl.tif")
+```
+
 
 # GM
 ## make predictions using top model and stacked environmental rasters, transformed onto scale of dependant variable
+
+## model
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+GM_var <- list("FHT", "EVIamp")
+
+# run best model
+GM_model_tot <- lm_glm(GM_var, df = GM_c_env, c = "c_m2_site")
+summary(GM_model_tot)
+```
+
+
+need to run 8) c predictions first
 ```{r}
 GM_predict_tot1 <- terra::predict(GM_env_raster_masked_scale_bm, GM_model_tot, se.fit = T)
 GM_predict_tot <- exp(GM_predict_tot1)
@@ -86,6 +134,19 @@ plot(GM_PI_lower_95)
 
 # TN
 ## make predictions using top model and stacked environmental rasters, transformed onto scale of dependant variable
+
+## mdoel
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+TN_var <- list("FHT", "EVIamp")
+
+# run best model
+TN_model_tot <- lm_glm(TN_var, df = subset(TN_c_env), c = "c_m2_site")
+summary(TN_model_tot)
+```
+
+
+
 ```{r}
 TN_predict_tot1 <- terra::predict(TN_env_raster_masked_scale_bm, TN_model_tot, se.fit = T)
 TN_predict_tot <- exp(TN_predict_tot1)

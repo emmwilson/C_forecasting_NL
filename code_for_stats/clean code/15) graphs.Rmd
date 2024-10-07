@@ -355,6 +355,8 @@ dev.off()
 # error graphs
 ```{r}
 library(ggh4x)
+scaleFUN <- function(x) sprintf("%.1f", x)
+
 # run 12 and 13 first
 se_df <- mutate(TN_se_s_df, p = "TN_carbon", park = "TN", model = "carbon")  %>% 
   rbind(mutate(GM_se_s_df, p = "GM_carbon", park = "GM", model = "carbon")) %>% 
@@ -367,13 +369,7 @@ se_df$model <- factor(se_df$model , levels=c("carbon", "gap"), labels = c(expres
 
 model_name <- c("carbon" = expression("log(Total Carbon) (" ~ g/m^2~")"), "gap" = "Probability area is mature forest")
 
-ggplot(subset(se_df, park != "A. Terra Nova"), aes(rastername, value, fill = rastername))+
-  ggh4x::facet_grid2(cols =vars(model), scales = "free_y", independent = "y", switch = "x") +
-  geom_violin() +
-  xlab("Error term") +
-  ylab("Error Value")+
-  theme_classic()+
-  theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), strip.placement = "outside", strip.text = element_blank())
+colours_error <- c("black", "#54278f", "#2171b5")
 
 se_GM <- ggplot(subset(se_df, park != "A. Terra Nova"), aes(rastername, value, fill = rastername))+
   ggh4x::facet_grid2(cols = vars(model), scales = "free_y", independent = "y") +
@@ -383,6 +379,9 @@ se_GM <- ggplot(subset(se_df, park != "A. Terra Nova"), aes(rastername, value, f
   scale_y_continuous(labels=scaleFUN) +
   theme_classic()+
   scale_x_discrete(labels = c("Residual standard\nerror", "Standard error\nof the 95%\nconfidence interval", "Standard error\nof the 95%\nprediction interval"))+
+  stat_summary(aes(colour=rastername), fun.y=mean, geom="point", shape = 18, size = 4) +
+  scale_fill_manual(values = colours_error)+
+  scale_colour_manual(values = colours_error)+
   theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), strip.placement = "outside", plot.margin = margin(1,0.5,0,0, "cm"), strip.text = element_blank())
 
 se_GM_label <- annotate_figure(se_GM, top = text_grob(expression("B. Gros Morne\nlog(Total Carbon) (" ~ g/m^2~")                                              Probability area is mature forest"), vjust = 2.65, hjust = 0.57, size = 12))
@@ -397,7 +396,9 @@ se_TN <- ggplot(subset(se_df, park == "A. Terra Nova"), aes(rastername, value, f
   scale_y_continuous(labels=scaleFUN) +
   theme_classic()+
   scale_x_discrete(labels = c("Residual standard\nerror", "Standard error\nof the 95%\nconfidence interval", "Standard error\nof the 95%\nprediction interval"))+
-  theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), strip.placement = "outside", plot.margin = margin(1,0.5,0,0, "cm"), strip.text = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+  stat_summary(aes(colour=rastername), fun.y=mean, geom="point", shape = 18, size = 4) +
+  scale_fill_manual(values = colours_error)+
+  scale_colour_manual(values = colours_error)+  theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), strip.placement = "outside", plot.margin = margin(1,0.5,0,0, "cm"), strip.text = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
 
 se_TN_label <- annotate_figure(se_TN, top = text_grob(expression("A. Terra Nova\nlog(Total Carbon) (" ~ g/m^2~")                                             Probability area is mature forest"), vjust = 2.65, hjust = 0.569, size = 12))
 

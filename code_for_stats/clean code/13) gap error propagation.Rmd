@@ -5,9 +5,50 @@ date: "2024-05-08"
 output: html_document
 ---
 
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra,
+  brglm2)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("/Users/emmersonEmmerson/Documents/Master's/C_forecasting_NL/code_for_stats/clean code")
+```
+
+# import training datasets
+```{r}
+# made in 5) c lm total.Rmd
+GM_gap_env <- read_xlsx("data created/c_env_sites_scale_GM_gap.xlsx")
+TN_gap_env <- read_xlsx("data created/c_env_sites_scale_TN_gap.xlsx")
+```
+
+## for space based on variabels in best models
+```{r}
+GM_env_raster_masked_scaled_bm <- rast("data created/GM_env_raster_masked_scale_bm_nwl.tif") # stack of enviornmental variables' rasters
+TN_env_raster_masked_scaled_bm <- rast("data created/TN_env_raster_masked_scale_bm_nwl.tif")
+```
+
+# import glm function
+```{r}
+source("4) glm function.R")
+```
+
 # GM
 ## make predictions using top model and stacked environmental rasters, transformed onto scale of dependant variable
 ```{r}
+GM_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+GM_model_tot_gap <- firths_glm(GM_var_gap, df = GM_gap_env, c = "gap")
+
 GM_predict_tot_gap1 <- terra::predict(GM_env_raster_masked_scaled_bm, GM_model_tot_gap, se.fit = T)
 GM_predict_tot_gap <- 1 / (1 + exp(-GM_predict_tot_gap1))
 ```
@@ -94,6 +135,11 @@ plot(GM_PI_lower_95_gap)
 # TN
 ## make predictions using top model and stacked environmental rasters, transformed onto scale of dependant variable
 ```{r}
+TN_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+TN_model_tot_gap <- firths_glm(TN_var_gap, df = TN_gap_env, c = "gap")
+
 TN_predict_tot_gap1 <- terra::predict(TN_env_raster_masked_scaled_bm, TN_model_tot_gap, se.fit = T)
 TN_predict_tot_gap <- 1 / (1 + exp(-TN_predict_tot_gap1))
 ```
