@@ -358,36 +358,28 @@ param_dist <- data.frame(min = LVlow, max = LVhigh, mean = parms)
 
 library(truncnorm)
 ```
-
 ### how many samples
 number of parameter combos vs number recovered
 ```{r}
 ## for n samples of random parameter combos vs n recover
-
+set.seed(123)
 
 # make list of number of sampls to try
-n_p_list <- as.list(rgamma(20, 4, 0.0175), 1000)
-
-n_p_list_test <- as.list(rgamma(10, 4, 0.07))
-
-
-M_initt <- seq(0, 6, length.out = 15)
-Py_initt <- seq(0, 300, length.out = 15) 
-Pm_initt <- rep(0, 15)
-U_initt <- rep(100, 15)
-init_seqt <- data.frame(Moose=rep(M_initt, each = 15), Pyoung = rep(Py_initt, 15), Pmature = rep(Pm_initt,15), Unpal = rep(U_initt,15))
-
-y_0dtest <- split(as.matrix(init_seqt), row(init_seqt)) %>% 
-  lapply(setNames, nm = c("Moose", "Pyoung", "Pmature", "Unpal"))
+n_p_list <- as.list(c(rgamma(18, 4, 0.035), 300, 500))
+saveRDS(n_p_list, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/n_p_list.RDS") 
 
 # function to repeat ode across initial conditions and each combination of parameters, for each number of samples in list 
+
 rep_over_n_param_samples <- function (n_param) {
   
 # make n random combinations of paramaters
   n_p <- n_param
   
+  sampled_param <-  list()
+  
 # sample from distribution of each parameter n times
   for(i in rownames(param_dist)){
+    set.seed(123)
     sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]]), 4)
   }
 
@@ -413,15 +405,19 @@ rep_over_n_param_samples <- function (n_param) {
   # combine with initial values (constant) 
   args <- expand.grid(
     parameters=sampled_param_list_final,
-    initial_conditions=y_0dtest) 
+    initial_conditions=y_0d) 
   args_id <- args %>% mutate(id = seq(1, nrow(args), by = 1))
   list2env(args, envir=.GlobalEnv)
 
 
 # run over params and init conditions
-  args$output <- mapply(ode_reps, parameters, initial_conditions, SIMPLIFY = F) # add progress bar or periodic outputs and try to make parallel
+  plan(multisession, workers = 24)
+  set.seed(123)
 
+  args$output <- future_mapply(ode_reps, parameters, initial_conditions, SIMPLIFY = F, future.seed = TRUE) 
 
+  plan(sequential)
+  
 # give simulations names based params and init conditions
   names(args$output) <- seq(1, nrow(args_id), by = 1)
 
@@ -431,14 +427,23 @@ rep_over_n_param_samples <- function (n_param) {
 
 
 # remove simulations that didn't reach steady state
-
-  args_less_steady_NAs <- lapply(args_less, return_year_stable_delta) # this function returns NAs if the simulation doesn;t reach steady state
+  plan(multisession, workers = 24)
+  set.seed(123)
+  
+  args_less_steady_NAs <- future_lapply(args_less, return_year_stable_delta, future.seed = TRUE) # this function returns NAs if the simulation doesn;t reach steady state
 
   args_less_steady <- args_less[!is.na(args_less_steady_NAs)]
 
+  plan(sequential)
+
 
 # # get final stocks from remaining simulations
-  arg_less_last <- lapply(args_less_steady,tail, 1, SIMPLIFY = T)
+  plan(multisession, workers = 24)
+  set.seed(123)
+  
+  arg_less_last <- future_lapply(args_less_steady,tail, 1, SIMPLIFY = T, future.seed = TRUE)
+  
+  plan(sequential)
 
 # make this info a heat map
 
@@ -490,19 +495,47 @@ rep_over_n_param_samples <- function (n_param) {
 
 
 
+# run function
+n_p_recoveries <- lapply(n_p_list, rep_over_n_param_samples)
+
+
+lower_list <- as.list(c(10,20)
+                      )
+
+low_n_p_recoveries <- lapply(lower_list, rep_over_n_param_samples)
 
 # set up clusters
-  plan(multisession, workers = 20)
-  set.seed(123)
-
-# run function
-n_p_recoveries <- future_lapply(n_p_list_test, rep_over_n_param_samples,  future.seed = TRUE)
+#   plan(multisession, workers = 24)
+#   set.seed(123)
+# 
+# # run function
+# n_p_recoveries <- future_lapply(n_p_list, rep_over_n_param_samples,  future.seed = TRUE)
 
 plot(n_p_list, n_p_recoveries)
 
 plan(sequential)
 
-nprec_test <- pblapply(n_p_list_test, rep_over_n_param_samples)
+# nprec_test <- pblapply(n_p_list_test, rep_over_n_param_samples)
+saveRDS(n_p_recoveries, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/n_p_recoveries.RDS") 
+saveRDS(low_n_p_recoveries, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/low_n_p_recoveries.RDS") 
+  
+  
+n_p <- data.frame(list = unlist(n_p_list), recov = unlist(n_p_recoveries))
+n_p_low <- data.frame(list = unlist(lower_list), recov = unlist(low_n_p_recoveries))
+
+n_p_both <- rbind(n_p, n_p_low)
+
+ggplot(n_p, aes(x = list, y = recov))+ 
+   geom_point() + 
+   geom_smooth(method = "nls", 
+              formula = y ~  (a*x) / (b + x),
+              se = FALSE,
+              method.args = list(start = list(a = 0.771, b = 50)))
+
+ggplot(n_p, aes(x = list, y = recov))+ 
+   geom_point() + 
+   geom_smooth() +
+  geom_hline()
 
 ```
 
@@ -659,13 +692,16 @@ n_f2 <- n_fs %>%
   filter(percent_recover >= 50) %>% 
   group_by(Moose,  .drop=FALSE) %>% 
   filter(By == min(By)) %>%
-  mutate(Moose = Moose - 0.2068966/2, By = By - 10.34483/2	) %>%
+  #mutate(Moose = Moose - 0.2068966/2, By = By - 10.34483/2	) %>%
   arrange(Moose)
 
 n_f2 <- n_f2 %>% bind_rows(n_f2[nrow(n_f2), ] %>% mutate(Moose = Moose))
 n_f2
+plan(sequential)
 
 # make heatmap
+
+# main fig
 heatmap_moose_By <- ggplot() +
   geom_tile(data = n_fs, aes(x = Moose, y = By, fill = percent_recover)) +
   geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
@@ -673,15 +709,29 @@ heatmap_moose_By <- ggplot() +
   labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Percent\nrecovered") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0), limits = c(- 10.34483/2, 300)) +
-  scale_x_continuous(expand = c(0,0))+ theme(legend.position="top")
+  scale_x_continuous(expand = c(0,0))
 
 heatmap_moose_By
 
-jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/heatmap_moose_By.jpg", height = 10, width = 13, units = "cm", res = 600)
+jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/heatmap_moose_By.jpg", height = 10, width = 15, units = "cm", res = 600)
 heatmap_moose_By
 dev.off()
 
-plan(sequential)
+# legend top
+heatmap_moose_By <- ggplot() +
+  geom_tile(data = n_fs, aes(x = Moose, y = By, fill = percent_recover)) +
+  geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
+  scale_fill_gradient2(high = "#4D8F26", low = "#f29414", mid = "#f3f59e", midpoint = 50) +
+  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Percent\nrecovered") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0), limits = c(- 10.34483/2, 300)) +
+  scale_x_continuous(expand = c(0,0)) + theme(legend.position = "top")
+
+heatmap_moose_By
+
+jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/heatmap_moose_By.jpg", height = 13, width = 15, units = "cm", res = 600)
+heatmap_moose_By
+dev.off()
 ```
 
 ## time for recovered to recover
@@ -753,6 +803,11 @@ dev.off()
 
 # parameter effects
 ## across list of parameters
+
+
+maybe take out the simulations where the ratios of Py:M where simulations always recover and always go to grassland.
+only interested in the gradient section of the heatmap
+
 ```{r}
 parms2 <- list(e = 'e')
 
