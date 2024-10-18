@@ -148,17 +148,17 @@ return_year_stable_delta <- function(odes) {
 ### repeat over set params
 ```{r}
 # to repeat ode over initial conditions and parameter values with one parameter set
-ode_fvsg <- function(param_list_error) {
-  out_param2 <- lapply(y_0d_par, ode_reps, parameters = param_list_error)
+ode_fvsg <- function(param_list_error, init_cond) {
+
+  out_param2 <- lapply(init_cond, ode_reps, parameters = param_list_error)
   
   names(out_param2) <- seq(1, length(y_0d_par), by = 1)
-  out_param_less2 <- purrr::discard(out_param2, ~nrow(.) < 3)
-  out_param_less_last2 <- lapply(out_param_less2,tail, 1, SIMPLIFY = T) 
+  out_param_less2 <- lapply(purrr::discard(out_param2, ~nrow(.) < 3),tail, 1, SIMPLIFY = T) 
   
-  names(out_param_less_last2) <- paste(names(out_param_less_last2), ifelse(map(out_param_less_last2, pluck, 4) > 0, "forest", "grassland"))
+  names(out_param_less2) <- paste(names(out_param_less2), ifelse(map(out_param_less2, pluck, 4) > 0, "forest", "grassland"))
   
   
-  g_vs_f_param2 <- data.frame(id = parse_number(names(out_param_less_last2)), g_or_f = str_remove_all(names(out_param_less_last2), "[:digit:]")) %>% 
+  g_vs_f_param2 <- data.frame(id = parse_number(names(out_param_less2)), g_or_f = str_remove_all(names(out_param_less2), "[:digit:]")) %>% 
     left_join(y_0d_par_id) %>% 
     mutate(Moose = unlist(map(y_0d_par, pluck, 1)), By = unlist(map(y_0d_par, pluck, 2))) %>% 
     dplyr::select(!c(1,4,5,6))
@@ -189,30 +189,137 @@ percent_recover_param <- function(x) {
 # to run above and create graph
 param_recovery <- function(parameter){
 
-  param_list <- list(rep(list(),11))
-
   value_list <- as.list(signif(seq(from = param_dist[parameter,'min'], to = param_dist[parameter,'max'], by = (param_dist[parameter,'max'] - param_dist[parameter,'min'])/10),4))
 
+  param_list <- rep(list(list()), length(value_list))
+  
   for(i in 1:length(value_list)){
    param_list[[i]] <- sampled_param_list_final
     for(j in 1:length(sampled_param_list_final)){
      param_list[[i]][[j]][[parameter]] <- value_list[[i]]
     }
   }
+    
+  # set up clusters
+# run over params and init conditions
+  
+  out_param2 <- rep(list(list()), length(value_list))
+  percent_rec <- rep(list(list()), length(value_list))
+  
+  for(i in 1:length(value_list)) {
+  plan(multisession, workers = 20)
+  set.seed(123)
+  
+  #out_param2[[i]] <- future_mapply(ode_reps, parameters = param_list[[i]], initial_conditions = y_0d_par, future.seed = TRUE)
+  out_param2[[i]] <- future_lapply(param_list[[i]], FUN = ode_fvsg, init_cond = y_0d_par, future.seed = TRUE)
 
-  g_vs_f <- lapply(param_list, sapply, ode_fvsg)
+  
+  percent_rec[[i]] <- future_lapply(out_param2[[i]], FUN = function(x) nrow(filter(x, g_or_f == " forest"))/nrow(x) , future.seed = TRUE)
+  
+  names(percent_rec) <- c(value_list[[1]], value_list[[2]])
 
-  g_vs_f_recover <- lapply(g_vs_f, percent_recover_param)
-  names(g_vs_f_recover) <- value_list
+  plan(sequential)
+}
+  # 
+  # names(out_param2) <- seq(1, length(y_0d_par), by = 1)
+  # out_param_less2 <- purrr::discard(out_param2[[1]], ~nrow(.) < 3)
+  # out_param_less_last2 <- future_lapply(out_param_less2,tail, 1, SIMPLIFY = T, future.seed = T) 
+  # 
+  # names(out_param_less_last2) <- paste(names(out_param_less_last2), ifelse(map(out_param_less_last2, pluck, 4) > 0, "forest", "grassland"))
+# 
+#   
+#   g_vs_f_param2 <- data.frame(id = parse_number(names(out_param_less_last2)), g_or_f = str_remove_all(names(out_param_less_last2), "[:digit:]")) %>% 
+#     left_join(y_0d_par_id) %>% 
+#     mutate(Moose = unlist(map(y_0d_par, pluck, 1)), By = unlist(map(y_0d_par, pluck, 2))) %>% 
+#     dplyr::select(!c(1,4,5,6))
+  
+  
+  #g_vs_f <- future_mapply(ode_fvsg, param_list_error = param_list, init_cond = y_0d_par, future.seed = TRUE)
 
-  recover_df <- as.data.frame(do.call(rbind, g_vs_f_recover)) %>% 
+
+  recover_df <- as.data.frame(do.call(rbind, percent_rec)) %>% 
    mutate(parameter = rownames(.)) %>% 
     mutate(across(contains("V"), ~ unlist(.))) %>% 
    pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "recover")
-  print(paste0(parameter, " done"))
+   
   return(recover_df)
 }
+
+
+plot(recover_df$parameter, recover_df$recover)
 ```
+
+#### try seperating out into smaller fucntions
+```{r}
+# make list of parameters
+
+param_list_combos <- function(parameter){
+
+  value_list <- as.list(signif(seq(from = param_dist[parameter,'min'], to = param_dist[parameter,'max'], by = (param_dist[parameter,'max'] - param_dist[parameter,'min'])/10),4))
+
+  param_list <- rep(list(list()), length(value_list))
+  
+  for(i in 1:length(value_list)){
+   param_list[[i]] <- sampled_param_list_final
+    for(j in 1:length(sampled_param_list_final)){
+     param_list[[i]][[j]][[parameter]] <- value_list[[i]]
+    }
+  }
+  names(param_list) <- value_list
+  return(param_list)
+}
+
+a_param_list_combos <- param_list_combos('a')
+
+# run over params and inti cond
+param_init_runode <- function(parameter_list){
+  
+  out_param2 <- rep(list(list()), length(parameter_list))
+  
+  for(i in 1:length(parameter_list)) {
+  plan(multisession, workers = 20)
+  set.seed(123)
+  
+  #out_param2[[i]] <- future_mapply(ode_reps, parameters = param_list[[i]], initial_conditions = y_0d_par, future.seed = TRUE)
+  out_param2[[i]] <- future_lapply(parameter_list[[i]], FUN = ode_fvsg, init_cond = y_0d_par, future.seed = TRUE)
+  }
+  names(out_param2) <- names(parameter_list)
+  return(out_param2)
+}
+
+
+a_param_list_combos12 <- lapply(list(a_param_list_combos[[1]], a_param_list_combos[[2]]), function(x) x[c(3,4)])
+
+
+a_param_ode <- param_init_runode(a_param_list_combos12)
+
+
+
+# get percent recovered
+get_percent_param_rec <- function(param_ode_out, parameter_list) {
+  
+  percent_rec <- rep(list(list()), length(parameter_list))
+
+ for(i in 1:length(parameter_list)) {
+  
+  percent_rec[[i]] <- future_lapply(param_ode_out[[i]], FUN = function(x) nrow(filter(x, g_or_f == " forest"))/nrow(x) , future.seed = TRUE)
+
+  plan(sequential)
+ }
+  names(percent_rec) <- names(parameter_list)
+  
+  recover_df <- as.data.frame(do.call(rbind, percent_rec)) %>% 
+   mutate(parameter = rownames(.)) %>% 
+    mutate(across(contains("V"), ~ unlist(.))) %>% 
+   pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "recover")
+   
+  return(recover_df)
+}
+
+a_perc_rec <- get_percent_param_rec(a_param_ode, a_param_list_combos12)
+```
+
+
 
 ### plot effect of params on recovery
 ```{r}
@@ -637,7 +744,7 @@ arg_removed <- purrr::keep(args$output, ~nrow(.) < 3)
 
 # remove simulations that didn't reach steady state
 
-args_less_steady_NAs <- future_lapply(args_less, return_year_stable_delta) # this function returns NAs if the simulation doesn;t reach steady state
+args_less_steady_NAs <- future_lapply(args_less, return_year_stable_delta, future.seed = TRUE) # this function returns NAs if the simulation doesn;t reach steady state
 
 args_less_steady <- args_less[!is.na(args_less_steady_NAs)]
 
@@ -818,6 +925,10 @@ saveRDS(year_stable_delta, file = "~/C_forecasting_NL/code_for_stats/for odes/ou
 
 # limit initial conditions
 ```{r}
+# run lines 669 - 725 after importing RDS
+args <- readRDS(file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/args.RDS") 
+
+
 # get values of Moose and BY combinations that go to forest 100% or 0%
 n_f_rec <- n_fs %>% 
   filter(percent_recover == 100 | percent_recover == 0) %>% 
@@ -837,6 +948,10 @@ y_0d_par <- y_0d[names(y_0d) %in% names(y_0d_rec2)]
 
 y_0d_par_id <- as.data.frame(t(as.data.frame(y_0d_par))) %>% 
   mutate(id = seq(1, length(y_0d_par), by = 1))
+
+
+
+saveRDS(y_0d_par, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/y_0d_par.RDS") 
 ```
 
 
@@ -846,13 +961,11 @@ only interested in the gradient section of the heatmap
 
 ```{r}
 
-# set up clusters
-plan(multisession, workers = 15)
-set.seed(123)
+# instead of doing forloops within function, make matrix of all combinations?
 
-ode_recovery <- future_lapply(names(parms), param_recovery)
+ode_recovery <- lapply(names(parms), param_recovery)
 
-plot_ode_recovery <- future_lapply(ode_recovery, plot_effect_param)
+plot_ode_recovery <- lapply(ode_recovery, plot_effect_param)
 
 saveRDS(ode_recovery, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/ode_recovery.RDS") 
 saveRDS(plot_ode_recovery, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/plot_ode_recovery.RDS") 
