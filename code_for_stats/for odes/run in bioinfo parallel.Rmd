@@ -942,6 +942,23 @@ saveRDS(year_stable_delta, file = "~/C_forecasting_NL/code_for_stats/for odes/ou
 
 ```
 
+```{r}
+avg_yr_50_f_ratio <- avg_yr_50_f %>% 
+  mutate(ratio = ifelse(Moose == 0 & By == 0, 0, ifelse(Moose == 0 & By != 0, 1500, By/Moose)))
+
+n_fs_ratio_plot <- ggplot(avg_yr_50_f_ratio, aes(ratio, mean_yr)) +
+  geom_point() +
+  xlab(expression(atop(paste(underline(Young~palatable~biomass~(t))), "\nMoose biomass (t)"))) +
+  ylab('Year for simulation to recover')
+
+saveRDS(avg_yr_50_f_ratio, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/avg_yr_50_f_ratio.RDS") 
+
+jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/n_fs_ratio_plot.jpg", height = 13, width = 15, units = "cm", res = 600)
+n_fs_ratio_plot
+dev.off()
+```
+
+
 # parameter effects
 ## across list of parameters
 
