@@ -851,6 +851,26 @@ saveRDS(args, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/args.RD
 
 ```
 
+### plot 
+```{r}
+n_fs_ratio <- n_fs %>% 
+  mutate(ratio = ifelse(Moose == 0 & By == 0, 0, ifelse(Moose == 0 & By != 0, 1500, By/Moose)))
+
+n_fs_ratio_plot <- ggplot(n_fs_ratio, aes(ratio, percent_recover)) +
+  geom_point() +
+  xlim(c(0,50)) +
+  xlab(expression(atop(paste(underline(Young~palatable~biomass~(t))), "\nMoose biomass (t)"))) +
+  ylab('Percent simulations recover')
+
+saveRDS(n_fs_ratio, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/n_fs_ratio.RDS") 
+
+jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/n_fs_ratio_plot.jpg", height = 13, width = 15, units = "cm", res = 600)
+n_fs_ratio_plot
+dev.off()
+```
+
+
+
 ## time for recovered to recover
 ```{r}
 args_less_steady2 <- args_less_steady
