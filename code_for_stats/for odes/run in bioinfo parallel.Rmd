@@ -98,7 +98,7 @@ time_vec1 <- seq(from = 1, to = 1000, length.out = 1000)
 
 
 ## run model
-```{r}
+```{r message=FALSE, include=FALSE}
 out2 <- ode(y = y_0, times = time_vec1, func = lv, parms = parms, method = "lsode", events=list(func = eventfun, time = time_vec1), atol = 1e-21)
 
 plot(out2)
@@ -246,7 +246,7 @@ param_recovery <- function(parameter){
 }
 
 
-plot(recover_df$parameter, recover_df$recover)
+#plot(recover_df$parameter, recover_df$recover)
 ```
 
 #### try seperating out into smaller fucntions
@@ -269,7 +269,7 @@ param_list_combos <- function(parameter){
   return(param_list)
 }
 
-a_param_list_combos <- param_list_combos('a')
+#a_param_list_combos <- param_list_combos('a')
 
 # run over params and inti cond
 param_init_runode <- function(parameter_list){
@@ -288,10 +288,10 @@ param_init_runode <- function(parameter_list){
 }
 
 
-a_param_list_combos12 <- lapply(list(a_param_list_combos[[1]], a_param_list_combos[[2]]), function(x) x[c(3,4)])
+#a_param_list_combos12 <- lapply(list(a_param_list_combos[[1]], a_param_list_combos[[2]]), function(x) x[c(3,4)])
 
 
-a_param_ode <- param_init_runode(a_param_list_combos12)
+#a_param_ode <- param_init_runode(a_param_list_combos12)
 
 
 
@@ -303,20 +303,21 @@ get_percent_param_rec <- function(param_ode_out, parameter_list) {
  for(i in 1:length(parameter_list)) {
   
   percent_rec[[i]] <- future_lapply(param_ode_out[[i]], FUN = function(x) nrow(filter(x, g_or_f == " forest"))/nrow(x) , future.seed = TRUE)
-
+  names(percent_rec) <- names(parameter_list)
   plan(sequential)
  }
   names(percent_rec) <- names(parameter_list)
   
   recover_df <- as.data.frame(do.call(rbind, percent_rec)) %>% 
-   mutate(parameter = rownames(.)) %>% 
+   mutate(parameter = as.numeric(rownames(.))) %>% 
     mutate(across(contains("V"), ~ unlist(.))) %>% 
-   pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "recover")
+   pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "recover") %>% 
+    mutate(recover = as.numeric(recover))
    
   return(recover_df)
 }
 
-a_perc_rec <- get_percent_param_rec(a_param_ode, a_param_list_combos12)
+#a_perc_rec <- get_percent_param_rec(a_param_ode, a_param_list_combos12)
 ```
 
 
@@ -487,7 +488,7 @@ rep_over_n_param_samples <- function (n_param) {
 # sample from distribution of each parameter n times
   for(i in rownames(param_dist)){
     set.seed(123)
-    sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]]), 4)
+    sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]],  sd=(param_dist[[i,2]]-param_dist[[i,1]])/5), 5)
   }
 
 # make list of possible parameter combinations
@@ -657,7 +658,7 @@ sampled_param <- list()
 n_p <- 150 # may change
 
 for(i in rownames(param_dist)){
-sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]]), 4)
+sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]],  sd=(param_dist[[i,2]]-param_dist[[i,1]])/5), 5)
 }
 
 sampled_param_list <-  split(as.matrix(as.data.frame(sampled_param)), row(as.data.frame(sampled_param))) %>% 
@@ -675,6 +676,7 @@ sampled_param_list3 <-  sampled_param_list2[sapply(sampled_param_list2, `[`, 'al
 
 # carrying capacities
 sampled_param_list4 <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'kU') < sapply(sampled_param_list3, `[`, 'kPy') & sapply(sampled_param_list3, `[`, 'kPy') < sapply(sampled_param_list3, `[`, 'kPm')]
+
 
 # loss
 sampled_param_list_final <-  sampled_param_list4[sapply(sampled_param_list4, `[`, 'lPm') < sapply(sampled_param_list4, `[`, 'lU')]
@@ -960,17 +962,74 @@ maybe take out the simulations where the ratios of Py:M where simulations always
 only interested in the gradient section of the heatmap
 
 ```{r}
+y_0d_par <- readRDS(file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/y_0d_par.RDS") 
 
 # instead of doing forloops within function, make matrix of all combinations?
 
-ode_recovery <- lapply(names(parms), param_recovery)
+# ode_recovery <- lapply(names(parms), param_recovery)
+# 
+# plot_ode_recovery <- lapply(ode_recovery, plot_effect_param)
+# 
+# saveRDS(ode_recovery, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/ode_recovery.RDS") 
+# saveRDS(plot_ode_recovery, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/plot_ode_recovery.RDS") 
 
-plot_ode_recovery <- lapply(ode_recovery, plot_effect_param)
+# split into parts
+param_combos <- lapply(names(parms), param_list_combos)
+names(param_combos) <- names(parms)
 
-saveRDS(ode_recovery, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/ode_recovery.RDS") 
-saveRDS(plot_ode_recovery, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/plot_ode_recovery.RDS") 
+for(i in 1:length(param_combos)){
+  nam <- paste(names(param_combos)[i], "combos", sep = "_")
+  assign(nam,param_combos[[i]])
+}
 
-plan(sequential)
+# run each parameter on own? cant handle running in loop
+# may need to clear 
+e_combos2 <- list(e_combos[[5]], e_combos[[9]])
+names(e_combos2) <- c(names(e_combos)[[5]],names(e_combos)[[9]])
+
+e_combos_ode <- param_init_runode(e_combos)
+e_combos_rec <- get_percent_param_rec(e_combos_ode, e_combos)
+
+ggplot(e_combos_rec, aes(parameter, recover)) +
+  geom_violin(aes(factor(parameter)))
+
+rU_odes <- param_init_runode(rU_combos)
+rPy_odes <- param_init_runode(rPy_combos)
+lU_odes <- param_init_runode(lU_combos)
+lPy_odes <- param_init_runode(lPy_combos)
+lPm_odes <- param_init_runode(lPm_combos)
+lM_odes <- param_init_runode(lM_combos)
+kU_odes <- param_init_runode(kU_combos)
+kPy_odes <- param_init_runode(kPy_combos)
+kPm_odes <- param_init_runode(kPm_combos)
+h_odes <- param_init_runode(h_combos)
+g_odes <- param_init_runode(g_combos)
+e_odes <- param_init_runode(e_combos)
+alphaUpy_odes <- param_init_runode(alphaUpy_combos)
+alphaUPm_odes <- param_init_runode(alphaUPm_combos)
+alphaPyU_odes <- param_init_runode(alphaPyU_combos)
+alphaPmU_odes <- param_init_runode(alphaPmU_combos)
+a_odes <- param_init_runode(a_combos)
+
+
+
+
+
+# run through for loop 
+# for(i in 1:length(param_combos)) {
+#   param_combos_ode <- list()
+#   nam <- paste(names(param_combos)[i], "odes", sep = "_")
+#   
+#   param_combos_ode[[i]] <- param_init_runode(param_combos[[i]])
+#   
+#   assign(nam,param_combos_ode[[i]])
+# }
+# 
+# 
+# list_param_ode_names <- lapply(names(parms), function (x) paste(x, "odes", sep = "_"))
+# 
+# 
+# lapply(list_param_ode_names, get_percent_param_rec, param_combos)
 ```
 
 
