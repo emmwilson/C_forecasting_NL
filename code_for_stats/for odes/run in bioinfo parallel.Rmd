@@ -856,17 +856,41 @@ saveRDS(args, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/args.RD
 n_fs_ratio <- n_fs %>% 
   mutate(ratio = ifelse(Moose == 0 & By == 0, 0, ifelse(Moose == 0 & By != 0, 1500, By/Moose)))
 
-n_fs_ratio_plot <- ggplot(n_fs_ratio, aes(ratio, percent_recover)) +
-  geom_point() +
-  xlim(c(0,50)) +
-  xlab(expression(atop(paste(underline(Young~palatable~biomass~(t))), "\nMoose biomass (t)"))) +
-  ylab('Percent simulations recover')
+#n_fs_ratio <- readRDS(file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/outputs/n_fs_ratio.RDS") 
+
+library(grid)
+
+yaxis <- data.frame( x = rep(0, 110), y = seq(1,110, 1))
+
+n_fs_ratio_plot <- ggplot() +
+  geom_point(data = n_fs_ratio, aes(ratio, percent_recover, colour = percent_recover)) +
+  scale_x_continuous(limits = c(0,50)) + #, expand = c(0,0)) +
+  #scale_y_continuous(expand = c(0,0))+
+  theme_classic() +
+  scale_colour_gradient2(high = "#4D8F26", low = "#f29414", mid = "#f3f59e", midpoint = 50) +
+  labs(x = expression(frac("Young palatable biomass (t)", "Moose biomass (t)")), y = 'Percent simulations recover', colour = 'Percent simulations recover') +
+  theme(legend.position = 'none') +
+  #geom_line(data = yaxis, aes(x = x, y = y, colour = y))
+  coord_cartesian(clip = "off") +
+  annotation_custom(grid::rectGrob(x = unit(0.007, "npc"), y = unit(0.5, "npc"),
+         width = unit(2, "mm"), height = unit(73, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#f29414", "#f3f59e", "#4D8F26"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+  
+
+
+  #gghighlight(percent_recover == 100 | percent_recover == 0)
+n_fs_ratio_plot
 
 saveRDS(n_fs_ratio, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/n_fs_ratio.RDS") 
 
-jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/n_fs_ratio_plot.jpg", height = 13, width = 15, units = "cm", res = 600)
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/outputs/n_fs_ratio_plot.jpg", height = 10, width = 12, units = "cm", res = 600)
 n_fs_ratio_plot
 dev.off()
+
+
+# predict
+
+
+
 ```
 
 
@@ -946,15 +970,62 @@ saveRDS(year_stable_delta, file = "~/C_forecasting_NL/code_for_stats/for odes/ou
 avg_yr_50_f_ratio <- avg_yr_50_f %>% 
   mutate(ratio = ifelse(Moose == 0 & By == 0, 0, ifelse(Moose == 0 & By != 0, 1500, By/Moose)))
 
-n_fs_ratio_plot <- ggplot(avg_yr_50_f_ratio, aes(ratio, mean_yr)) +
+avg_yr_50_f_ratio <- readRDS(file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/outputs/avg_yr_50_f_ratio.RDS") 
+
+avg_yr_50_f_ratioplot <- ggplot(avg_yr_50_f_ratio, aes(ratio, mean_yr, colour = mean_yr)) +
   geom_point() +
   xlab(expression(atop(paste(underline(Young~palatable~biomass~(t))), "\nMoose biomass (t)"))) +
-  ylab('Year for simulation to recover')
+  ylab('Year for simulation to recover')+
+  scale_colour_gradient(low = "#421650", high = "white", na.value = "#C4C4C4") +
+  theme_classic()
+n_fs_ratio_plot
+
+avg_yr_50_f_ratioplotz <- ggplot(avg_yr_50_f_ratio, aes(ratio, percent_recover, colour = mean_yr)) +
+  geom_point() +
+  xlab(expression(atop(paste(underline(Young~palatable~biomass~(t))), "\nMoose biomass (t)"))) +
+  ylab('Year for simulation to recover')+
+  xlim(c(0, 50))+
+  scale_colour_gradient2(low = "#421650", mid = "#84678D",  high = "white", na.value = "#C4C4C4", midpoint = (max(avg_yr_50_f_ratio$mean_yr, na.rm = T) + min(avg_yr_50_f_ratio$mean_yr, na.rm = T))/2)+
+  theme_classic()
+n_fs_ratio_plotz
+n_fs_ratio_plot
+
+avg_yr_50_f_ratioplot2 <- ggplot() +
+  geom_point(data = avg_yr_50_f_ratio, aes(ratio, mean_yr, colour = mean_yr)) +
+  #scale_x_continuous(limits = c(0,50)) + #, expand = c(0,0)) +
+  #scale_y_continuous(expand = c(0,0))+
+  theme_classic() +
+  scale_colour_gradient2(high = "#C6B9CA", low = "#290934", mid = "#84678D", midpoint = (max(avg_yr_50_f_ratio$mean_yr, na.rm = T) + min(avg_yr_50_f_ratio$mean_yr, na.rm = T))/2) +
+  labs(x = expression(frac("Young palatable biomass (t)", "Moose biomass (t)")), y = 'Years to stable') +
+  theme(legend.position = 'none') +
+  #geom_line(data = yaxis, aes(x = x, y = y, colour = y))
+  coord_cartesian(clip = "off") +
+  annotation_custom(grid::rectGrob(x = unit(0.007, "npc"), y = unit(0.5, "npc"),
+         width = unit(2, "mm"), height = unit(73, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#290934", "#84678D", "#C6B9CA"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+avg_yr_50_f_ratioplot2
 
 saveRDS(avg_yr_50_f_ratio, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/avg_yr_50_f_ratio.RDS") 
 
-jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/n_fs_ratio_plot.jpg", height = 13, width = 15, units = "cm", res = 600)
-n_fs_ratio_plot
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/outputs/avg_yr_50_f_ratioplot2.jpg", height = 10, width = 12, units = "cm", res = 600)
+avg_yr_50_f_ratioplot2
+dev.off()
+
+avg_yr_50_f_ratioplot2z <- ggplot() +
+  geom_point(data = avg_yr_50_f_ratio, aes(ratio, mean_yr, colour = mean_yr)) +
+  scale_x_continuous(limits = c(0,50)) + #, expand = c(0,0)) +
+  #scale_y_continuous(expand = c(0,0))+
+  theme_classic() +
+  scale_colour_gradient2(high = "#C6B9CA", low = "#290934", mid = "#84678D", midpoint = (max(avg_yr_50_f_ratio$mean_yr, na.rm = T) + min(avg_yr_50_f_ratio$mean_yr, na.rm = T))/2) +
+  labs(x = expression(frac("Young palatable biomass (t)", "Moose biomass (t)")), y = 'Years to stable') +
+  theme(legend.position = 'none') +
+  #geom_line(data = yaxis, aes(x = x, y = y, colour = y))
+  coord_cartesian(clip = "off") +
+  annotation_custom(grid::rectGrob(x = unit(0.007, "npc"), y = unit(0.5, "npc"),
+         width = unit(2, "mm"), height = unit(73, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#290934", "#84678D", "#C6B9CA"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+avg_yr_50_f_ratioplot2z
+
+jpeg("~/Documents/Master's/C_forecasting_NL/code_for_stats/for odes/outputs/avg_yr_50_f_ratioplot2z.jpg", height = 10, width = 12, units = "cm", res = 600)
+avg_yr_50_f_ratioplot2z
 dev.off()
 ```
 
