@@ -1125,31 +1125,35 @@ saveRDS(rPy_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outpu
 lU_odes <- param_init_runode(lU_combos)
 lU_combos_rec <- get_percent_param_rec(lU_odes,lU_combos)
 remove(lU_odes)
-ggplot(lU_combos_rec, aes(parameter, recover)) +
-  geom_violin(aes(factor(parameter)))
+# ggplot(lU_combos_rec, aes(parameter, recover)) +
+#   geom_violin(aes(factor(parameter)))
 saveRDS(lU_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/lU_combos_rec.RDS") 
 
 
 lPy_odes <- param_init_runode(lPy_combos)
 lPy_combos_rec <- get_percent_param_rec(lPy_odes,lPy_combos)
 remove(lPy_odes)
-ggplot(lPy_combos_rec, aes(parameter, recover)) +
-  geom_violin(aes(factor(parameter)))
+# ggplot(lPy_combos_rec, aes(parameter, recover)) +
+#   geom_violin(aes(factor(parameter)))
 saveRDS(lPy_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/lPy_combos_rec.RDS") 
 
 
 lPm_odes <- param_init_runode(lPm_combos)
 lPm_combos_rec <- get_percent_param_rec(lPm_odes,lPm_combos)
 remove(lPm_odes)
-ggplot(lPm_combos_rec, aes(parameter, recover)) +
-  geom_violin(aes(factor(parameter)))
+# ggplot(lPm_combos_rec, aes(parameter, recover)) +
+#   geom_violin(aes(factor(parameter)))
+saveRDS(lPm_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/lPm_combos_rec.RDS") 
+
 
 
 lM_odes <- param_init_runode(lM_combos)
 lM_combos_rec <- get_percent_param_rec(lM_odes,lM_combos)
 remove(lM_odes)
-ggplot(lM_combos_rec, aes(parameter, recover)) +
-  geom_violin(aes(factor(parameter)))
+# ggplot(lM_combos_rec, aes(parameter, recover)) +
+#   geom_violin(aes(factor(parameter)))
+saveRDS(lM_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/lM_combos_rec.RDS") 
+
 
 kU_odes <- param_init_runode(kU_combos)
 kPy_odes <- param_init_runode(kPy_combos)
