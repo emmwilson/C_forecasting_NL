@@ -1,0 +1,51 @@
+---
+title: "parameter effects"
+output: html_document
+date: "2024-10-30"
+---
+
+```{r}
+source(knitr::purl("~/C_forecasting_NL/code_for_stats/for odes/run for parameter effects.Rmd", quiet=TRUE))
+
+parms  <- c(a = 0.9985, 
+            h = 0.0223,
+            e = 0.02,
+            lM = 0.3234,
+            rPy = 0.2,
+            rPm = 0.14,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, 
+            kPy = 1000,
+            kPm = 68000, 
+            g = 0.133,
+            lPm = 0.01,
+            lPy = 0.2,
+            rU = 0.9,
+            alphaPyU = 0.002, 
+            alphaPmU = 0.006, 
+            kU = 900,
+            lU = 0.4)
+
+param_combos <- lapply(names(parms), param_list_combos)
+names(param_combos) <- names(parms)
+
+for(i in 1:length(param_combos)){
+  nam <- paste(names(param_combos)[i], "combos", sep = "_")
+  assign(nam,param_combos[[i]])
+}
+
+nams <- paste(names(parms), "combos", sep = "_")
+
+
+
+for(i in 1:length(param_combos)) {
+  source(knitr::purl("~/C_forecasting_NL/code_for_stats/for odes/run for parameter effects.Rmd", quiet=TRUE))
+  p_combos_ode <- param_init_runode(param_combos[[i]])
+  p_combos_rec <- get_percent_param_rec(p_combos_ode, param_combos[[i]])
+  nam <- paste(names(param_combos)[i], "combos", sep = "_")
+  saveRDS(p_combos_rec, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_rec.RDS'))
+  rm(list=setdiff(ls(), c(nams, "param_combos")))
+}
+
+```

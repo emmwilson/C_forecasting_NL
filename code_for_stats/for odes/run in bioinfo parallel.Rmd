@@ -8,7 +8,7 @@ output: html_document
 note: if you terminate a code chunk you have to restart the session!
 else the future Rscipts keep running
 
-
+#libraries
 ```{r}
 pacman::p_load(
   tidyverse,
@@ -658,6 +658,7 @@ sampled_param <- list()
 n_p <- 150 # may change
 
 for(i in rownames(param_dist)){
+  set.seed(123)
 sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]],  sd=(param_dist[[i,2]]-param_dist[[i,1]])/5), 5)
 }
 
@@ -680,6 +681,9 @@ sampled_param_list4 <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'kU
 
 # loss
 sampled_param_list_final <-  sampled_param_list4[sapply(sampled_param_list4, `[`, 'lPm') < sapply(sampled_param_list4, `[`, 'lU')]
+
+#save to use for all repetitions
+saveRDS(sampled_param_list_final, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/sampled_param_list_final.RDS")
 ```
 
 
@@ -985,8 +989,7 @@ y_0d_rec2 <- y_0d_rec[ !y_0d_rec %in% MBy_list ]
 # remove y_0d_rec from y_0d based on name 
 y_0d_par <- y_0d[names(y_0d) %in% names(y_0d_rec2)]
 
-y_0d_par_id <- as.data.frame(t(as.data.frame(y_0d_par))) %>% 
-  mutate(id = seq(1, length(y_0d_par), by = 1))
+
 
 
 
@@ -1000,6 +1003,9 @@ only interested in the gradient section of the heatmap
 
 ```{r}
 y_0d_par <- readRDS(file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/y_0d_par.RDS") 
+
+y_0d_par_id <- as.data.frame(t(as.data.frame(y_0d_par))) %>% 
+  mutate(id = seq(1, length(y_0d_par), by = 1))
 
 # instead of doing forloops within function, make matrix of all combinations?
 
@@ -1021,57 +1027,40 @@ for(i in 1:length(param_combos)){
 
 # run each parameter on own? cant handle running in loop
 # may need to clear 
-e_combos2 <- list(e_combos[[5]], e_combos[[9]])
-names(e_combos2) <- c(names(e_combos)[[5]],names(e_combos)[[9]])
 
 e_combos_ode <- param_init_runode(e_combos)
 e_combos_rec <- get_percent_param_rec(e_combos_ode, e_combos)
-
-ggplot(e_combos_rec, aes(parameter, recover)) +
-  geom_violin(aes(factor(parameter)))
 remove(e_combos_ode)
 saveRDS(e_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/e_combos_rec.RDS") 
 
 
 rU_odes <- param_init_runode(rU_combos)
 rU_combos_rec <- get_percent_param_rec(rU_odes, rU_combos)
-ggplot(rU_combos_rec, aes(parameter, recover)) +
-  geom_violin(aes(factor(parameter)))
+remove(rU_odes)
 saveRDS(rU_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/rU_combos_rec.RDS") 
 
-
-
-remove(rU_odes)
 
 rPy_odes <- param_init_runode(rPy_combos)
 rPy_combos_rec <- get_percent_param_rec(rPy_odes, rPy_combos)
 remove(rPy_odes)
-ggplot(rPy_combos_rec, aes(parameter, recover)) +
-  geom_violin(aes(factor(parameter)))
 saveRDS(rPy_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/rPy_combos_rec.RDS") 
 
 
 lU_odes <- param_init_runode(lU_combos)
 lU_combos_rec <- get_percent_param_rec(lU_odes,lU_combos)
 remove(lU_odes)
-# ggplot(lU_combos_rec, aes(parameter, recover)) +
-#   geom_violin(aes(factor(parameter)))
 saveRDS(lU_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/lU_combos_rec.RDS") 
 
 
 lPy_odes <- param_init_runode(lPy_combos)
 lPy_combos_rec <- get_percent_param_rec(lPy_odes,lPy_combos)
 remove(lPy_odes)
-# ggplot(lPy_combos_rec, aes(parameter, recover)) +
-#   geom_violin(aes(factor(parameter)))
 saveRDS(lPy_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/lPy_combos_rec.RDS") 
 
 
 lPm_odes <- param_init_runode(lPm_combos)
 lPm_combos_rec <- get_percent_param_rec(lPm_odes,lPm_combos)
 remove(lPm_odes)
-# ggplot(lPm_combos_rec, aes(parameter, recover)) +
-#   geom_violin(aes(factor(parameter)))
 saveRDS(lPm_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/lPm_combos_rec.RDS") 
 
 
@@ -1079,48 +1068,61 @@ saveRDS(lPm_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outpu
 lM_odes <- param_init_runode(lM_combos)
 lM_combos_rec <- get_percent_param_rec(lM_odes,lM_combos)
 remove(lM_odes)
-# ggplot(lM_combos_rec, aes(parameter, recover)) +
-#   geom_violin(aes(factor(parameter)))
 saveRDS(lM_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/lM_combos_rec.RDS") 
 
 
 kU_odes <- param_init_runode(kU_combos)
+kU_combos_rec <- get_percent_param_rec(kU_odes,kU_combos)
+remove(kU_odes)
+saveRDS(kU_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/kU_combos_rec.RDS") 
+
+
 kPy_odes <- param_init_runode(kPy_combos)
+kPy_combos_rec <- get_percent_param_rec(kPy_odes,kPy_combos)
+remove(kPy_odes)
+saveRDS(kPy_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/kPy_combos_rec.RDS") 
+
+
 kPm_odes <- param_init_runode(kPm_combos)
+kPm_combos_rec <- get_percent_param_rec(kPm_odes,kPm_combos)
+remove(kPm_odes)
+saveRDS(kPm_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/kPm_combos_rec.RDS") 
 
 h_odes <- param_init_runode(h_combos)
-h_combos_rec <- get_percent_param_rec(h_odes, h_combos)
-ggplot(h_combos_rec, aes(parameter, recover)) +
-  geom_violin(aes(factor(parameter)))
+h_combos_rec <- get_percent_param_rec(h_odes,h_combos)
 remove(h_odes)
+saveRDS(h_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/h_combos_rec.RDS") 
 
 g_odes <- param_init_runode(g_combos)
-e_odes <- param_init_runode(e_combos)
+g_combos_rec <- get_percent_param_rec(g_odes,g_combos)
+remove(g_odes)
+saveRDS(g_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/g_combos_rec.RDS") 
+
 alphaUpy_odes <- param_init_runode(alphaUpy_combos)
+alphaUpy_combos_rec <- get_percent_param_rec(alphaUpy_odes,alphaUpy_combos)
+remove(alphaUpy_odes)
+saveRDS(alphaUpy_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/alphaUpy_combos_rec.RDS") 
+
 alphaUPm_odes <- param_init_runode(alphaUPm_combos)
+alphaUpy_combos_rec <- get_percent_param_rec(alphaUpy_odes,alphaUpy_combos)
+remove(alphaUpy_odes)
+saveRDS(alphaUpy_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/alphaUpy_combos_rec.RDS") 
+
 alphaPyU_odes <- param_init_runode(alphaPyU_combos)
+alphaPyU_combos_rec <- get_percent_param_rec(alphaPyU_odes,alphaPyU_combos)
+remove(alphaPyU_odes)
+saveRDS(alphaPyU_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/alphaPyU_combos_rec.RDS") 
+
 alphaPmU_odes <- param_init_runode(alphaPmU_combos)
+alphaPmU_combos_rec <- get_percent_param_rec(alphaPmU_odes,alphaPmU_combos)
+remove(alphaPmU_odes)
+saveRDS(alphaPmU_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/alphaPmU_combos_rec.RDS") 
+
 a_odes <- param_init_runode(a_combos)
+a_combos_rec <- get_percent_param_rec(a_odes,a_combos)
+remove(a_odes)
+saveRDS(a_combos_rec, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/a_combos_rec.RDS") 
 
-
-
-
-
-# run through for loop 
-# for(i in 1:length(param_combos)) {
-#   param_combos_ode <- list()
-#   nam <- paste(names(param_combos)[i], "odes", sep = "_")
-#   
-#   param_combos_ode[[i]] <- param_init_runode(param_combos[[i]])
-#   
-#   assign(nam,param_combos_ode[[i]])
-# }
-# 
-# 
-# list_param_ode_names <- lapply(names(parms), function (x) paste(x, "odes", sep = "_"))
-# 
-# 
-# lapply(list_param_ode_names, get_percent_param_rec, param_combos)
 ```
 
 
