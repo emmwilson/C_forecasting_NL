@@ -1,12 +1,4 @@
----
-title: "run for parameter effects"
-author: "Emmerson Wilson"
-date: "2024-08-27"
-output: html_document
----
-
-#libraries
-```{r}
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 pacman::p_load(
   tidyverse,
   deSolve,
@@ -14,11 +6,9 @@ pacman::p_load(
   pbapply,
   future.apply,
   progressr)
-```
 
-# model
-## structure
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 lv <- function(times, state, parms) {
   with(as.list(c(state, parms)), {
 # moose
@@ -47,10 +37,9 @@ lv <- function(times, state, parms) {
     list(c(dMoose, dPyoung, dPmature, dUnpal))
   })
 }
-```
 
-## parameters
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 parms  <- c(a = 0.9985, 
             h = 0.0223,
             e = 0.02,
@@ -70,48 +59,38 @@ parms  <- c(a = 0.9985,
             alphaPmU = 0.006, 
             kU = 900,
             lU = 0.4)
-```
 
-## initial conditions
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 y_0 <- c(Moose =2, Pyoung = 50, Pmature = 0, Unpal = 100)
-```
 
-## extinction
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 eps <- 1e-2
 ## event triggered if state variable <= eps
 eventfun <- function(times, y, parms) {
   y[which(y<eps | y<0)] <- 0 
   return(y)
 }
-```
 
-## time
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 time_vec1 <- seq(from = 1, to = 1000, length.out = 1000)
-```
 
 
-## run model
-```{r message=FALSE, include=FALSE}
+## ----message=FALSE, include=FALSE------------------------------------------------------------------------------------------------------------------------
 out2 <- ode(y = y_0, times = time_vec1, func = lv, parms = parms, method = "lsode", events=list(func = eventfun, time = time_vec1), atol = 1e-21)
 
-```
-# functions
 
-## run model over different conditions
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 ode_reps <- function(parameters, initial_conditions) {
   out <- ode(y = initial_conditions, times = time_vec1, func = lv, parms = parameters, events=list(func = eventfun, time = time_vec1), method = "lsode", atol = 1e-21)
 }
-```
 
-## specifically for params
 
-### repeat over set params
-```{r}
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 # to repeat ode over initial conditions and parameter values with one parameter set
 ode_fvsg <- function(param_list_error, init_cond) {
 
@@ -119,10 +98,9 @@ ode_fvsg <- function(param_list_error, init_cond) {
 
   return(out_param2)
 }
-```
 
-### calculate percent recovered
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 # to calculate percent recovered
 percent_recover_param <- function(x) {
   df_list <- list()
@@ -133,11 +111,9 @@ percent_recover_param <- function(x) {
   }
   return(n_rec_list)
 }
-```
 
 
-#### try seperating out into smaller fucntions
-```{r}
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 # make list of parameters
 
 param_list_combos <- function(parameter){
@@ -226,12 +202,9 @@ get_percent_param_rec <- function(param_ode_out, parameter_list) {
 
 }
 
-```
 
 
-
-### plot effect of params on recovery
-```{r}
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 plot_effect_param <- function(data) {
  ggplot(data, aes(x = parameter, y = recover, colour = recover)) +
   geom_violin() +
@@ -239,10 +212,9 @@ plot_effect_param <- function(data) {
   scale_fill_gradient2(high = "#4D8F26", low = "#f29414", mid = "#f3f59e", midpoint = 50) +
   geom_point(stat = 'summary', fun = 'mean', size = 2) 
 }
-```
 
-###  time to recovery for params
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 return_year_stable_delta <- function(odes) {
 
   args_recover_delta <- rep(list(list(list())), length(odes))
@@ -353,10 +325,9 @@ return_year_recovered <- function(odes, p_combos_yr, param_combos) {
 #   
 #   return(args_recover_yravg)
 # }
-```
 
-### run param_time_rec over each param
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 # return_year_stable_param <- function(param) {
 #   param_listat <- list(rep(list(),11))
 #   
@@ -378,10 +349,9 @@ return_year_recovered <- function(odes, p_combos_yr, param_combos) {
 #     pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "yr_recover")
 # 
 # }
-```
 
-### plot effect of params on time
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 plot_effect_param_t <- function(data) {
  ggplot(data, aes(x = parameter, y = yr_recover, colour = yr_recover)) +
   geom_violin() +
@@ -390,10 +360,9 @@ plot_effect_param_t <- function(data) {
   geom_point(stat = 'summary', fun = 'mean', size = 2) 
 }
 
-```
 
-# ranges
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 # make datafram with distribution of parameters
 
 LVlow <-  c(0.996, #a
@@ -440,22 +409,21 @@ LVhigh <-  c(1.005, #a
 param_dist <- data.frame(min = LVlow, max = LVhigh, mean = parms)
 
 library(truncnorm)
-```
 
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 #save to use for all repetitions
 sampled_param_list_final <- readRDS(file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/sampled_param_list_final.RDS")
-```
 
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 y_0d_par <- readRDS(file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/y_0d_par.RDS") 
 
 y_0d_par_id <- as.data.frame(t(as.data.frame(y_0d_par))) %>% 
   mutate(id = seq(1, length(y_0d_par), by = 1))
-```
 
-# get each param on own
-```{r}
+
+## --------------------------------------------------------------------------------------------------------------------------------------------------------
 # split into parts
 param_combos <- lapply(names(parms), param_list_combos)
 names(param_combos) <- names(parms)
@@ -464,8 +432,4 @@ for(i in 1:length(param_combos)){
   nam <- paste(names(param_combos)[i], "combos", sep = "_")
   assign(nam,param_combos[[i]])
 }
-```
-
-
-
 

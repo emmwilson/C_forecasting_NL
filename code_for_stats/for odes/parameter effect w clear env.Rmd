@@ -37,15 +37,141 @@ for(i in 1:length(param_combos)){
 
 nams <- paste(names(parms), "combos", sep = "_")
 
+param_combos1 <- lapply(param_combos[c(1,2)], function(x) lapply(x, function(y) list(y[[1]],y[[47]])))
+```
 
 
-for(i in 1:length(param_combos)) {
+# just percent rec
+```{r}
+
+param_effect_eraseenv <- function(i) {
   source(knitr::purl("~/C_forecasting_NL/code_for_stats/for odes/run for parameter effects.Rmd", quiet=TRUE))
   p_combos_ode <- param_init_runode(param_combos[[i]])
   p_combos_rec <- get_percent_param_rec(p_combos_ode, param_combos[[i]])
   nam <- paste(names(param_combos)[i], "combos", sep = "_")
+  saveRDS(p_combos_rec, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/',nam,'_rec.RDS'))
+  rm(list=setdiff(ls(), c("param_effect_eraseenv")))
+}
+rm(list=setdiff(ls(), c("param_effect_eraseenv")))
+
+#lapply(list(1,2), param_effect_eraseenv)
+
+#lapply(list(3,4), param_effect_eraseenv)
+
+lapply(list(5,6, 7), param_effect_eraseenv)
+
+
+rm(list=setdiff(ls(), c("param_effect_eraseenv")))
+
+```
+
+
+# with time to recover as well
+```{r}
+source(knitr::purl("~/C_forecasting_NL/code_for_stats/for odes/run for parameter effects.Rmd", quiet=TRUE))
+
+param_effect_eraseenv_yr <- function(i) {
+  source(knitr::purl("~/C_forecasting_NL/code_for_stats/for odes/run for parameter effects.Rmd", quiet=TRUE))
+  p_combos_ode <- param_init_runode(param_combos[[i]])
+  p_combos_end <- param_init_get_end(p_combos_ode, param_combos[[i]])
+  p_combos_rec <- get_percent_param_rec(p_combos_end, param_combos[[i]])
+  # add recovery time in here - do both time to stable and time to "recovered"
+  p_combos_yr <- return_year_stable_delta(p_combos_ode)
+  p_combos_yr_rec <- return_year_recovered(p_combos_ode, p_combos_yr, param_combos[[i]])
+  nam <- paste(names(param_combos)[i], "combos", sep = "_")
   saveRDS(p_combos_rec, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_rec.RDS'))
-  rm(list=setdiff(ls(), c(nams, "param_combos")))
+  saveRDS(p_combos_yr, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_stable_yr.RDS'))
+  saveRDS(p_combos_yr_rec, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_rec_yr.RDS'))
 }
 
+
+rm(list=setdiff(ls(), c(parms, nams, "param_effect_eraseenv_yr", "param_combos")))
+
+
+#lapply(list(1,2), param_effect_eraseenv_yr)
+
+#lapply(list(3,4), param_effect_eraseenv_yr) didnt do 4
+
+#lapply(list(4,5), param_effect_eraseenv_yr)
+
+#lapply(list(6, 7), param_effect_eraseenv_yr) 
+
+# rm is messing up so took out
+
+lapply(list(8,9), param_effect_eraseenv_yr)
+
+
+# param_combos1 <- lapply(param_combos[c(1,2)], function(x) lapply(x, function(y) list(y[[1]],y[[47]])))
+```
+
+
+
+
+```{r}
+# tests
+
+a_combos_rec <- readRDS("~/C_forecasting_NL/code_for_stats/for odes/outputs/ a_combos _rec.RDS")
+
+  a_combos_recdf <- as.data.frame(a_combos_rec) %>%
+    mutate(parameter = round(parameter, 3)) %>% 
+    group_by(parameter)
+  
+ a_combos_recmean <- as.data.frame(a_combos_rec) %>%
+    mutate(parameter = round(parameter, 3)) %>% 
+    group_by(parameter) %>%
+    summarise(mean = mean(recover))
+  
+ library(grid)
+ library(scales)
+
+ 
+  a_plot <- ggplot() +
+    geom_violin(data = a_combos_recdf, aes(factor(parameter), recover), size = 0.5) +
+    geom_point(data = a_combos_recmean, aes(factor(parameter), mean, colour = mean)) +
+    theme_classic() +
+    scale_x_discrete(expand = c(0.1,0), breaks = levels(factor(a_combos_recmean$parameter))[c(T, rep(F, 1))])+
+    ylim(c(0,1)) +
+    labs(x = paste0('a', 'units')) +
+    # rectangle with gradient
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1), axis.text.y = element_blank()) +
+     scale_colour_gradientn(colours = c("#4D8F26", "#f3f59e", "#f29414"), values = c(1, 0.5, 0), limits = c(0, 1)) +
+    coord_cartesian(clip = "off") +
+    annotation_custom(grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"),
+                                     width = unit(1, "mm"), height = unit(25, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#f29414", "#f3f59e", "#4D8F26"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+  
+
+
+
+
+h_combos_rec <- readRDS("~/C_forecasting_NL/code_for_stats/for odes/outputs/ h_combos _rec.RDS")
+
+  h_combos_recdf <- as.data.frame(h_combos_rec) %>%
+    mutate(parameter = round(parameter, 3)) %>% 
+    group_by(parameter)
+  
+ h_combos_recmean <- as.data.frame(h_combos_rec) %>%
+    mutate(parameter = round(parameter, 3)) %>% 
+    group_by(parameter) %>%
+    summarise(mean = mean(recover))
+  
+ library(grid)
+ library(scales)
+
+ 
+  h_plot <- ggplot() +
+    geom_violin(data = h_combos_recdf, aes(factor(parameter), recover), size = 0.5) +
+    geom_point(data = h_combos_recmean, aes(factor(parameter), mean, colour = mean)) +
+    theme_classic() +
+    scale_x_discrete(expand = c(0.1,0), breaks = levels(factor(h_combos_recmean$parameter))[c(T, rep(F, 1))])+
+    ylim(c(0,1)) +
+    labs(x = paste0('a', 'units')) +
+    # rectangle with gradient
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1), axis.text.y = element_blank()) +
+     scale_colour_gradientn(colours = c("#4D8F26", "#f3f59e", "#f29414"), values = c(1, 0.5, 0), limits = c(0, 1)) +
+    coord_cartesian(clip = "off") +
+    annotation_custom(grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"),
+                                     width = unit(1, "mm"), height = unit(25, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#f29414", "#f3f59e", "#4D8F26"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+  
+h_plot
+a_plot
 ```
