@@ -233,6 +233,33 @@ plot_effect_param <- function(data) {
 
 ###  time to recovery for params
 ```{r}
+return_year_stable_delta <- function(odes) {
+
+  args_recover_delta <- as.data.frame(odes) %>% 
+    mutate(dMoose = odes[,2] - lag(odes[,2]), dPyoung = Pyoung - lag(Pyoung), dPmature = Pmature - lag(Pmature), dUnpal = Unpal - lag(Unpal)) %>% 
+    filter(if_all(c(6:9), ~. <= 1e-8 | is.nan(.)))
+  
+  args_recover_deltayr <- args_recover_delta[1,1]
+  return(args_recover_deltayr)
+}
+
+return_year_stable_cv <- function(odes) {
+  test_rollcv <- rollapply(odes, width=10, FUN=cv, fill=NA, by.column = T)
+
+  test_rollcv_stop <- test_rollcv %>%
+    as.data.frame() %>%
+    mutate(time = rownames(.)) %>%
+    filter(if_all(c(2:5), ~. <= 0.001 | is.nan(.))) # change this to be more in line with rootSolve and deSolve steady state criteria
+
+  test_rollcv_stopyr <- test_rollcv_stop[1,1]
+  return(test_rollcv_stopyr)
+}
+
+cv <- function(x)  sd(x)/mean(x)
+```
+
+
+```{r}
 # function to get 
 param_time_rec <- function(param_list_error) {
   out_param2 <- lapply(y_0d_par, ode_reps, parameters = param_list_error)
