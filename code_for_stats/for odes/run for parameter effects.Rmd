@@ -70,6 +70,9 @@ parms  <- c(a = 0.9985,
             alphaPmU = 0.006, 
             kU = 900,
             lU = 0.4)
+
+sampled_param_list_final <- readRDS(file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/sampled_param_list_final.RDS")
+
 ```
 
 ## initial conditions
@@ -294,7 +297,7 @@ return_year_recovered <- function(odes, p_combos_yr, param_combos) {
   odes_yr_mat<- rep(list(list(list())), length(odes2))
   
   for(i in 1:length(odes)){
-    for(j in 1:length(c(1,2))){
+    for(j in 1:length(c(sampled_param_list_final))){
   
       #need to filter out those that don't recover
       
