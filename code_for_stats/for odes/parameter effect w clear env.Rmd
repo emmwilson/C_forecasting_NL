@@ -63,6 +63,20 @@ param_combos1 <- lapply(param_combos[c(1,2)], function(x) lapply(x, function(y) 
 # 
 # rm(list=setdiff(ls(), c("param_effect_eraseenv")))
 
+param_effect_eraseenv <- function(i) {
+ source(knitr::purl("~/C_forecasting_NL/code_for_stats/for odes/run for parameter effects.Rmd", quiet=TRUE))
+  p_combos_ode <- param_init_runode(param_combos[[i]])
+  p_combos_rec <- get_percent_param_rec(p_combos_ode, param_combos[[i]])
+  # add recovery time in here - do both time to stable and time to "recovered"
+  p_combos_yr <- return_year_stable_delta(p_combos_ode)
+  p_combos_yr_rec <- return_year_stable_cv(p_combos_ode)
+  nam <- paste(names(param_combos)[i], "combos", sep = "_")
+  saveRDS(p_combos_rec, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_rec.RDS'))
+  saveRDS(p_combos_yr, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_stable_yr.RDS'))
+  saveRDS(p_combos_yr_rec, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_rec_yr.RDS'))
+  rm(list=setdiff(ls(), c(nams, "param_combos")))
+}
+
 ```
 
 
