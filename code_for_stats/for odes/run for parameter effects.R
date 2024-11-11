@@ -227,7 +227,7 @@ return_year_stable_delta <- function(odes) {
   odes2 <- odes
   
   for(i in 1:length(odes)){
-    for(j in 1:length(c(1,2))){
+    for(j in 1:length(c(sampled_param_list_final))){
   
       #need to filter out those that don't recover
       
@@ -269,7 +269,7 @@ return_year_recovered <- function(odes, p_combos_yr, param_combos) {
   odes_yr_mat<- rep(list(list(list())), length(odes2))
   
   for(i in 1:length(odes)){
-    for(j in 1:length(c(sampled_param_list_final))){
+    for(j in 1:length(sampled_param_list_final)){
   
       #need to filter out those that don't recover
       
@@ -282,23 +282,29 @@ return_year_recovered <- function(odes, p_combos_yr, param_combos) {
   names(args_recover[[i]][[j]]) <- parse_number(names(args_recover[[i]][[j]]))
   
   odes2[[i]][[j]] <- odes[[i]][[j]][names(odes[[i]][[j]]) %in% names(args_recover[[i]][[j]])]
-  
+  names(odes2[[i]][[j]]) <- names(args_recover[[i]][[j]])
   
   # new filter
   
   
   odes_stable_yrs[[i]][[j]] <- lapply(names(odes2[[i]][[j]]), function(x) as.data.frame(odes2[[i]][[j]][[x]]) %>% 
     filter(time >= p_combos_yr[[i]][[j]][[x]]))
-  odes_avg_mat[[i]][[j]] <- lapply(odes_stable_yrs[[i]][[j]], function(x) as.numeric(x[1,4]))
+  
+  
+  names(odes_stable_yrs[[i]][[j]]) <- names(odes2[[i]][[j]])
+  
+  odes_avg_mat[[i]][[j]] <- lapply(names(odes2[[i]][[j]]), function(x) as.numeric(odes_stable_yrs[[i]][[j]][[x]][1,4]))
   
   names(odes_avg_mat[[i]][[j]]) <- names(odes2[[i]][[j]])
   
   # return year simulation initially hit that mature value
   
+  
   odes_yr_mat[[i]][[j]] <- lapply(names(odes2[[i]][[j]]), function(x) as.data.frame(odes2[[i]][[j]][[x]]) %>% 
     filter(Pmature >= as.numeric(odes_avg_mat[[i]][[j]][[x]]) - as.numeric(odes_avg_mat[[i]][[j]][[x]])/1000))
   
   odes_yr_mat[[i]][[j]] <- lapply(odes_yr_mat[[i]][[j]], function(x) as.numeric(x[1,1]))
+  
   names(odes_yr_mat[[i]][[j]]) <- names(odes2[[i]][[j]])
     }
   }

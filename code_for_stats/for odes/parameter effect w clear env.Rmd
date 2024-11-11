@@ -86,15 +86,17 @@ source(knitr::purl("~/C_forecasting_NL/code_for_stats/for odes/run for parameter
 
 param_effect_eraseenv_yr <- function(i) {
   source(knitr::purl("~/C_forecasting_NL/code_for_stats/for odes/run for parameter effects.Rmd", quiet=TRUE))
+  nam <- paste(names(param_combos)[i], "combos", sep = "_")
   p_combos_ode <- param_init_runode(param_combos[[i]])
+  saveRDS(p_combos_ode, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_ode.RDS'))
   p_combos_end <- param_init_get_end(p_combos_ode, param_combos[[i]])
+  saveRDS(p_combos_end, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_end.RDS'))
   p_combos_rec <- get_percent_param_rec(p_combos_end, param_combos[[i]])
+  saveRDS(p_combos_rec, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_rec.RDS'))
   # add recovery time in here - do both time to stable and time to "recovered"
   p_combos_yr <- return_year_stable_delta(p_combos_ode)
-  p_combos_yr_rec <- return_year_recovered(p_combos_ode, p_combos_yr, param_combos[[i]])
-  nam <- paste(names(param_combos)[i], "combos", sep = "_")
-  saveRDS(p_combos_rec, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_rec.RDS'))
   saveRDS(p_combos_yr, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_stable_yr.RDS'))
+  p_combos_yr_rec <- return_year_recovered(p_combos_ode, p_combos_yr, param_combos[[i]])
   saveRDS(p_combos_yr_rec, file = paste('~/C_forecasting_NL/code_for_stats/for odes/outputs/', nam, '_rec_yr.RDS'))
 }
 
@@ -102,9 +104,9 @@ param_effect_eraseenv_yr <- function(i) {
 rm(list=setdiff(ls(), c(parms, nams, "param_effect_eraseenv_yr", "param_combos")))
 
 
-lapply(list(1,2, 3), param_effect_eraseenv_yr)
+#lapply(list(1,2, 3), param_effect_eraseenv_yr)
 
-
+lapply(list(4, 5, 6), param_effect_eraseenv_yr)
 
 # param_combos1 <- lapply(param_combos[c(1,2)], function(x) lapply(x, function(y) list(y[[1]],y[[47]])))
 ```
