@@ -125,7 +125,25 @@ return_year_stable_delta <- function(odes) {
   return(args_recover_deltayr)
 }
 
+return_year_recover <- function(odes, yrstable) {
 
+  yr_stable <- as.numeric(yrstable)
+  
+ odes_stable_yrs <-as.data.frame(odes) %>% 
+   filter(time > yr_stable)
+  
+  names(odes_stable_yrs) <- names(odes)
+  
+  odes_avg_mat <- odes_stable_yrs[1,4]
+  
+  names(odes_avg_mat) <- names(odes)
+  
+  # return year simulation initially hit that mature value
+ odes_yr_mat <-as.data.frame(odes) %>% 
+    filter(Pmature >= as.numeric(odes_avg_mat) -   as.numeric(odes_avg_mat)/1000)
+  
+  odes_yr_mat <-as.numeric(odes_yr_mat[1,1])
+}
 # using cv
 # function
 # return_year_stable_cv <- function(odes) {
@@ -918,12 +936,15 @@ year_stable_delta <- future_lapply(args_recover, return_year_stable_delta)
 
 plan(sequential)
 
+year_rec_delta <- mapply(return_year_recover, args_recover, year_stable_delta)
+
+
 # add to simulation data
-f_yr <- data.frame(id = parse_number(names(year_stable_delta)), g_or_f = str_remove_all(names(year_stable_delta), "[:digit:]"), year = unlist(year_stable_delta)) %>% 
+f_yr <- data.frame(id = parse_number(names(year_rec_delta)), g_or_f = str_remove_all(names(year_rec_delta), "[:digit:]"), year = unlist(year_rec_delta)) %>% 
   left_join(args_id) %>% 
   mutate(Moose = unlist(map(initial_conditions, pluck, 1)), By = unlist(map(initial_conditions, pluck, 2))) %>% 
   na.omit() %>% 
-  dplyr::select(!c(1,4,5))
+  dplyr::select(!c(4,5, 6))
 # seems to depend mostly on parameter
 
 avg_yr_f <- f_yr %>% 
