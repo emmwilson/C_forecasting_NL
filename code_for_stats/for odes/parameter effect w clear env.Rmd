@@ -106,7 +106,15 @@ rm(list=setdiff(ls(), c(parms, nams, "param_effect_eraseenv_yr", "param_combos")
 
 #lapply(list(1,2, 3), param_effect_eraseenv_yr)
 
-lapply(list(4, 5, 6), param_effect_eraseenv_yr)
+#lapply(list(4, 5, 6), param_effect_eraseenv_yr)
+
+#lapply(list(7, 8, 9), param_effect_eraseenv_yr)
+
+# lapply(list(10, 11, 12), param_effect_eraseenv_yr)
+
+#lapply(list(13, 14, 15), param_effect_eraseenv_yr)
+
+lapply(list(16, 17, 18, 19), param_effect_eraseenv_yr)
 
 # param_combos1 <- lapply(param_combos[c(1,2)], function(x) lapply(x, function(y) list(y[[1]],y[[47]])))
 ```
