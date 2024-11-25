@@ -854,7 +854,7 @@ heatmap_moose_By
 dev.off()
 
 # legend top
-heatmap_moose_By <- ggplot() +
+heatmap_moose_Byt <- ggplot() +
   geom_tile(data = n_fs, aes(x = Moose, y = By, fill = percent_recover)) +
   geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
   scale_fill_gradient2(high = "#4D8F26", low = "#f29414", mid = "#f3f59e", midpoint = 50) +
@@ -863,11 +863,12 @@ heatmap_moose_By <- ggplot() +
   scale_y_continuous(expand = c(0,0), limits = c(- 10.34483/2, 300)) +
   scale_x_continuous(expand = c(0,0)) + theme(legend.position = "top")
 
-heatmap_moose_By
+heatmap_moose_Byt
 
-jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/heatmap_moose_By.jpg", height = 13, width = 15, units = "cm", res = 600)
-heatmap_moose_By
+jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/heatmap_moose_Byt.jpg", height = 13, width = 15, units = "cm", res = 600)
+heatmap_moose_Byt
 dev.off()
+
 
 saveRDS(args, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/args.RDS") 
 
@@ -943,8 +944,7 @@ year_rec_delta <- mapply(return_year_recover, args_recover, year_stable_delta)
 f_yr <- data.frame(id = parse_number(names(year_rec_delta)), g_or_f = str_remove_all(names(year_rec_delta), "[:digit:]"), year = unlist(year_rec_delta)) %>% 
   left_join(args_id) %>% 
   mutate(Moose = unlist(map(initial_conditions, pluck, 1)), By = unlist(map(initial_conditions, pluck, 2))) %>% 
-  na.omit() %>% 
-  dplyr::select(!c(4,5, 6))
+  na.omit() 
 # seems to depend mostly on parameter
 
 avg_yr_f <- f_yr %>% 
@@ -982,10 +982,26 @@ heatmap_moose_By_yr <- ggplot() +
 
 heatmap_moose_By_yr
 
-jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/heatmap_moose_By_yr.jpg", height = 10, width = 13, units = "cm", res = 600)
+jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/heatmap_moose_By_yr.jpg", height = 10, width = 15, units = "cm", res = 600)
 heatmap_moose_By_yr
 dev.off()
 # will need hetmap of how many each simulation is over
+
+heatmap_moose_By_yrt <- ggplot() +
+  geom_tile(data = avg_yr_50_f, aes(x = Moose, y = By, fill = mean_yr)) +
+  # geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
+  #   geom_step(data = n_f22100, aes(x = Moose, y = By), size = 0.5, color = "white") +
+  scale_fill_gradient(low = "#421650", high = "white", na.value = "#C4C4C4") +
+  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Years to\nrecover") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0, 0), limits = c(- 10.34483/2, 300)) +
+  scale_x_continuous(expand = c(0,0))+ theme(legend.position = "top")
+
+heatmap_moose_By_yrt
+
+jpeg("~/C_forecasting_NL/code_for_stats/for odes/outputs/heatmap_moose_By_yrt.jpg", height = 13, width = 15, units = "cm", res = 600)
+heatmap_moose_By_yrt
+dev.off()
 
 saveRDS(year_stable_delta, file = "~/C_forecasting_NL/code_for_stats/for odes/outputs/year_stable_delta.RDS") 
 
