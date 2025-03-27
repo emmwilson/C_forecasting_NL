@@ -1,0 +1,469 @@
+---
+title: "C lm share"
+author: "Emmerson Wilson"
+date: "2024-03-04"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  AICcmodavg,
+  rcompanion)
+  
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/code availability")
+```
+
+# data
+
+## carbon 
+
+```{r}
+c_22_23 <- read_xlsx("data required/c_22_23.xlsx") %>% 
+  filter(ex_ctrl != "EX")
+
+```
+
+## total carbon per 1m^2 
+need to average carbon at each subplot within a site
+```{r}
+c_m2_sites <- c_22_23 %>%
+  mutate(unique_id = paste0(park_id, "_",site_id)) %>% 
+  group_by(unique_id, park_id, gap) %>% # group by id, and still want park_id and gao columns in output
+  summarize(c_m2_site = sum(total_c_per_subplot)/36) # divide by 36 because each of the 4 subplots is 9m2 to get m2
+
+write.xlsx(c_m2_sites, file = "data created/c_m2_site.xlsx")
+
+```
+
+## environmental data
+
+```{r}
+env_site_final <- read_xlsx("data created/env_sites_final.xlsx")
+```
+
+## join env and c data
+
+```{r}
+c_env_sites <- full_join(c_m2_sites, env_site_final) %>%
+  dplyr::select(!c(FAC, SPC, CC, CEC_LCT)) # remove unwanted columns based on correlation analysis
+```
+
+#### scale
+separately for each park
+```{r}
+#scale predictor variables (but don't center around 0)
+c_env_sites_GM <- c_env_sites%>% 
+  filter(park == "GM") 
+
+c_env_sites_scale_GM <- c_env_sites%>% 
+  filter(park == "GM")
+
+c_env_sites_scale_GM[c(11:16, 18)] <- scale(c_env_sites_GM[c(11:16, 18)], center = F) # select continuous variabes to scale
+
+#scale predictor variables (but don't center around 0)
+c_env_sites_TN <- c_env_sites%>% 
+  filter(park == "TN") 
+
+c_env_sites_scale_TN <- c_env_sites%>% 
+  filter(park == "TN")
+
+c_env_sites_scale_TN[c(11:16, 18)] <- scale(c_env_sites_TN[c(11:16, 18)], center = F) # select continuous variabes to scale
+```
+
+#### make moose characters not numbers
+```{r}
+c_env_sites_scale_GM$Moose_new <- as.character(c_env_sites_scale_GM$Moose_new) # make moose categories characters
+
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 1] <- "aL"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 2] <- "aL"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 3] <- "bH"
+c_env_sites_scale_GM["Moose_new"][c_env_sites_scale_GM["Moose_new"] == 4] <- "cX"
+
+c_env_sites_scale_GM$Moose_new <- as.factor(c_env_sites_scale_GM$Moose_new)
+
+c_env_sites_scale_TN$Moose_new <- as.character(c_env_sites_scale_TN$Moose_new) # make moose categories characters
+
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 1] <- "aL"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 2] <- "bM"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 3] <- "cH"
+c_env_sites_scale_TN["Moose_new"][c_env_sites_scale_TN["Moose_new"] == 4] <- "dV"
+
+c_env_sites_scale_TN$Moose_new <- as.factor(c_env_sites_scale_TN$Moose_new)
+```
+
+### export datasets
+```{r}
+write.xlsx(c_env_sites_scale_GM, file = "data created/c_env_sites_scale_GM.xlsx")
+write.xlsx(c_env_sites_scale_TN, file = "data created/c_env_sites_scale_TN.xlsx")
+```
+
+
+# glm functions
+```{r}
+source("2) glm function.R")
+```
+
+
+# GM
+
+### null
+
+```{r}
+#run the model
+GM_lm_null <- lm_glm(c_env_sites_scale_GM, "c_m2_site", "1")
+```
+
+```{r}
+# get the summary of the model into a dataframe
+GM_lm_null_summary <- as.data.frame(summary(GM_lm_null)$coefficients) %>% 
+  mutate(model = "GM_lm_null") 
+GM_lm_null_summary <- GM_lm_null_summary %>% 
+  add_column("predictor" = rownames(GM_lm_null_summary))
+
+# reorder columns so model name first
+GM_lm_null_summary <- GM_lm_null_summary[,c(5,6,1:4)]
+GM_lm_null_summary
+```
+
+### full
+
+```{r}
+# make list of all variables to be included in full model
+full_var <- list("FHT", "EVIamp", "EVImed", "ELE", "SLO", "ASP", "LGS", "Moose_new")
+
+# run the model
+GM_lm_full <- lm_glm(c_env_sites_scale_GM, "c_m2_site", full_var)
+```
+
+```{r}
+# add summary of model to dataframe
+GM_lm_full_summary <- as.data.frame(summary(GM_lm_full)$coefficients) %>% 
+  mutate(model = "GM_lm_full") 
+GM_lm_full_summary <- GM_lm_full_summary %>% 
+  add_column("predictor" = rownames(GM_lm_full_summary))
+
+GM_lm_full_summary <- GM_lm_full_summary[,c(5,6,1:4)]
+GM_lm_full_summary
+
+```
+
+### univariate
+
+```{r}
+# run model with each predictor variable on own
+
+GM_lm_uni <- lapply(full_var, lm_glm, df = c_env_sites_scale_GM, c = "c_m2_site")
+
+names(GM_lm_uni) <- full_var # make sure names of objects in list consistent
+```
+
+```{r}
+GM_lm_uni_summary <- lapply(GM_lm_uni, summary)
+
+GM_lm_uni_summary
+
+GM_lm_uni_AIC <- as.data.frame(t(as.data.frame(lapply(GM_lm_uni, AICc)))) 
+GM_lm_uni_AIC$model <- rownames(GM_lm_uni_AIC)
+
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
+
+GM_uni_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(GM_lm_uni_summary, coef), as.data.frame), "model"=names(GM_lm_uni_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+GM_uni_summary_all <- GM_uni_summary_all[,c(5,6,1:4)]
+GM_uni_summary_all
+```
+
+### reduced
+```{r}
+# find possible reduced model to add to 
+# need to input full model not through function 
+GM_lm_full2 <- glm(formula = c_m2_site ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_env_sites_scale_GM, family = Gamma(link = "log")) 
+
+GM_lm_red <- step(GM_lm_full2, direction = "backward", trace = F)
+
+```
+
+```{r}
+GM_lm_red_summary <- as.data.frame(summary(GM_lm_red)$coefficients) %>% 
+  mutate(model = "GM_lm_red") 
+GM_lm_red_summary <- GM_lm_red_summary %>% 
+  add_column("predictor" = rownames(GM_lm_red_summary))
+
+GM_lm_red_summary <- GM_lm_red_summary[,c(5,6,1:4)]
+GM_lm_red_summary
+```
+
+```{r}
+# check for uninformative parameters and add next most important parameter (EVIamp is actually a better univariate model than EVImed)
+GM_lm_red2 <- glm(formula = c_m2_site ~ FHT + EVImed, data = c_env_sites_scale_GM, family = Gamma(link = "log")) 
+GM_lm_red3 <- glm(formula = c_m2_site ~ FHT + EVIamp, data = c_env_sites_scale_GM, family = Gamma(link = "log")) 
+GM_lm_red4 <- glm(formula = c_m2_site ~ EVImed + EVIamp, data = c_env_sites_scale_GM, family = Gamma(link = "log")) 
+
+GM_red_models_r <- list()
+GM_red_models_r[[names(GM_lm_uni)[1]]] <- GM_lm_uni[[1]]
+GM_red_models_r[[names(GM_lm_uni)[2]]] <- GM_lm_uni[[2]]
+GM_red_models_r[[names(GM_lm_uni)[3]]] <- GM_lm_uni[[3]]
+GM_red_models_r[["GM_lm_red"]] <- GM_lm_red
+GM_red_models_r[["GM_lm_red2"]] <- GM_lm_red2
+GM_red_models_r[["GM_lm_red3"]] <- GM_lm_red3
+GM_red_models_r[["GM_lm_red4"]] <- GM_lm_red4
+Modnames_GM_red <- paste(names(GM_red_models_r))
+
+# get table
+aic_GMred <- aictab(cand.set = GM_red_models_r, modnames = Modnames_GM_red, sort = TRUE) 
+
+# including both improves model by more than 2 AICc, neither variable uninfomrative because model with an additional parameter ranked below both
+
+GM_lm_red_summary2 <- as.data.frame(summary(GM_lm_red2)$coefficients) %>% 
+  mutate(model = "GM_lm_red") 
+GM_lm_red_summary2 <- GM_lm_red_summary2 %>% 
+  add_column("predictor" = rownames(GM_lm_red_summary2))
+
+GM_lm_red_summary2 <- GM_lm_red_summary2[,c(5,6,1:4)]
+GM_lm_red_summary2
+
+GM_lm_red_summary <- as.data.frame(summary(GM_lm_red)$coefficients) %>% 
+  mutate(model = "GM_lm_red") 
+GM_lm_red_summary <- GM_lm_red_summary %>% 
+  add_column("predictor" = rownames(GM_lm_red_summary))
+
+GM_lm_red_summary <- GM_lm_red_summary[,c(5,6,1:4)]
+GM_lm_red_summary
+
+GM_lm_red_summary3 <- as.data.frame(summary(GM_lm_red3)$coefficients) %>% 
+  mutate(model = "GM_lm_red") 
+GM_lm_red_summary3 <- GM_lm_red_summary3 %>% 
+  add_column("predictor" = rownames(GM_lm_red_summary3))
+
+GM_lm_red_summary3 <- GM_lm_red_summary3[,c(5,6,1:4)]
+GM_lm_red_summary3
+
+lapply(GM_red_models_r, confint)
+
+```
+
+## summary of uni, null and full
+
+```{r}
+# combine summary dataframes for null, full and univariate models
+GM_lm_summary <- rbind(GM_lm_null_summary, GM_lm_full_summary, GM_uni_summary_all, GM_lm_red_summary, GM_lm_red_summary2, GM_lm_red_summary3) 
+GM_lm_summary <- GM_lm_summary %>% 
+  mutate(significance = ifelse(GM_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(GM_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(GM_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(GM_lm_summary$`Pr(>|t|)` < 0.1, ".", "  "))))) # add symbols for easy visualization of sigificance
+```
+
+## compare
+
+```{r}
+# add univariate, null and full models into a list
+GM_models_r <- list()
+
+GM_models_r[["GM_lm_null"]] <- GM_lm_null
+GM_models_r[["GM_lm_full"]] <- GM_lm_full
+GM_models_r[[names(GM_lm_uni)[1]]] <- GM_lm_uni[[1]]
+GM_models_r[[names(GM_lm_uni)[2]]] <- GM_lm_uni[[2]]
+GM_models_r[[names(GM_lm_uni)[3]]] <- GM_lm_uni[[3]]
+GM_models_r[[names(GM_lm_uni)[4]]] <- GM_lm_uni[[4]]
+GM_models_r[[names(GM_lm_uni)[5]]] <- GM_lm_uni[[5]]
+GM_models_r[[names(GM_lm_uni)[6]]] <- GM_lm_uni[[6]]
+GM_models_r[[names(GM_lm_uni)[7]]] <- GM_lm_uni[[7]]
+GM_models_r[[names(GM_lm_uni)[8]]] <- GM_lm_uni[[8]]
+GM_models_r[["GM_lm_red2"]] <- GM_lm_red2
+GM_models_r[["GM_lm_red"]] <- GM_lm_red
+GM_models_r[["GM_lm_red3"]] <- GM_lm_red3
+GM_models_r[["GM_lm_red4"]] <- GM_lm_red4
+
+Modnames_GM_r <- paste(names(GM_models_r)) # make sure names are same as model name
+
+# get table
+aic_GM <- as.data.frame(aictab(cand.set = GM_models_r, modnames = Modnames_GM_r, sort = TRUE))
+
+
+#add R2 to AIC table
+R2_GM <- data.frame(lapply(lapply(GM_models_r, nagelkerke, null = GM_lm_null), function(x) x$Pseudo.R.squared.for.model.vs.null[[3]])) %>% 
+  pivot_longer(cols = c(1:14), values_to = "R2", names_to = "Modnames")
+R2_GM
+aic_GM
+
+aic_R2_GM <- full_join(aic_GM, R2_GM) # table of AIC values for null, full and univariate models
+```
+
+# TN
+
+### null
+
+```{r}
+TN_lm_null <- lm_glm(c_env_sites_scale_TN, "c_m2_site", "1")
+
+summary(TN_lm_null)
+
+# make into data frame that can be combined with other models'
+TN_lm_null_summary <- as.data.frame(summary(TN_lm_null)$coefficients) %>% 
+  mutate(model = "TN_lm_null") 
+TN_lm_null_summary <- TN_lm_null_summary %>% 
+  add_column("predictor" = rownames(TN_lm_null_summary))
+
+TN_lm_null_summary <- TN_lm_null_summary[,c(5,6,1:4)]
+TN_lm_null_summary
+```
+
+### full
+
+```{r}
+
+TN_lm_full <- lm_glm(c_env_sites_scale_TN, "c_m2_site", full_var)
+
+summary(TN_lm_full)
+
+TN_lm_full_summary <- as.data.frame(summary(TN_lm_full)$coefficients) %>% 
+  mutate(model = "TN_lm_full") 
+TN_lm_full_summary <- TN_lm_full_summary %>% 
+  add_column("predictor" = rownames(TN_lm_full_summary))
+
+TN_lm_full_summary <- TN_lm_full_summary[,c(5,6,1:4)]
+TN_lm_full_summary
+```
+
+### univariate
+
+```{r}
+
+TN_lm_uni <- lapply(full_var, lm_glm, df = c_env_sites_scale_TN, c = "c_m2_site")
+
+names(TN_lm_uni) <- full_var
+
+TN_lm_uni_summary <- lapply(TN_lm_uni, summary)
+TN_lm_uni_summary
+
+# get summary of each univariate model, add them to a single dataframe with model name and variables in own columns
+
+TN_uni_summary_all <- Reduce(full_join,lapply(mapply(cbind, lapply(lapply(TN_lm_uni_summary, coef), as.data.frame), "model"=names(TN_lm_uni_summary), SIMPLIFY=F), rownames_to_column, var = "predictor")) 
+TN_uni_summary_all <- TN_uni_summary_all[,c(5,6,1:4)]
+TN_uni_summary_all
+```
+
+### reduced
+```{r}
+# find possible reduced model to add to 
+# need to input full model not through function 
+TN_lm_full2 <- glm(formula = c_m2_site ~ FHT + EVIamp + EVImed + ELE + SLO + ASP + LGS + Moose_new, data = c_env_sites_scale_TN, family = Gamma(link = "log")) 
+
+TN_lm_red <- step(TN_lm_full2, direction = "backward", trace = F)
+
+
+TN_lm_red_summary <- as.data.frame(summary(TN_lm_red)$coefficients) %>% 
+  mutate(model = "TN_lm_red") 
+TN_lm_red_summary <- TN_lm_red_summary %>% 
+  add_column("predictor" = rownames(TN_lm_red_summary))
+
+TN_lm_red_summary <- TN_lm_red_summary[,c(5,6,1:4)]
+TN_lm_red_summary
+
+# check for uninformative parameters
+# create summary table of models without potential uninformative parameters
+TN_lm_red2 <- glm(formula = c_m2_site ~ FHT + EVIamp, data = c_env_sites_scale_TN, family = Gamma(link = "log")) 
+TN_lm_red2_summary <- as.data.frame(summary(TN_lm_red2)$coefficients) %>% 
+  mutate(model = "TN_lm_red") 
+TN_lm_red2_summary <- TN_lm_red2_summary %>% 
+  add_column("predictor" = rownames(TN_lm_red2_summary))
+TN_lm_red2_summary <- TN_lm_red2_summary[,c(5,6,1:4)]
+TN_lm_red2_summary
+
+TN_lm_red3 <- glm(formula = c_m2_site ~ FHT + SLO, data = c_env_sites_scale_TN, family = Gamma(link = "log")) 
+TN_lm_red3_summary <- as.data.frame(summary(TN_lm_red3)$coefficients) %>%
+  mutate(model = "TN_lm_red") 
+TN_lm_red3_summary <- TN_lm_red3_summary %>% 
+  add_column("predictor" = rownames(TN_lm_red3_summary))
+TN_lm_red3_summary <- TN_lm_red3_summary[,c(5,6,1:4)]
+TN_lm_red3_summary
+
+TN_lm_red4 <- glm(formula = c_m2_site ~ EVIamp + SLO, data = c_env_sites_scale_TN, family = Gamma(link = "log")) 
+TN_lm_red4_summary <- as.data.frame(summary(TN_lm_red4)$coefficients) %>%
+  mutate(model = "TN_lm_red") 
+TN_lm_red4_summary <- TN_lm_red4_summary %>% 
+  add_column("predictor" = rownames(TN_lm_red4_summary))
+TN_lm_red4_summary <- TN_lm_red4_summary[,c(5,6,1:4)]
+TN_lm_red4_summary
+
+
+TN_red_models_r <- list()
+TN_red_models_r[[names(TN_lm_uni)[1]]] <- TN_lm_uni[[1]]
+TN_red_models_r[[names(TN_lm_uni)[2]]] <- TN_lm_uni[[2]]
+TN_red_models_r[[names(TN_lm_uni)[5]]] <- TN_lm_uni[[5]]
+TN_red_models_r[["TN_lm_red"]] <- TN_lm_red
+TN_red_models_r[["TN_lm_red2"]] <- TN_lm_red2
+TN_red_models_r[["TN_lm_red3"]] <- TN_lm_red3
+TN_red_models_r[["TN_lm_red4"]] <- TN_lm_red4
+Modnames_TN_red <- paste(names(TN_red_models_r))
+
+# compare AIC and LL
+aic_TNred <- aictab(cand.set = TN_red_models_r, modnames = Modnames_TN_red, sort = TRUE)  
+
+confint(TN_lm_red) # all parameters overlap 0 (but FHT improves all metrics too much)
+confint(TN_lm_red2) # EVIamp overlaps 0
+confint(TN_lm_red3) # SLO overlaps 0
+confint(TN_lm_uni[[1]])
+
+# looking at one parameter at a time, both SLO and EVIamp are uninformative
+# but
+# if we look at the model as a whole, to see if it is better than just FHT, AICc are not different by more than 2 (and this also seems like no uninformative parameter based on step 2 of Leroux 2019)
+```
+
+## summary of uni, null and full
+
+```{r}
+# combine summary dataframes for null, full and univariate models
+TN_lm_summary <- rbind(TN_lm_null_summary, TN_lm_full_summary, TN_uni_summary_all, TN_lm_red_summary, TN_lm_red2_summary, TN_lm_red3_summary)
+TN_lm_summary <- TN_lm_summary %>% 
+  mutate(significance = ifelse(TN_lm_summary$`Pr(>|t|)` < 0.001, "***", ifelse(TN_lm_summary$`Pr(>|t|)` < 0.01, "**", ifelse(TN_lm_summary$`Pr(>|t|)` < 0.05, "*", ifelse(TN_lm_summary$`Pr(>|t|)` < 0.1, ".", " "))))) # add symbols for easy visualization of sigificance
+```
+
+## compare
+
+```{r}
+# see excel "c_lm_model_results.xlsx" for consolidated values
+
+TN_models_r <- list()
+
+TN_models_r[["TN_lm_null"]] <- TN_lm_null
+TN_models_r[["TN_lm_full"]] <- TN_lm_full
+TN_models_r[[names(TN_lm_uni)[1]]] <- TN_lm_uni[[1]]
+TN_models_r[[names(TN_lm_uni)[2]]] <- TN_lm_uni[[2]]
+TN_models_r[[names(TN_lm_uni)[3]]] <- TN_lm_uni[[3]]
+TN_models_r[[names(TN_lm_uni)[4]]] <- TN_lm_uni[[4]]
+TN_models_r[[names(TN_lm_uni)[5]]] <- TN_lm_uni[[5]]
+TN_models_r[[names(TN_lm_uni)[6]]] <- TN_lm_uni[[6]]
+TN_models_r[[names(TN_lm_uni)[7]]] <- TN_lm_uni[[7]]
+TN_models_r[[names(TN_lm_uni)[8]]] <- TN_lm_uni[[8]]
+TN_models_r[["TN_lm_red"]] <- TN_lm_red
+TN_models_r[["TN_lm_red2"]] <- TN_lm_red2
+TN_models_r[["TN_lm_red3"]] <- TN_lm_red3
+TN_models_r[["TN_lm_red4"]] <- TN_lm_red4
+
+Modnames_TN_r <- paste(names(TN_models_r))
+
+# get table
+aic_TN <- aictab(cand.set = TN_models_r, modnames = Modnames_TN_r, sort = TRUE)  
+
+R2_TN <- data.frame(lapply(lapply(TN_models_r, nagelkerke, null = TN_lm_null), function(x) x$Pseudo.R.squared.for.model.vs.null[[3]])) %>% 
+  pivot_longer(cols = c(2:14), values_to = "R2", names_to = "Modnames") %>% 
+  dplyr::select(!1)
+aic_TN
+
+aic_R2_TN <- full_join(aic_TN, R2_TN) # table of AIC values for null, full and univariate models
+```
+
+
+
+
+
+
+

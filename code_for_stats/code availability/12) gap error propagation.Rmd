@@ -1,0 +1,154 @@
+---
+title: "12) gap error propagation"
+author: "Emmerson Wilson"
+date: "2024-05-08"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra,
+  brglm2)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/code availability")
+
+# import glm function
+source("2) glm function.R")
+```
+
+# import training datasets
+```{r}
+# made in 5) c lm total.Rmd
+GM_gap_env <- read_xlsx("data created/c_env_sites_scale_GM_gap.xlsx")
+TN_gap_env <- read_xlsx("data created/c_env_sites_scale_TN_gap.xlsx")
+```
+
+## for space based on variabels in best models
+```{r}
+GM_env_raster_masked_scaled_bm <- rast("data created/GM_env_raster_masked_scale.tif") # stack of enviornmental variables' rasters
+TN_env_raster_masked_scaled_bm <- rast("data created/TN_env_raster_masked_scale.tif")
+```
+
+# import glm function
+```{r}
+source("2) glm function.R")
+```
+
+# GM
+## make predictions using top model and stacked environmental rasters, transformed onto scale of dependant variable
+```{r}
+GM_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+GM_model_tot_gap <- firths_glm(GM_var_gap, df = GM_gap_env, c = "gap")
+
+GM_predict_tot_gap1 <- terra::predict(GM_env_raster_masked_scaled_bm, GM_model_tot_gap, se.fit = T)
+GM_predict_tot_gap <- 1 / (1 + exp(-GM_predict_tot_gap1))
+```
+
+## get standard errors of the predicted mean from predict() function, transform to scale of dependent variable 
+```{r}
+GM_predict_tot_gap_se1 <- GM_predict_tot_gap1$se.fit
+GM_predict_tot_gap_se <- 1 / (1 + exp(-GM_predict_tot_gap_se1))
+
+#export
+writeRaster(GM_predict_tot_gap_se, filename="data created/GM_predict_tot_gap_se.tif", overwrite=TRUE)
+#export
+writeRaster(GM_predict_tot_gap_se1, filename="data created/GM_predict_tot_gap_se1.tif", overwrite=TRUE)
+```
+
+## calculate CI from se of fit
+```{r}
+GM_CI_upper_95_gap <- 1 / (1 + exp(-(GM_predict_tot_gap1$fit + 1.96*GM_predict_tot_gap_se1)))
+GM_CI_lower_95_gap <- 1 / (1 + exp(-(GM_predict_tot_gap1$fit - 1.96*GM_predict_tot_gap_se1)))
+
+
+```
+## export CI
+```{r}
+writeRaster(GM_CI_upper_95_gap, filename="data created/GM_gCI_upper_95.tif", overwrite=TRUE)
+writeRaster(GM_CI_lower_95_gap, filename="data created/GM_gCI_lower_95.tif", overwrite=TRUE)
+```
+
+## get standard errors from residual variance (of prediction interval), transfomr to scale of dependant variable
+```{r}
+GM_se.PI_gap1 <- sqrt(GM_predict_tot_gap_se1$se.fit ^ 2 + GM_predict_tot_gap1$residual.scale ^ 2)
+GM_se.PI_gap <- 1 / (1 + exp(-GM_se.PI_gap1))
+
+writeRaster(GM_se.PI_gap, filename="data created/GM_predict_tot_gap_pse.tif", overwrite=TRUE)
+writeRaster(GM_se.PI_gap1, filename="data created/GM_predict_tot_gap_pse1.tif", overwrite=TRUE)
+```
+
+## calculate PI from se fo residual variance
+```{r}
+GM_PI_upper_95_gap <- 1 / (1 + exp(-(GM_predict_tot_gap1$fit + 1.96*GM_se.PI_gap1)))
+GM_PI_lower_95_gap <- 1 / (1 + exp(-(GM_predict_tot_gap1$fit - 1.96*GM_se.PI_gap1)))
+```
+
+## export PI
+```{r}
+writeRaster(GM_PI_upper_95_gap, filename="data created/GM_gPI_upper_95.tif", overwrite=TRUE)
+writeRaster(GM_PI_lower_95_gap, filename="data created/GM_gPI_lower_95.tif", overwrite=TRUE)
+```
+
+# TN
+## make predictions using top model and stacked environmental rasters, transformed onto scale of dependant variable
+```{r}
+TN_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+TN_model_tot_gap <- firths_glm(TN_var_gap, df = TN_gap_env, c = "gap")
+
+TN_predict_tot_gap1 <- terra::predict(TN_env_raster_masked_scaled_bm, TN_model_tot_gap, se.fit = T)
+TN_predict_tot_gap <- 1 / (1 + exp(-TN_predict_tot_gap1))
+```
+
+## get standard errors of the predicted mean from predict() function, transform to scale of dependent variable 
+```{r}
+TN_predict_tot_gap_se1 <- TN_predict_tot_gap1$se.fit
+TN_predict_tot_gap_se <- 1 / (1 + exp(-TN_predict_tot_gap_se1))
+
+writeRaster(TN_predict_tot_gap_se, filename="data created/TN_predict_tot_gap_se.tif", overwrite=TRUE)
+writeRaster(TN_predict_tot_gap_se1, filename="data created/TN_predict_tot_gap_se1.tif", overwrite=TRUE)
+```
+
+## calculate CI from se of fit
+```{r}
+TN_CI_upper_95_gap <- 1 / (1 + exp(-(TN_predict_tot_gap1$fit + 1.96*TN_predict_tot_gap_se1)))
+TN_CI_lower_95_gap <- 1 / (1 + exp(-(TN_predict_tot_gap1$fit - 1.96*TN_predict_tot_gap_se1)))
+```
+## export CI
+```{r}
+writeRaster(TN_CI_upper_95_gap, filename="data created/TN_gCI_upper_95.tif", overwrite=TRUE)
+writeRaster(TN_CI_lower_95_gap, filename="data created/TN_gCI_lower_95.tif", overwrite=TRUE)
+```
+
+## get standard errors from residual variance (of prediction interval), transfomr to scale of dependant variable
+```{r}
+TN_se.PI_gap1 <- sqrt(TN_predict_tot_gap_se1$se.fit ^ 2 + TN_predict_tot_gap1$residual.scale ^ 2)
+TN_se.PI_gap <- 1 / (1 + exp(-TN_se.PI_gap1))
+
+writeRaster(TN_se.PI_gap, filename="data created/TN_predict_tot_gap_pse.tif", overwrite=TRUE)
+writeRaster(TN_se.PI_gap1, filename="data created/TN_predict_tot_gap_pse1.tif", overwrite=TRUE)
+```
+
+## calculate PI from se fo residual variance
+```{r}
+TN_PI_upper_95_gap <- 1 / (1 + exp(-(TN_predict_tot_gap1$fit + 1.96*TN_se.PI_gap1)))
+TN_PI_lower_95_gap <- 1 / (1 + exp(-(TN_predict_tot_gap1$fit - 1.96*TN_se.PI_gap1)))
+```
+## export PI
+```{r}
+writeRaster(TN_PI_upper_95_gap, filename="data created/TN_gPI_upper_95.tif", overwrite=TRUE)
+writeRaster(TN_PI_lower_95_gap, filename="data created/TN_gPI_lower_95.tif", overwrite=TRUE)
+```

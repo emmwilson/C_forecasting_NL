@@ -1,0 +1,214 @@
+---
+title: "11) c cross validation"
+author: "Emmerson Wilson"
+date: "2024-05-02"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra,
+  boot,
+  setRNG,
+  brglm2,
+  stringr)
+```
+
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/code availability")
+```
+
+# import training datasets
+```{r}
+# made in 3) c total glm.Rmd
+GM_c_env <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
+TN_c_env <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
+```
+
+# cross validation and glm functions
+```{r}
+source("2) glm function.R")
+source("5) cross validation function.R")
+
+
+```
+
+# GM
+
+## top models from AIC
+```{r}
+# list of variables in best models from 5) c lm total.Rmd
+# run them
+var_GM_lm_red <- list("FHT", "EVImed")
+GM_c_red <- lm_glm(var_GM_lm_red, df = GM_c_env, c = "c_m2_site")
+
+var_GM_lm_red2 <- list("FHT", "EVIamp", "EVImed")
+GM_c_red2 <- lm_glm(var_GM_lm_red2, df = GM_c_env, c = "c_m2_site")
+
+var_GM_lm_red3 <- list("FHT", "EVIamp")
+GM_c_red3 <- lm_glm(var_GM_lm_red3, df = GM_c_env, c = "c_m2_site")
+
+var_GM_lm_FHT <- list("FHT")
+GM_c_FHT <- lm_glm(var_GM_lm_FHT, df = GM_c_env, c = "c_m2_site")
+
+GM_var_lists <- list(var_GM_lm_red, var_GM_lm_red2, var_GM_lm_red3, var_GM_lm_FHT)
+GM_c_top_models <- list(GM_c_red, GM_c_red2, GM_c_red3, GM_c_FHT)
+```
+
+## cross validation on top models
+```{r}
+
+k <- 10
+GM_cv_Output <- NULL
+
+for(x in seq(1,100,1)){
+GM_c_cv <- lapply(GM_c_top_models, cv.glm, data=GM_c_env, K = k)
+names(GM_c_cv) <- GM_var_lists
+
+GM_c_cv_delta <- lapply(GM_c_cv, `[`, c('delta'))
+
+GM_c_cv_delta <- do.call(rbind.data.frame, GM_c_cv_delta)
+GM_c_cv_delta$names <- rownames(GM_c_cv_delta)
+
+GM_cv_Output <- rbind(GM_cv_Output, data.frame(Iteration = x, model = GM_c_cv_delta$names, delta = GM_c_cv_delta$delta))
+}
+
+GM_avg_cv <- GM_cv_Output %>% 
+  group_by(model) %>% 
+  summarize(mean_delta1 = mean(delta)) 
+  
+GM_cv_Output_delta1_2 <- GM_cv_Output %>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("delta_",str_sub(model, -1, -1)))  %>% 
+  dplyr::select(!2) %>% 
+  pivot_wider(values_from = delta, names_from = n)
+```
+
+## cross validation of randomized response data
+```{r}
+GM_c_cvrand <- lapply(GM_var_lists, FUN = cv_cv.glm2, d = GM_c_env, k = k)
+names(GM_c_cvrand) <- GM_var_lists
+
+GM_c_cvrand_95 <- lapply(GM_c_cvrand, `[`, c('conf.int'))
+
+GM_c_cvrand_95 <- do.call(rbind.data.frame, GM_c_cvrand_95)
+GM_c_cvrand_95$model <- rownames(GM_c_cvrand_95)
+
+GM_c_cvrand_95_1_2 <- GM_c_cvrand_95%>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("ci95_",str_sub(model, -1, -1)))  %>% 
+  dplyr::select(!2) %>% 
+  pivot_wider(values_from = conf.int, names_from = n)
+```
+
+## how many times each model validate out of 100
+```{r}
+GM_val_cv <- GM_cv_Output_delta1_2 %>% 
+  full_join(GM_c_cvrand_95_1_2) %>% # join with random
+  mutate(diff = ci95_1 - delta_1) %>% 
+  mutate(validate = ifelse(diff<0.0, "no", "yes"))
+
+GM_nval_cv <- GM_val_cv %>% 
+  group_by(model_2) %>% 
+  summarize(n_y = sum(validate == "yes"), n_n = sum(validate == "no")) # count number of times delta2 as lower than lower 95% CI
+```
+
+## together
+```{r}
+GM_c_delta_95 <- inner_join(GM_avg_cv, GM_c_cvrand_95) %>% 
+  mutate(diff = conf.int - mean_delta1)
+```
+
+
+# TN
+
+### top models from 
+```{r}
+# list of variables in best models from 5) c lm total.Rmd
+# run them
+var_TN_lm_red <- list("FHT", "EVIamp", "SLO")
+TN_c_red <- lm_glm(var_TN_lm_red, df = TN_c_env, c = "c_m2_site")
+
+var_TN_lm_red2 <- list("FHT", "EVIamp")
+TN_c_red2 <- lm_glm(var_TN_lm_red2, df = TN_c_env, c = "c_m2_site")
+
+var_TN_lm_red3 <- list("FHT", "SLO")
+TN_c_red3 <- lm_glm(var_TN_lm_red3, df = TN_c_env, c = "c_m2_site")
+
+var_TN_lm_FHT <- list("FHT")
+TN_c_FHT <- lm_glm(var_TN_lm_FHT, df = TN_c_env, c = "c_m2_site")
+
+TN_var_lists <- list(var_TN_lm_red, var_TN_lm_red2, var_TN_lm_red3, var_TN_lm_FHT)
+TN_c_top_models <- list(TN_c_red, TN_c_red2, TN_c_red3, TN_c_FHT)
+
+# do cross validation on models themselves
+k <- 9
+TN_cv_Output <- NULL
+
+for(x in seq(1,100,1)){
+TN_c_cv <- lapply(TN_c_top_models, cv.glm, data=TN_c_env, K = k)
+names(TN_c_cv) <- TN_var_lists
+
+TN_c_cv_delta <- lapply(TN_c_cv, `[`, c('delta'))
+
+TN_c_cv_delta <- do.call(rbind.data.frame, TN_c_cv_delta)
+TN_c_cv_delta$names <- rownames(TN_c_cv_delta)
+
+TN_cv_Output <- rbind(TN_cv_Output, data.frame(Iteration = x, model = TN_c_cv_delta$names, delta = TN_c_cv_delta$delta))
+}
+
+TN_avg_cv <- TN_cv_Output %>% 
+  group_by(model) %>% 
+  summarize(mean_delta1 = mean(delta))
+
+TN_cv_Output_delta1_2 <- TN_cv_Output %>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("delta_",str_sub(model, -1, -1)))  %>% 
+  dplyr::select(!2) %>% 
+  pivot_wider(values_from = delta, names_from = n)
+```
+
+### cross validation of random 
+```{r}
+k <- 9 
+TN_c_cvrand <- lapply(TN_var_lists, FUN = cv_cv.glm2, d = TN_c_env, k = k)
+names(TN_c_cvrand) <- TN_var_lists
+
+TN_c_cvrand_95 <- lapply(TN_c_cvrand, `[`, c('conf.int'))
+
+TN_c_cvrand_95 <- do.call(rbind.data.frame, TN_c_cvrand_95)
+TN_c_cvrand_95$model <- rownames(TN_c_cvrand_95)
+
+TN_c_cvrand_95_1_2 <- TN_c_cvrand_95%>% 
+  mutate(model_2 = substr(model,1,nchar(model)-2)) %>% 
+  mutate(n = paste0("ci95_",str_sub(model, -1, -1)))  %>% 
+  dplyr::select(!2) %>% 
+  pivot_wider(values_from = conf.int, names_from = n)
+```
+
+## put random with cv
+```{r}
+TN_val_cv <- TN_cv_Output_delta1_2 %>% 
+  full_join(TN_c_cvrand_95_1_2) %>% 
+  mutate(diff = ci95_1 - delta_1) %>% 
+  mutate(validate = ifelse(diff<0.0, "no", "yes"))
+TN_nval_cv <- TN_val_cv %>% 
+  group_by(model_2) %>% 
+  summarize(n_y = sum(validate == "yes"), n_n = sum(validate == "no")) # count number of times delta2 as lower than lower 95% CI
+```
+
+## together
+```{r}
+TN_c_delta_95 <- inner_join(TN_avg_cv, TN_c_cvrand_95) %>% 
+  mutate(diff = conf.int - mean_delta1)
+```
+
+

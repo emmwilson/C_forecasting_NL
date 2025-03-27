@@ -1,0 +1,18 @@
+﻿GM codes,GM tree classification in order of abundance,TN coedes,TN tree classification  in order of abundance in order of abundance,Integer
+NULL,NULL,NULL,NULL,0
+bF,balsam fir,CS,coniferous shrub,1
+bFbS,"balsam fir, black spruce",DS,deciduous shrub,2
+bFbStL,"balsam fir, black spruce, tamarack",NSRV,Not sufficiently restocked,3
+bFbSwB,"balsam fir, black spruce, white birch",bF,balsam fir,4
+bFbSwS,"balsam fir, black spruce, white spruce",bFbS,"balsam fir, black spruce",5
+bFbW,"balsam fir, white brich",bFbStA,"baldam fir, black spruce, trempling aspen",6
+bFwB,"balsam fir, white brich",bFwBbS,"balsam fir, white birch, black spruce,",12
+bFwBbS,"balsam fir, white brich, black spruce",bFwBtA,"balsam fir, white birch, trembling aspen",13
+bFwBtA,"balsam fir, white brich, trembling aspen",bFwBtL,"balsam fir, white birch, tamarack",14
+bFwS,"balsam fir, white spruce",bSbF,"black spruce, balsam fir",17
+bFwSbS,"balsam fir, white spruce, black spruce",bSbFmB,"black spruce, balsam fir, unknown",18
+bSbFtL,"black spruce, balsam fir, tamarack",bStA,"black spruce, trembling aspen",22
+bSwSbF,"black spruce, white spruce, balsam fir",bSwBbF,"black spruce, white birch, balsam fir",31
+bSwSwB,"black spruce, white spruce, white birch",bSwBtA,"black spruce, white birch, trembling aspen",32
+wBBF,"white birch, balsam fir",wBbF,"white birch, balsam fir",48
+wBbFbS,"white birch, balsam fir, black spruce",wBbFtA,"white birch, balsam fir, trembling aspen",50

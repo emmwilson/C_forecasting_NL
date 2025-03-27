@@ -1,0 +1,167 @@
+---
+title: "9) gap predictions"
+author: "Emmerson Wilson"
+date: "2024-03-15"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra,
+  brglm2,
+  caret)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/code availability")
+```
+
+# import training datasets
+```{r}
+# made in 4) gap glm.Rmd
+GM_gap_env <- read_xlsx("data created/c_env_sites_scale_GM_gap.xlsx")
+TN_gap_env <- read_xlsx("data created/c_env_sites_scale_TN_gap.xlsx")
+```
+
+# import scaled environmental rasters
+```{r}
+# made in 8) predictable space
+GM_env_raster_masked_scaled_bm <- rast("data created/GM_env_raster_masked_scale.tif") 
+TN_env_raster_masked_scaled_bm <- rast("data created/TN_env_raster_masked_scale.tif")
+```
+
+# import glm function
+```{r}
+source("2) glm function.R")
+```
+
+# predict
+
+## GM
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+GM_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+GM_model_tot_gap <- firths_glm(GM_var_gap, df = GM_gap_env, c = "gap")
+
+# predict
+GM_predict_tot_gap <- terra::predict(GM_env_raster_masked_scaled_bm, GM_model_tot_gap)
+
+# transform predictions
+GM_predict_tot_gap_transform <- GM_predict_tot_gap
+values(GM_predict_tot_gap_transform) <- 1 / (1 + exp(-values(GM_predict_tot_gap))) 
+
+# export
+writeRaster(GM_predict_tot_gap_transform, filename="data created/GM_predict_gap.tif", overwrite=TRUE)
+writeRaster(GM_predict_tot_gap, filename="data created/GM_predict_gap1.tif", overwrite=TRUE)
+```
+
+## TN
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+TN_var_gap <- list("FHT", "EVIamp")
+
+# run best model
+TN_model_tot_gap <- firths_glm(TN_var_gap, df = TN_gap_env, c = "gap")
+
+# predict
+TN_predict_tot_gap <- terra::predict(TN_env_raster_masked_scaled_bm, TN_model_tot_gap)
+
+# transform predictions
+TN_predict_tot_gap_transform <- TN_predict_tot_gap
+values(TN_predict_tot_gap_transform) <- 1 / (1 + exp(-values(TN_predict_tot_gap))) 
+
+# export
+writeRaster(TN_predict_tot_gap_transform, filename="data created/TN_predict_gap.tif", overwrite=TRUE)
+writeRaster(TN_predict_tot_gap, filename="data created/TN_predict_gap1.tif", overwrite=TRUE)
+
+```
+
+# TTS
+
+
+## GM
+```{r}
+
+# extract prediction data from sample sites
+valid_pts2 <- terra::extract(GM_predict_tot_gap_transform, data.frame(GM_gap_env$MEAN_X, GM_gap_env$MEAN_Y)) |> 
+  cbind(data.frame(MEAN_X = GM_gap_env$MEAN_X, MEAN_Y = GM_gap_env$MEAN_Y))
+
+GM_gap_env_pred <- left_join(GM_gap_env, valid_pts2) |> 
+  mutate(gap_pred = ifelse(lyr1 >= 0.5, 1, 0)) |> 
+  na.omit()
+
+GM_gap_env_pred$gap <- factor(GM_gap_env_pred$gap, levels = c(0,1))
+GM_gap_env_pred$gap_pred <- factor(GM_gap_env_pred$gap_pred, levels = c(0,1))
+
+
+# create confusion matrix comparing classifications to predictions
+CM_GM <- confusionMatrix(GM_gap_env_pred$gap_pred, GM_gap_env_pred$gap)
+
+# calculate accuracy measures
+UA_GM <- diag(CM_GM$table) / rowSums(CM_GM$table) * 100
+PA_GM <- diag(CM_GM$table) / colSums(CM_GM$table) * 100
+OA_GM <- sum(diag(CM_GM$table)) / sum(CM_GM$table) * 100
+
+CM_GM
+UA_GM # sensitivity of CM
+PA_GM # POS pred values CM
+OA_GM # accuracy of CM
+```
+
+## TN
+```{r}
+
+# extract prediction data from sample sites
+valid_pts2 <- terra::extract(TN_predict_tot_gap_transform, data.frame(TN_gap_env$MEAN_X, TN_gap_env$MEAN_Y)) |> 
+  cbind(data.frame(MEAN_X = TN_gap_env$MEAN_X, MEAN_Y = TN_gap_env$MEAN_Y))
+
+TN_gap_env_pred <- left_join(TN_gap_env, valid_pts2) |> 
+  mutate(gap_pred = ifelse(lyr1 >= 0.5, 1, 0)) |> 
+  na.omit()
+
+TN_gap_env_pred$gap <- factor(TN_gap_env_pred$gap, levels = c(0,1))
+TN_gap_env_pred$gap_pred <- factor(TN_gap_env_pred$gap_pred, levels = c(0,1))
+
+
+# create confusion matrix comparing classifications to predictions
+CM_TN <- confusionMatrix(TN_gap_env_pred$gap_pred, TN_gap_env_pred$gap)
+
+# calculate accuracy measures
+UA_TN <- diag(CM_TN$table) / rowSums(CM_TN$table) * 100
+PA_TN <- diag(CM_TN$table) / colSums(CM_TN$table) * 100
+OA_TN <- sum(diag(CM_TN$table)) / sum(CM_TN$table) * 100
+
+CM_TN
+UA_TN # sensitivity of CM
+PA_TN # POS pred values CM
+OA_TN # accuracy of CM
+```
+
+## together
+```{r}
+gap_env_pred <- rbind(TN_gap_env_pred, GM_gap_env_pred)
+
+CM <- confusionMatrix(gap_env_pred$gap_pred, gap_env_pred$gap)
+
+# calculate accuracy measures
+UA <- diag(CM$table) / rowSums(CM$table) * 100
+PA <- diag(CM$table) / colSums(CM$table) * 100
+OA <- sum(diag(CM$table)) / sum(CM$table) * 100
+
+CM
+UA # sensitivity of CM
+PA # POS pred values CM
+OA # accuracy of CM
+```
+
+

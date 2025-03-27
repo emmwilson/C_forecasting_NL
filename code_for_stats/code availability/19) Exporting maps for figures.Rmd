@@ -1,0 +1,1249 @@
+---
+title: "Exporting maps for figures"
+author: "Emmerson Wilson"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(leaflet)
+library(terra)
+library(leafem)
+library(mapview)
+library(webshot2)
+library(leaflegend)
+
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/code availability")
+```
+
+# data
+```{r}
+# roads and park boundaries
+roads <- vect("data required/environmental data/parks and roads/highways_nl.shp") %>% 
+  project("EPSG:4326 - WGS 84")
+
+parksGM <- vect("data required/environmental data/parks and roads/GM_outline.shp") %>% 
+  project("EPSG:4326 - WGS 84")
+parksTN <- vect("data required/environmental data/parks and roads/TN_outline.shp") %>% 
+  project("EPSG:4326 - WGS 84")
+
+# Gros Morne data and palettes
+GM_c <- rast("data created/GM_predict_tot.tif")
+GM_c_mean <- rast("data created/GM_predict_tot_se.tif")
+GM_c_pred <- rast("data created/GM_predict_tot_pse.tif")
+GM_c_CIlow <- rast("data created/GM_CI_lower_95.tif")
+GM_c_CIupp <- rast("data created/GM_CI_upper_95.tif")
+GM_c_PIlow <- rast("data created/GM_PI_lower_95.tif")
+GM_c_PIupp <- rast("data created/GM_PI_upper_95.tif")
+
+GM_g <- rast("data created/GM_predict_gap.tif")
+GM_g_mean <- rast("data created/GM_predict_tot_gap_se.tif")
+GM_g_pred <- rast("data created/GM_predict_tot_gap_pse.tif")
+GM_g_CIlow <- rast("data created/GM_gCI_lower_95.tif")
+GM_g_CIupp <- rast("data created/GM_gCI_upper_95.tif")
+GM_g_PIlow <- rast("data created/GM_gPI_lower_95.tif")
+GM_g_PIupp <- rast("data created/GM_gPI_upper_95.tif")
+
+# Terra Nova
+TN_c <- rast("data created/TN_predict_tot.tif")
+TN_c_mean <- rast("data created/TN_predict_tot_se.tif")
+TN_c_pred <- rast("data created/TN_predict_tot_pse.tif")
+TN_c_CIlow <- rast("data created/TN_CI_lower_95.tif")
+TN_c_CIupp <- rast("data created/TN_CI_upper_95.tif")
+TN_c_PIlow <- rast("data created/TN_PI_lower_95.tif")
+TN_c_PIupp <- rast("data created/TN_PI_upper_95.tif")
+
+TN_g <- rast("data created/TN_predict_gap.tif")
+TN_g_mean <- rast("data created/TN_predict_tot_gap_se.tif")
+TN_g_pred <- rast("data created/TN_predict_tot_gap_pse.tif")
+TN_g_CIlow <- rast("data created/TN_gCI_lower_95.tif")
+TN_g_CIupp <- rast("data created/TN_gCI_upper_95.tif")
+TN_g_PIlow <- rast("data created/TN_gPI_lower_95.tif")
+TN_g_PIupp <- rast("data created/TN_gPI_upper_95.tif")
+
+# errors on scale of link
+#GM
+GM_c_mean1 <- rast("data created/GM_predict_tot_se1.tif")
+GM_c_pred1 <- rast("data created/GM_predict_tot_pse1.tif")
+
+GM_g_mean1 <- rast("data created/GM_predict_tot_gap_se1.tif")
+GM_g_pred1 <- rast("data created/GM_predict_tot_gap_pse1.tif")
+
+# Terra Nova
+TN_c_mean1 <- rast("data created/TN_predict_tot_se1.tif")
+TN_c_pred1 <- rast("data created/TN_predict_tot_pse1.tif")
+
+TN_g_mean1 <- rast("data created/TN_predict_tot_gap_se1.tif")
+TN_g_pred1 <- rast("data created/TN_predict_tot_gap_pse1.tif")
+```
+
+# colours
+```{r include=FALSE}
+GMc.pal <- colorNumeric(c("#faf6ef", "#ed6f66", "#8a1c18", "#6c100d"), domain = rev(values(GM_c)), na.color = "transparent")
+GMcmean.pal <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = rev(values(GM_c_mean)), na.color = "transparent")
+GMcpred.pal <- colorNumeric(c("white", "#2171b5", "#092955"), domain = rev(values(GM_c_pred)), na.color = "transparent")
+GMcCI.pal <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = c(min(values(GM_c_CIlow), na.rm = T), max(values(GM_c_CIupp), na.rm = T)), na.color = "transparent")
+GMcPI.pal <- colorNumeric(c("white", "#2171b5", "#092955"), domain = c(min(values(GM_c_PIlow), na.rm = T), max(values(GM_c_PIupp), na.rm = T)), na.color = "transparent")
+
+
+GMg.pal <- colorNumeric(c("#faf6ef", "#f7eedf", "#de5714"), domain = rev(0:1), na.color = "transparent")
+GMgmean.pal <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = rev(values(GM_g_mean)), na.color = "transparent")
+GMgpred.pal <- colorNumeric(c("white", "#2171b5", "#092955"), domain = rev(values(GM_g_pred)), na.color = "transparent")
+GMgCI.pal <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = c(min(values(GM_g_CIlow), na.rm = T), max(values(GM_g_CIupp), na.rm = T)), na.color = "transparent")
+GMgPI.pal <- colorNumeric(c("white", "#2171b5", "#092955"), domain = c(min(values(GM_g_PIlow), na.rm = T), max(values(GM_g_PIupp), na.rm = T)), na.color = "transparent")
+
+TNc.pal <- colorNumeric(c("#faf6ef", "#ed6f66", "#8a1c18", "#6c100d"), domain = rev(values(TN_c)), na.color = "transparent")
+TNcmean.pal <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = rev(values(TN_c_mean)), na.color = "transparent")
+TNcpred.pal <- colorNumeric(c("white", "#2171b5", "#092955"), domain = rev(values(TN_c_pred)), na.color = "transparent")
+TNcCI.pal <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = c(min(values(TN_c_CIlow), na.rm = T), max(values(TN_c_CIupp), na.rm = T)), na.color = "transparent")
+TNcPI.pal <- colorNumeric(c("white", "#2171b5", "#092955"), domain = c(min(values(TN_c_PIlow), na.rm = T), max(values(TN_c_PIupp), na.rm = T)), na.color = "transparent")
+
+TNg.pal <- colorNumeric(c("#faf6ef", "#f7eedf", "#de5714"), domain = rev(0:1), na.color = "transparent")
+TNgmean.pal <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = rev(values(TN_g_mean)), na.color = "transparent")
+TNgpred.pal <- colorNumeric(c("white", "#2171b5", "#092955"), domain = rev(values(TN_g_pred)), na.color = "transparent")
+TNgCI.pal <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = c(min(values(TN_g_CIlow), na.rm = T), max(values(TN_g_CIupp), na.rm = T)), na.color = "transparent")
+TNgPI.pal <- colorNumeric(c("white", "#2171b5", "#092955"), domain = c(min(values(TN_g_PIlow), na.rm = T), max(values(TN_g_PIupp), na.rm = T)), na.color = "transparent")
+
+# not transformed
+GMcmean.pal1 <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = rev(values(GM_c_mean1)), na.color = "transparent")
+GMcpred.pal1 <- colorNumeric(c("white", "#2171b5", "#092955"), domain = rev(values(GM_c_pred1)), na.color = "transparent")
+
+GMgmean.pal1 <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = rev(values(GM_g_mean1)), na.color = "transparent")
+GMgpred.pal1 <- colorNumeric(c("white", "#2171b5", "#092955"), domain = rev(values(GM_g_pred1)), na.color = "transparent")
+
+TNcmean.pal1 <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = rev(values(TN_c_mean1)), na.color = "transparent")
+TNcpred.pal1 <- colorNumeric(c("white", "#2171b5", "#092955"), domain = rev(values(TN_c_pred1)), na.color = "transparent")
+
+TNgmean.pal1 <- colorNumeric(c("white", "#6a51a3", "#3f007d"), domain = rev(values(TN_g_mean1)), na.color = "transparent")
+TNgpred.pal1 <- colorNumeric(c("white", "#2171b5", "#092955"), domain = rev(values(TN_g_pred1)), na.color = "transparent")
+```
+
+#GM
+## carbon
+
+### estimates
+```{r}
+GM_map_c <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_c , 
+                     color = GMc.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMc.pal, values = values(GM_c),
+                title = "Total carbon (g/m<sup>2</sup>)",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_c
+
+
+mapview::mapshot2(
+  GM_map_c,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_c_map.png",
+  remove_controls = "zoomControl")
+```
+
+### mean error
+```{r}
+GM_map_cse <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_c_mean , 
+                     color = GMcmean.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMcmean.pal, values = values(GM_c_mean),
+                title = "Mean residual error for </br> total carbon estimates",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_cse
+
+mapview::mapshot2(
+  GM_map_cse,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_c_map_se.png",
+  remove_controls = "zoomControl")
+```
+
+### mean error not transformed
+```{r}
+GM_map_cse1 <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_c_mean1 , 
+                     color = GMcmean.pal1,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMcmean.pal1, values = values(GM_c_mean1),
+                title = "Mean residual error for </br> total carbon estimates",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_cse1
+
+mapview::mapshot2(
+  GM_map_cse1,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_c_map_se1.png",
+  remove_controls = "zoomControl")
+```
+
+### CI
+#### lower
+```{r}
+GM_map_cCIlow <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_c_CIlow , 
+                     color = GMcCI.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMcCI.pal, values = values(c(GM_c_CIlow,GM_c_CIupp)),
+                title = "95% CI for carbon (g/m<sup>2</sup>)",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_cCIlow
+
+
+mapview::mapshot2(
+  GM_map_cCIlow,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_map_cCIlow_map.png",
+  remove_controls = "zoomControl")
+```
+
+#### upper
+```{r}
+GM_map_cCIupp <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_c_CIupp , 
+                     color = GMcCI.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_cCIupp
+
+
+mapview::mapshot2(
+  GM_map_cCIupp,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_map_cCIupp_map.png",
+  remove_controls = "zoomControl")
+```
+
+### prediction error
+```{r}
+GM_map_cpe <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_c_pred , 
+                     color = GMcpred.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMcpred.pal, values = values(GM_c_pred),
+                title = "Prediction error for </br> total carbon estimates",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_cpe
+
+mapview::mapshot2(
+  GM_map_cpe,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_c_map_pe.png",
+  remove_controls = "zoomControl")
+```
+
+### prediction error not transformed
+```{r}
+GM_map_cpe1 <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_c_pred1 , 
+                     color = GMcpred.pal1,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMcpred.pal1, values = values(GM_c_pred1),
+                title = "Prediction error for </br> total carbon estimates",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_cpe1
+
+mapview::mapshot2(
+  GM_map_cpe1,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_c_map_pe1.png",
+  remove_controls = "zoomControl")
+```
+
+### PI
+#### lower
+```{r}
+GM_map_cPIlow <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_c_PIlow , 
+                     color = GMcPI.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMcPI.pal, values = values(c(GM_c_PIlow,GM_c_PIupp)),
+                title = "95% PI for carbon (g/m<sup>2</sup>)",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_cPIlow
+
+
+mapview::mapshot2(
+  GM_map_cPIlow,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_map_cPIlow_map.png",
+  remove_controls = "zoomControl")
+```
+
+#### upper
+```{r}
+GM_map_cPIupp <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_c_PIupp , 
+                     color = GMcPI.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_cPIupp
+
+
+mapview::mapshot2(
+  GM_map_cPIupp,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_map_cPIupp_map.png",
+  remove_controls = "zoomControl")
+```
+
+## gap
+
+### estimates
+```{r}
+GM_map_g <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_g , 
+                     color = GMg.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMg.pal, values = values(GM_g),
+                title = "Probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_g
+
+mapview::mapshot2(
+  GM_map_g,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_g_map.png",
+  remove_controls = "zoomControl")
+```
+
+### mean error
+```{r}
+GM_map_gse <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_g_mean , 
+                     color = GMgmean.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMgmean.pal, values = values(GM_g_mean),
+                title = "Mean residual error for </br> probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_gse
+
+mapview::mapshot2(
+  GM_map_gse,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_g_map_se.png",
+  remove_controls = "zoomControl")
+```
+
+### mean error
+```{r}
+GM_map_gse1 <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_g_mean1 , 
+                     color = GMgmean.pal1,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMgmean.pal1, values = values(GM_g_mean1),
+                title = "Mean residual error for </br> probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_gse1
+
+mapview::mapshot2(
+  GM_map_gse1,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_g_map_se1.png",
+  remove_controls = "zoomControl")
+```
+
+### CI
+#### lower
+```{r}
+GM_map_gCIlow <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_g_CIlow , 
+                     color = GMgCI.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMgCI.pal, values = values(c(GM_g_CIlow,GM_g_CIupp)),
+                title = "95% CI for probability </br> area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_gCIlow
+
+
+mapview::mapshot2(
+  GM_map_gCIlow,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_map_gCIlow_map.png",
+  remove_controls = "zoomControl")
+```
+
+#### upper
+```{r}
+GM_map_gCIupp <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_g_CIupp , 
+                     color = GMgCI.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput"))  %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_gCIupp
+
+
+mapview::mapshot2(
+  GM_map_gCIupp,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_map_gCIupp_map.png",
+  remove_controls = "zoomControl")
+```
+
+### prediction error
+```{r}
+GM_map_gpe <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_g_pred , 
+                     color = GMgpred.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMgpred.pal, values = values(GM_g_pred),
+                title = "Prediction error for </br> probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_gpe
+
+mapview::mapshot2(
+  GM_map_gpe,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_g_map_pe.png",
+  remove_controls = "zoomControl")
+```
+
+### prediction error
+```{r}
+GM_map_gpe1 <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_g_pred1 , 
+                     color = GMgpred.pal1,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMgpred.pal1, values = values(GM_g_pred1),
+                title = "Prediction error for </br> probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_gpe1
+
+mapview::mapshot2(
+  GM_map_gpe1,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_g_map_pe1.png",
+  remove_controls = "zoomControl")
+```
+
+### PI
+#### lower
+```{r}
+GM_map_gPIlow <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_g_PIlow , 
+                     color = GMgPI.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = GMgPI.pal, values = values(c(GM_g_PIlow, GM_g_PIupp)),
+                title = "95% PI for probability </br> area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_gPIlow
+
+
+mapview::mapshot2(
+  GM_map_gPIlow,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_map_gPIlow_map.png",
+  remove_controls = "zoomControl")
+```
+
+#### upper
+```{r}
+GM_map_gPIupp <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksGM, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = GM_g_PIupp , 
+                     color = GMgPI.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput"))  %>% 
+  fitBounds(-57.72 ,49.37, -57.82, 49.87) %>%
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+GM_map_gPIupp
+
+
+mapview::mapshot2(
+  GM_map_gPIupp,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/GM_map_gPIupp_map.png",
+  remove_controls = "zoomControl")
+```
+
+#TN
+## carbon
+
+### estimates
+```{r}
+TN_map_c <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_c , 
+                     color = TNc.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNc.pal, values = values(TN_c),
+                title = "Total carbon (g/m<sup>2</sup>)",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_c
+
+mapviewOptions(fgb = FALSE)
+Sys.setenv(CHROMOTE_CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+
+mapview::mapshot2(
+  TN_map_c,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_c_map.png",
+  remove_controls = "zoomControl")
+```
+
+### mean error
+```{r}
+TN_map_cse <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_c_mean , 
+                     color = TNcmean.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNcmean.pal, values = values(TN_c_mean),
+                title = "Mean residual error for </br> total carbon estimates",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_cse
+
+mapview::mapshot2(
+  TN_map_cse,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_c_map_se.png",
+  remove_controls = "zoomControl")
+```
+
+### mean error not trasformed
+```{r}
+TN_map_cse1 <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_c_mean1 , 
+                     color = TNcmean.pal1,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNcmean.pal1, values = values(TN_c_mean1),
+                title = "Mean residual error for </br> total carbon estimates",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_cse1
+
+mapview::mapshot2(
+  TN_map_cse1,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_c_map_se1.png",
+  remove_controls = "zoomControl")
+```
+
+### CI
+#### lower
+```{r}
+TN_map_cCIlow <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_c_CIlow , 
+                     color = TNcCI.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNcCI.pal, values = values(c(TN_c_CIlow,TN_c_CIupp)),
+                title = "95% CI for carbon (g/m<sup>2</sup>)",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_cCIlow
+
+
+mapview::mapshot2(
+  TN_map_cCIlow,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_map_cCIlow_map.png",
+  remove_controls = "zoomControl")
+```
+
+#### upper
+```{r}
+TN_map_cCIupp <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_c_CIupp , 
+                     color = TNcCI.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_cCIupp
+
+
+mapview::mapshot2(
+  TN_map_cCIupp,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_map_cCIupp_map.png",
+  remove_controls = "zoomControl")
+```
+
+### prediction error
+```{r}
+TN_map_cpe <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_c_pred , 
+                     color = TNcpred.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNcpred.pal, values = values(TN_c_pred),
+                title = "Prediction error for </br> total carbon estimates",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_cpe
+
+mapview::mapshot2(
+  TN_map_cpe,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_c_map_pe.png",
+  remove_controls = "zoomControl")
+```
+
+### prediction error not trasnformed
+```{r}
+TN_map_cpe1 <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_c_pred1 , 
+                     color = TNcpred.pal1,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNcpred.pal1, values = values(TN_c_pred1),
+                title = "Prediction error for </br> total carbon estimates",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_cpe1
+
+mapview::mapshot2(
+  TN_map_cpe1,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_c_map_pe1.png",
+  remove_controls = "zoomControl")
+```
+
+### PI
+#### lower
+```{r}
+TN_map_cPIlow <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_c_PIlow , 
+                     color = TNcPI.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNcPI.pal, values = values(c(TN_c_PIlow, TN_c_PIupp)),
+                title = "95% PI for carbon (g/m<sup>2</sup>)",
+                group = "Estimated C stocks", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_cPIlow
+
+
+mapview::mapshot2(
+  TN_map_cPIlow,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_map_cPIlow_map.png",
+  remove_controls = "zoomControl")
+```
+
+#### upper
+```{r}
+TN_map_cPIupp <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_c_PIupp , 
+                     color = TNcPI.pal,
+                     opacity = 1,
+                     group = "Estimated C stocks",
+                     options = pathOptions(pane = "coutput")) %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_cPIupp
+
+
+mapview::mapshot2(
+  TN_map_cPIupp,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_map_cPIupp_map.png",
+  remove_controls = "zoomControl")
+```
+
+## gap
+
+### estimates
+```{r}
+TN_map_g <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_g , 
+                     color = TNg.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNg.pal, values = values(TN_g),
+                title = "Probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_g
+
+mapview::mapshot2(
+  TN_map_g,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_g_map.png",
+  remove_controls = "zoomControl")
+```
+
+### mean error
+```{r}
+TN_map_gse <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_g_mean , 
+                     color = TNgmean.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNgmean.pal, values = values(TN_g_mean),
+                title = "Mean residual error for </br> probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_gse
+
+mapview::mapshot2(
+  TN_map_gse,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_g_map_se.png",
+  remove_controls = "zoomControl")
+```
+
+### mean error not transformed
+```{r}
+TN_map_gse1 <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_g_mean1 , 
+                     color = TNgmean.pal1,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNgmean.pal1, values = values(TN_g_mean1),
+                title = "Mean residual error for </br> probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_gse1
+
+mapview::mapshot2(
+  TN_map_gse1,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_g_map_se1.png",
+  remove_controls = "zoomControl")
+```
+
+### CI
+#### lower
+```{r}
+TN_map_gCIlow <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_g_CIlow , 
+                     color = TNgCI.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNgCI.pal, values = values(c(TN_g_CIlow, TN_g_CIupp)),
+                title = "95% CI for probability </br> area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_gCIlow
+
+
+mapview::mapshot2(
+  TN_map_gCIlow,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_map_gCIlow_map.png",
+  remove_controls = "zoomControl")
+```
+
+#### upper
+```{r}
+TN_map_gCIupp <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_g_CIupp , 
+                     color = TNgCI.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_gCIupp
+
+
+mapview::mapshot2(
+  TN_map_gCIupp,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_map_gCIupp_map.png",
+  remove_controls = "zoomControl")
+```
+
+### prediction error
+```{r}
+TN_map_gpe <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_g_pred , 
+                     color = TNgpred.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNgpred.pal, values = values(TN_g_pred),
+                title = "Prediction error for </br> probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_gpe
+
+mapview::mapshot2(
+  TN_map_gpe,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_g_map_pe.png",
+  remove_controls = "zoomControl")
+```
+
+### prediction error nto transformed
+```{r}
+TN_map_gpe1 <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_g_pred1 , 
+                     color = TNgpred.pal1,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNgpred.pal1, values = values(TN_g_pred1),
+                title = "Prediction error for </br> probability area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_gpe1
+
+mapview::mapshot2(
+  TN_map_gpe1,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_g_map_pe1.png",
+  remove_controls = "zoomControl")
+```
+
+### PI
+#### lower
+```{r}
+TN_map_gPIlow <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_g_PIlow , 
+                     color = TNgPI.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>%
+      addLegend(pal = TNgPI.pal, values = values(c(TN_g_PIlow, TN_g_PIupp)),
+                title = "95% PI for probability </br> area is mature forest",
+                group = "Estimated mature forest/gap", opacity = 1, position = "topleft") %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_gPIlow
+
+
+mapview::mapshot2(
+  TN_map_gPIlow,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_map_gPIlow_map.png",
+  remove_controls = "zoomControl")
+```
+
+#### upper
+```{r}
+TN_map_gPIupp <- leaflet(height = 850, width = 800) %>%
+      addProviderTiles('Esri.WorldImagery') %>%
+      addMapPane("parks", zIndex = 410) %>% 
+      addMapPane("roads", zIndex = 415) %>%
+      addMapPane("coutput", zIndex = 435) %>% 
+      addPolylines(data = roads, color = "#efbc15", opacity = 1, weight = 1.25,
+                   options = pathOptions(pane = "roads")) %>%
+      addPolygons(data = parksTN, color = "#1f78b4", weight = 1.25, fillColor = "#1f78b4", fillOpacity = 0.5,
+                  options = pathOptions(pane = "parks")) %>% 
+      # carbon estimates
+      addRasterImage(x = TN_g_PIupp , 
+                     color = TNgPI.pal,
+                     opacity = 1,
+                     group = "Estimated mature forest/gap",
+                     options = pathOptions(pane = "coutput")) %>% 
+      fitBounds(-54.1, 48.38, -53.8, 48.66)%>% 
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE, maxWidth = 200))
+
+TN_map_gPIupp
+
+
+mapview::mapshot2(
+  TN_map_gPIupp,
+  file = "~/Documents/Master's/C_forecasting_NL/code_for_stats/clean code/data created/map figrues/TN_map_gPIupp_map.png",
+  remove_controls = "zoomControl")
+```

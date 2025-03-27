@@ -1,0 +1,449 @@
+---
+title: "15) graphs"
+author: "Emmerson Wilson"
+date: "2024-05-08"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra,
+  PtProcess,
+  ggplot2,
+  gtable,
+  grid,
+  gridExtra,
+  ggpubr,
+  scales,
+  ggh4x,
+  ggpol)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/code availability")
+```
+
+# import datasets
+```{r}
+GM_c_env <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
+TN_c_env <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
+
+GM_gap_env <- read_xlsx("data created/c_env_sites_scale_GM_gap.xlsx")
+TN_gap_env <- read_xlsx("data created/c_env_sites_scale_TN_gap.xlsx")
+
+# unscaled data to make axis
+env_site_final <- read_xlsx("data created/env_sites_final.xlsx")
+```
+
+## values predictor variables scaled by
+```{r}
+env_site_final_GM <- env_site_final%>% 
+  filter(park == "GM") 
+
+env_sites_scale_GM <- scale(env_site_final_GM[c(8:16, 18)], center = F)
+
+fhtsGM <- attr(env_sites_scale_GM,"scaled:scale")[[1]]
+evisGM <- attr(env_sites_scale_GM,"scaled:scale")[[2]]
+
+env_site_final_TN <- env_site_final%>% 
+  filter(park == "TN") 
+
+env_sites_scale_TN <- scale(env_site_final_TN[c(8:16, 18)], center = F)
+
+fhtsTN <- attr(env_sites_scale_TN,"scaled:scale")[[1]]
+evisTN <- attr(env_sites_scale_TN,"scaled:scale")[[2]]
+
+```
+
+# import glm function
+```{r}
+source("2) glm function.R")
+```
+
+# C
+
+## GM
+```{r}
+FHT_c_GMggplot <- ggplot(data = GM_c_env, aes(FHT, c_m2_site)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(FHT, c_m2_site), #need to unscale to original range
+                method = "glm", method.args = list(family = Gamma(link = "log")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), text = element_text(size = 17),plot.margin=unit(c(0.5,0,0,0.5), "cm"), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank()) +
+    xlab("Forest Height (m)\n ") +
+  scale_x_continuous(labels = function(x) signif(x*fhtsGM,2))
+
+EVIamp_c_GMggplot <- ggplot(data = GM_c_env, aes(EVIamp, c_m2_site)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(EVIamp, c_m2_site),
+                method = "glm", method.args = list(family = Gamma(link = "log")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y = element_blank(), axis.title.y = element_blank(), text = element_text(size = 17),plot.margin=unit(c(0.5,0,0,1), "cm"), axis.title.x = element_text(margin = margin(t = 10))) +
+    xlab("Enhanced Vegetation Index\nYearly Amplitude")  +
+  scale_x_continuous(labels = function(x) signif(x*evisGM,2))
+
+GM_c_coeff <- ggarrange(FHT_c_GMggplot, EVIamp_c_GMggplot, ncol = 2, widths = c(2, 2)) %>% 
+  annotate_figure(top = text_grob(bquote("b. Gros Morne"), size = 17, hjust = 2.5))
+
+jpeg("data created/graphs/GM_c_coeff.jpg", height = 11, width = 24, units = "cm", res = 600)
+
+GM_c_coeff
+
+dev.off()
+
+```
+
+## TN
+```{r}
+FHT_c_TNggplot <- ggplot(data = TN_c_env, aes(FHT, c_m2_site)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(FHT, c_m2_site),
+                method = "glm", method.args = list(family = Gamma(link = "log")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), text = element_text(size = 17),plot.margin=unit(c(0.5,0,0,0.5), "cm"), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank()) +
+    xlab("Forest Height (m)\n ") +
+  scale_x_continuous(labels = function(x) signif(x*fhtsTN,2))
+
+EVIamp_c_TNggplot <- ggplot(data = TN_c_env, aes(EVIamp, c_m2_site)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(EVIamp, c_m2_site),
+                method = "glm", method.args = list(family = Gamma(link = "log")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y = element_blank(), axis.title.y = element_blank(), text = element_text(size = 17),plot.margin=unit(c(0.5,0,0,1), "cm"), axis.title.x = element_text(margin = margin(t = 10))) +
+    xlab("Enhanced Vegetation Index\nYearly Amplitude") +
+  scale_x_continuous(labels = function(x) signif(x*evisTN,2))
+
+TN_c_coeff <- ggarrange(FHT_c_TNggplot, EVIamp_c_TNggplot, ncol = 2, widths = c(2, 2)) %>% 
+  annotate_figure(top = text_grob(bquote("a. Terra Nova"), size = 17, hjust = 2.5))
+
+jpeg("data created/graphs/TN_c_coeff.jpg", height = 11, width = 24, units = "cm", res = 600)
+
+TN_c_coeff
+
+dev.off()
+```
+
+## put together
+```{r}
+TNGM_c_coef <- ggarrange(TN_c_coeff, GM_c_coeff, nrow = 2)
+
+
+jpeg("data created/graphs/TNGM_c_coeff.jpg", height = 22, width = 24, units = "cm", res = 600)
+
+annotate_figure(TNGM_c_coef, left = text_grob(bquote('Total carbon '(g/m^2)), size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+```
+
+# gap
+
+##GM
+```{r}
+FHT_gap_GMggplot <- ggplot(data = GM_gap_env, aes(FHT, gap)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(FHT, gap),
+                method = "glm", method.args = list(family =binomial(link = "logit")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), text = element_text(size = 17), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank(),plot.margin=unit(c(0,0,0,1), "cm")) +
+    xlab("Forest Height (m)\n ") +
+  scale_x_continuous(labels = function(x) signif(x*fhtsGM,2))
+
+EVIamp_gap_GMggplot <- ggplot(data = GM_gap_env, aes(EVIamp, gap)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(EVIamp, gap),
+                method = "glm", method.args = list(family = binomial(link = "logit")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y=element_blank(), text = element_text(size = 17), axis.title.y = element_blank(), axis.title.x = element_text(margin = margin(t = 10)),plot.margin=unit(c(0,0,0,1), "cm")) +
+    xlab("Enhanced Vegetation Index\nYearly Amplitude") +
+  scale_x_continuous(labels = function(x) signif(x*evisGM,2))
+
+GM_gap_coeff <- ggarrange(FHT_gap_GMggplot, EVIamp_gap_GMggplot,  ncol = 2, widths = c(2, 2))%>% 
+  annotate_figure(top = text_grob(bquote("b. Gros Morne"), size = 17, hjust = 2.5))
+
+jpeg("data created/graphs/GM_gap.jpg", height = 11, width = 24, units = "cm", res = 600)
+
+annotate_figure(GM_gap_coeff, left = text_grob("Probability area is a mature forest", size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+```
+
+##TN
+```{r}
+FHT_gap_TNggplot <- ggplot(data = TN_gap_env, aes(FHT, gap)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(FHT, gap),
+                method = "glm", method.args = list(family =binomial(link = "logit")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), text = element_text(size = 17), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank(),plot.margin=unit(c(0,0,0,1), "cm")) +
+    xlab("Forest Height (m)\n ") +
+  scale_x_continuous(labels = function(x) signif(x*fhtsTN,2))
+
+EVIamp_gap_TNggplot <- ggplot(data = TN_gap_env, aes(EVIamp, gap)) +
+    geom_point(shape = 1, colour = "gray19", size = 2.5, stroke = 1) + 
+    geom_smooth(aes(EVIamp, gap),
+                method = "glm", method.args = list(family = binomial(link = "logit")),
+                se = T, 
+                colour = "gray19", fill = "gray19")+
+    theme(panel.background = element_blank(),axis.line = element_line(colour = "black"), axis.text.y=element_blank(), text = element_text(size = 17), axis.title.x = element_text(margin = margin(t = 10)), axis.title.y = element_blank(), plot.margin=unit(c(0,0,0,1), "cm")) +
+    xlab("Enhanced Vegetation Index\nYearly Amplitude") +
+  scale_x_continuous(labels = function(x) signif(x*evisTN,2))
+
+TN_gap_coeff <- ggarrange(FHT_gap_TNggplot, EVIamp_gap_TNggplot, ncol = 2, widths = c(2, 2))%>% 
+  annotate_figure(top = text_grob(bquote("a. Terra Nova"), size = 17, hjust = 2.5))
+
+jpeg("data created/graphs/TN_gap.jpg", height = 11, width = 24, units = "cm", res = 600)
+
+annotate_figure(GM_gap_coeff, left = text_grob("Probability area is a mature forest", size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+```
+
+## put together
+```{r}
+TNGM_gap_coef <- ggarrange(TN_gap_coeff, GM_gap_coeff, nrow = 2)
+
+jpeg("data created/graphs/TNGM_gap_coef.jpg", height = 22, width = 24, units = "cm", res = 600)
+
+annotate_figure(TNGM_gap_coef, left = text_grob("Probability area is mature forest", size = 17, hjust = 0.38, rot = 90))
+
+dev.off()
+```
+
+# mature vs disturbed (y/n herbivory)
+
+## data prep
+```{r}
+c_22_23_distvsmat <- read_xlsx("data created/c_22_23_distvsmat.xlsx")
+c_22_23_distvsmat$gap <- factor(c_22_23_distvsmat$gap , levels=c("Gap (excl)", "Mature", "Gap"))
+c_22_23_distvsmat$park_id <- factor(c_22_23_distvsmat$park_id  , levels=c("TN", "GM"))
+
+park_id.labs <- as_labeller(c(`a. Terra Nova`="a. Terra Nova", `b. Gros Morne`="b. Gros Morne"))
+```
+
+## graph
+
+```{r}
+mi_boxplot_ggpol <- ggplot(c_22_23_distvsmat, aes(x = gap, y = log(carbon/1000))) + 
+  geom_boxjitter(aes(fill = gap, color = gap), alpha = 0.3,
+                 jitter.shape = 21, jitter.size = 2,
+                 jitter.alpha = 0.3, 
+                 outlier.shape = NA,
+                 errorbar.draw = TRUE, errorbar.length = 0.25, width = 0.95) +
+  labs(y = expression("log(Total Carbon (" ~ kg/m^2~"))"),x = "Stand type") + 
+  geom_signif(comparisons = list(c("Mature", "Gap")),tip_length = 0, annotation = c("*"), y_position = c(5.5), vjust = 0.7, textsize = 5.5) +  
+  scale_x_discrete(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"))+
+  scale_color_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
+  scale_fill_manual(labels = c("Disturbed gap \nno moose herbivory", "Mature forest", "Disturbed gap \nwith moose herbivory"), values = c("#304426","#EF5755", "#3A3759"))+
+  theme_classic()+
+  theme(text = element_text(size = 12), legend.position = "none", strip.text.x = element_text(hjust = 0, margin=margin(l=3, t = 4)), strip.background = element_blank()) 
+
+mi_boxplot_ggpol
+
+jpeg("data created/graphs/herbivory_effect_pts_beside.jpg", height = 8, width = 10, units = "cm", res = 600)
+
+## Create a graphical object g here
+mi_boxplot_ggpol
+
+## Stop writing to the PDF file
+dev.off()
+```
+
+
+# error graphs
+
+## data
+```{r}
+# carbon
+GM_predict_tot <- rast("data created/GM_predict_tot.tif")
+GM_CI_lower_95 <- rast("data created/GM_CI_lower_95.tif")
+GM_CI_upper_95 <- rast("data created/GM_CI_upper_95.tif")
+GM_PI_lower_95 <- rast("data created/GM_PI_lower_95.tif")
+GM_PI_upper_95 <- rast("data created/GM_PI_upper_95.tif")
+
+TN_predict_tot <- rast("data created/TN_predict_tot.tif")
+TN_CI_lower_95 <- rast("data created/TN_CI_lower_95.tif")
+TN_CI_upper_95 <- rast("data created/TN_CI_upper_95.tif")
+TN_PI_lower_95 <- rast("data created/TN_PI_lower_95.tif")
+TN_PI_upper_95 <- rast("data created/TN_PI_upper_95.tif")
+
+# gap
+GM_predict_gap <- rast("data created/GM_predict_gap.tif")
+GM_gCI_lower_95 <- rast("data created/GM_gCI_lower_95.tif")
+GM_gCI_upper_95 <- rast("data created/GM_gCI_upper_95.tif")
+GM_gPI_lower_95 <- rast("data created/GM_gPI_lower_95.tif")
+GM_gPI_upper_95 <- rast("data created/GM_gPI_upper_95.tif")
+
+TN_predict_gap <- rast("data created/TN_predict_gap.tif")
+TN_gCI_lower_95 <- rast("data created/TN_gCI_lower_95.tif")
+TN_gCI_upper_95 <- rast("data created/TN_gCI_upper_95.tif")
+TN_gPI_lower_95 <- rast("data created/TN_gPI_lower_95.tif")
+TN_gPI_upper_95 <- rast("data created/TN_gPI_upper_95.tif")
+```
+
+## make into dataframes
+
+### C
+```{r}
+#GM
+GM_C_ci_pi <- list(estimates = GM_predict_tot$lyr1, lower_CI = GM_CI_lower_95, upper_CI = GM_CI_upper_95, lower_PI = GM_PI_lower_95, upper_PI = GM_PI_upper_95)
+
+GM_C_ci_pi_df1 <- lapply(names(GM_C_ci_pi), function(i) {
+  data.frame(
+    rastername = i,
+    value = as.vector(GM_C_ci_pi[[i]])
+  )
+})
+
+GM_C_ci_pi_df1 <- do.call(rbind, GM_C_ci_pi_df1)
+
+GM_C_ci_pi_df1 %>% 
+  group_by(rastername) %>% 
+  summarize(max = max(value, na.rm = T), min = min(value, na.rm = T))
+
+#TN
+TN_C_ci_pi <- list(estimates = TN_predict_tot$lyr1, lower_CI = TN_CI_lower_95, upper_CI = TN_CI_upper_95, lower_PI = TN_PI_lower_95, upper_PI = TN_PI_upper_95)
+
+TN_C_ci_pi_df1 <- lapply(names(TN_C_ci_pi), function(i) {
+  data.frame(
+    rastername = i,
+    value = as.vector(TN_C_ci_pi[[i]])
+  )
+})
+
+TN_C_ci_pi_df1 <- do.call(rbind, TN_C_ci_pi_df1)
+
+TN_C_ci_pi_df1 %>% 
+  group_by(rastername) %>% 
+  summarize(max = max(value, na.rm = T), min = min(value, na.rm = T))
+```
+
+### gap
+```{r}
+
+#GM
+GM_gap_ci_pi <- list(estimates = GM_predict_tot_gap$fit, lower_CI = GM_CI_lower_95_gap, upper_CI = GM_CI_upper_95_gap, lower_PI = GM_PI_lower_95_gap, upper_PI = GM_PI_upper_95_gap)
+
+GM_gap_ci_pi_df1 <- lapply(names(GM_gap_ci_pi), function(i) {
+  data.frame(
+    rastername = i,
+    value = as.vector(GM_gap_ci_pi[[i]])
+  )
+})
+
+GM_gap_ci_pi_df1 <- do.call(rbind, GM_gap_ci_pi_df1)
+
+GM_gap_ci_pi_df1 %>% 
+  group_by(rastername) %>% 
+  summarize(max = max(value, na.rm = T), min = min(value, na.rm = T))
+
+#TN
+TN_gap_ci_pi <- list(estimates = TN_predict_tot_gap$fit, lower_CI = TN_CI_lower_95_gap, upper_CI = TN_CI_upper_95_gap, lower_PI = TN_PI_lower_95_gap, upper_PI = TN_PI_upper_95_gap)
+
+TN_gap_ci_pi_df1 <- lapply(names(TN_gap_ci_pi), function(i) {
+  data.frame(
+    rastername = i,
+    value = as.vector(TN_gap_ci_pi[[i]])
+  )
+})
+
+TN_gap_ci_pi_df1 <- do.call(rbind, TN_gap_ci_pi_df1)
+
+TN_gap_ci_pi_df1 %>% 
+  group_by(rastername) %>% 
+  summarize(max = max(value, na.rm = T), min = min(value, na.rm = T))
+```
+
+### together
+```{r}
+inetrvals_df1 <- mutate(TN_C_ci_pi_df1, p = "TN_carbon", park = "TN", model = "carbon")  %>% 
+  rbind(mutate(GM_C_ci_pi_df1, p = "GM_carbon", park = "GM", model = "carbon")) %>% 
+  rbind(mutate(TN_gap_ci_pi_df1, p = "TN_gap", park = "TN", model = "gap")) %>%
+  rbind(mutate(GM_gap_ci_pi_df1, p = "GM_gap", park = "GM", model = "gap")) %>% 
+  na.omit()
+
+inetrvals_df1_logc <- inetrvals_df1 %>% 
+  mutate(value_logc = ifelse(model == "carbon", log(value), value))
+
+inetrvals_df1_logc$park <- factor(inetrvals_df1_logc$park , levels=c("TN", "GM"), labels = c("a. Terra Nova", "b. Gros Morne"))
+
+inetrvals_df1_logc$rastername <- factor(inetrvals_df1_logc$rastername , levels=c("estimates", "lower_CI", "upper_CI", "lower_PI", "upper_PI"))
+
+inetrvals_df1_logc$model2 <- factor(inetrvals_df1_logc$model , levels=c("carbon", "gap"), labels = c("log(total~carbon~(g/m^2))", "Probability~area~is~mature~forest"))
+```
+
+## graphs
+
+```{r}
+scaleFUN <- function(x) sprintf("%.1f", x)
+# graphs
+inetrvals_GM2<- ggplot(subset(inetrvals_df1_logc, park != "a. Terra Nova"), aes(rastername, value_logc, fill = rastername))+
+  ggh4x::facet_wrap2(vars(model2), scales = "free_y",strip.position = "left") +
+  geom_violin() +
+  xlab("Error term") +
+  ylab(NULL) + 
+  scale_y_continuous(labels=scaleFUN) +
+  theme_classic()+
+  #scale_x_discrete(labels = c("Residual standard\nerror", "Standard error\nof the 95%\nconfidence interval", "Standard error\nof the 95%\nprediction interval"))+
+  stat_summary(aes(colour=rastername), fun.y=mean, geom="point", shape = 18, size = 2) +
+  #scale_fill_manual(values = colours_error)+
+  #scale_colour_manual(values = colours_error)+
+  theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), strip.placement = "outside", plot.margin = margin(0.5,0.5,0,0, "cm"), strip.text = element_blank(), panel.spacing = unit(0.5, "cm"))
+
+inetrvals_GMl2 <- annotate_figure(inetrvals_GM2, top = text_grob(expression("b. Gros Morne"), vjust = 1.5, hjust = 3, size = 12))
+
+inetrvals_TN2 <- ggplot(subset(inetrvals_df1_logc, park == "a. Terra Nova"), aes(rastername, value_logc, fill = rastername))+
+  ggh4x::facet_wrap2(vars(model2), scales = "free_y", strip.position = "left") +
+  geom_violin() +
+  xlab(NULL) +
+  ylab(NULL) + 
+  scale_y_continuous(labels=scaleFUN) +
+  theme_classic()+
+  #scale_x_discrete(labels = c("Residual standard\nerror", "Standard error\nof the 95%\nconfidence interval", "Standard error\nof the 95%\nprediction interval"))+
+  stat_summary(aes(colour=rastername), fun.y=mean, geom="point", shape = 18, size = 2) +
+  #scale_fill_manual(values = colours_error)+
+  #scale_colour_manual(values = colours_error)+
+  theme(text = element_text(size = 12), legend.position = "none", strip.background = element_blank(), strip.placement = "outside", plot.margin = margin(0.5,0.5,0,0, "cm"), strip.text = element_blank(), panel.spacing = unit(0.5, "cm"))
+
+inetrvals_TNl2 <- annotate_figure(inetrvals_TN2, top = text_grob(expression("  a. Terra Nova"), vjust = 1.5, hjust = 3, size = 12))
+
+inetrvals_TNl2l <- annotate_figure(inetrvals_TN2)
+inetrvals_GMl2l <- annotate_figure(inetrvals_GM2)
+
+TNGM_intervals2 <- ggarrange(inetrvals_TNl2, inetrvals_GMl2, nrow = 2) 
+
+TNGM_intervalsl2 <- ggarrange(inetrvals_TNl2l, inetrvals_GMl2l, nrow = 2) 
+
+TNGM_intervals2l <- TNGM_intervals2 %>% 
+  annotate_figure(left = text_grob(expression("log(total carbon (" ~ g/m^2~"))"), size = 12, rot = 90)) +
+  annotation_custom(text_grob("Probability area is mature forest", rot = 90), 
+                      xmin = -0, xmax = 1.03, ymin = -Inf, ymax = Inf) 
+                  
+                  #, right = text_grob("Probability~area~is~mature~forest", vjust = -30, size = 12, rot = 90))
+
+TNGM_intervals2l
+
+jpeg("data created/graphs/TNGM_intervals2.jpg", height = 18, width = 21, units = "cm", res = 600)
+
+## Create a graphical object g here
+TNGM_intervals2l
+
+## Stop writing to the PDF file
+dev.off()
+
+
+```

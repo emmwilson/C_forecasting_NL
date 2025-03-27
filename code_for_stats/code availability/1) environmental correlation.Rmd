@@ -1,0 +1,115 @@
+---
+title: "environmental correlation"
+author: "Emmerson Wilson"
+date: "2024-03-01"
+output: html_document
+---
+
+Correlation between predictor variables from sample sites for the National Parks separately and together. 
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  ggplot2,
+  corrplot,
+  PerformanceAnalytics,
+  usdm,
+  janitor,
+  openxlsx)
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/code availability")
+```
+
+
+## import data
+
+### from sites
+
+```{r}
+env_sites_GM <- read_xlsx("data required/environmental data/env_sites_GM_final.xlsx") %>% # environmental data from Gros Morne sites
+  rename(CC = "CC10fill") # change name of canopy cover column to match others
+
+env_sites_TN <- read_xlsx("data required/environmental data/env_sites_TN_final.xlsx") %>% #environmental data from Terra Nova sites
+    rename(CC = "CC10fill") # change name of canopy cover column to match others
+
+```
+
+#### prep
+##### remove exclosures and unused columns
+```{r}
+env_sites <- dplyr::bind_rows(env_sites_TN, env_sites_GM) # put sites together
+env_sites$ex_ctrl <- env_sites$ex_ctrl %>% 
+  replace_na("pair") # turn calssification of "na" into character string so we can filter out exclosures
+env_sites <- env_sites %>% 
+  filter(ex_ctrl != "EX") %>% #filter our exclosure sites
+  dplyr::select(!ex_ctrl)  %>% # remove exclosure control column
+  dplyr::select(!Moose) %>% # remove old moose classification
+  dplyr::select(!nitro) # remove nitro because not good dataset
+```
+
+##### fix aspect
+```{r}
+env_sites <- env_sites %>% 
+  mutate(ASP = abs(180 - ASP)) # make aspect absolute number of degrees from S
+
+env_sites$ASP <-replace_na(env_sites$ASP, 0.1) # anywhere with slope of 0 has NA aspect, make aspect 0.1
+```
+
+##### fill moose TN 05
+```{r}
+env_sites$Moose_new <- replace_na(env_sites$Moose_new, 3)
+```
+
+#### create dataset for each park
+```{r}
+GM_env_sites <- subset(env_sites, env_sites$park == "GM") # make dataset for just GM
+TN_env_sites <- subset(env_sites, env_sites$park == "TN") # make dataset for just TN
+```
+
+
+## correlation
+
+#### both parks
+```{r, warning=FALSE}
+predictors_site_env <- env_sites[, -c(1:7)]
+# correlation structure
+varCor <- cor(predictors_site_env, use="pairwise.complete.obs")
+corrplot(varCor,  tl.col='black') # dendogram
+chart.Correlation(predictors_site_env, histogram=F, pch=19)
+```
+
+#### at each park
+##### GM only
+```{r, warning=FALSE}
+
+predictors_site_env_GM <- GM_env_sites[, -c(1:7)]
+# correlation structure
+varCor_GM <- cor(predictors_site_env_GM, use="pairwise.complete.obs")
+corrplot(varCor_GM,  tl.col='black')
+chart.Correlation(predictors_site_env_GM, histogram=F, pch=19)
+```
+
+
+##### TN only
+```{r, warning=FALSE}
+
+predictors_site_env_TN <- TN_env_sites[,-c(1:7)]
+# correlation structure
+varCor_TN <- cor(predictors_site_env_TN, use="pairwise.complete.obs")
+corrplot(varCor_TN,  tl.col='black')
+as.data.frame(varCor_TN)
+chart.Correlation(predictors_site_env_TN, histogram=F, pch=19)
+```
+
+## export
+
+```{r}
+write.xlsx(env_sites, file = "data created/env_sites_final.xlsx")
+```
+
+

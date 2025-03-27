@@ -1,0 +1,154 @@
+---
+title: "13) anova between site types"
+author: "Emmerson Wilson"
+date: "2024-05-08"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  janitor,
+  misty)
+  
+```
+
+# data
+
+```{r}
+c_22_23_wEX <- read_xlsx("data required/c_22_23.xlsx")
+```
+
+
+# select sites to compare
+```{r}
+c_22_23_insect2 <- c_22_23_wEX %>% 
+  filter(gap != "Gap" | ex_ctrl != "NA") %>% 
+  filter(gap != "Mature" | ex_ctrl != "EX") %>% 
+  filter(ex_ctrl != "CTRL") %>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  dplyr::select(-c(dw_carbon_9m2, total_c_per_subplot)) 
+c_22_23_insect2$gap[c_22_23_insect2$gap == "Gap"] <- 'Gap (excl)'
+
+c_22_23_moosegap <- c_22_23_wEX %>% 
+  filter(ex_ctrl != "EX")  %>% 
+  filter(gap != "Mature")%>% 
+  mutate(new_tot = total_c_per_subplot - dw_carbon_9m2) %>% 
+  dplyr::select(-c(dw_carbon_9m2)) 
+
+c_22_23_mi2 <- rbind(subset(dplyr::select(c_22_23_moosegap, c(1,2,5,6,16))), dplyr::select(c_22_23_insect2, c(1,2,5,6,15))) %>% 
+  group_by(park_id, site_id, disturbance, gap) %>% 
+  summarize(carbon = mean(new_tot)/9)
+c_22_23_mi2$gap <- factor(c_22_23_mi2$gap , levels=c("Gap (excl)", "Mature", "Gap"))
+
+
+write.xlsx(c_22_23_mi2, file = "data created/c_22_23_distvsmat.xlsx")
+
+```
+
+# on sites 
+```{r}
+c_22_23_mi2_sites <- c_22_23_mi2 %>% 
+  group_by(site_id, park_id, gap) %>% 
+  summarise(m_carbon = mean(carbon))
+
+# both parks together
+disturbance_all_modelsites <- aov(m_carbon~gap, data = c_22_23_mi2_sites)
+
+anova(disturbance_all_modelsites)
+effect_dist <- TukeyHSD(disturbance_all_modelsites)
+```
+
+# welch's test
+with Games-Howell post hoc test for multiple comparison
+```{r}
+welch <- test.welch(m_carbon ~ gap, data = c_22_23_mi2_sites)
+
+games <- test.welch(m_carbon ~ gap, data = c_22_23_mi2_sites, posthoc = T)
+
+```
+
+# multiply by area disturbed 
+and see what percent of total carbon
+using anova
+```{r}
+#import data
+library(terra)
+library(tidyterra)
+
+# gaps
+GM_predict_tot_gap_transform_bm <- rast("data created/GM_predict_gap.tif")
+
+TN_predict_tot_gap_transform_bm <- rast("data created/TN_predict_gap.tif")
+
+# carbon
+GM_predict_tot_transform_bm <- rast("data created/GM_predict_tot.tif")
+total_c_GM <- sum(values(GM_predict_tot_transform_bm), na.rm = T)* res(GM_predict_tot_transform_bm)[1]^2
+
+TN_predict_tot_transform_bm <- rast("data created/TN_predict_tot.tif")
+total_c_TN <- sum(values(TN_predict_tot_transform_bm), na.rm = T)* res(TN_predict_tot_transform_bm)[1]^2
+
+# area > 50% likely to be gap (so cells <5)
+
+GM_gaps <- GM_predict_tot_gap_transform_bm %>% 
+  filter(lyr1 < 0.5) %>% 
+  expanse()
+
+TN_gaps <- TN_predict_tot_gap_transform_bm %>% 
+  filter(lyr1 < 0.5) %>% 
+  expanse()
+
+# times effect of moose in disturbed areas
+c_lost_GM <- abs(effect_dist$gap[[3,1]]*GM_gaps[1,2])
+c_lost_GM_max <- abs(effect_dist$gap[[3,2]]*GM_gaps[1,2])
+c_lost_GM_min <- abs(effect_dist$gap[[3,3]]*GM_gaps[1,2])
+
+c_lost_TN <- abs(effect_dist$gap[[3,1]]*TN_gaps[1,2])
+c_lost_TN_max <- abs(effect_dist$gap[[3,2]]*TN_gaps[1,2])
+c_lost_TN_min <- abs(effect_dist$gap[[3,3]]*TN_gaps[1,2])
+
+# proportion of total c
+c_lost_GM/total_c_GM
+c_lost_GM/(total_c_GM+c_lost_GM)
+c_lost_GM_min/total_c_GM 
+c_lost_GM_max/total_c_GM
+
+
+c_lost_TN/total_c_TN
+c_lost_TN/(total_c_TN+c_lost_TN)
+c_lost_TN_min/total_c_TN
+c_lost_TN_max/total_c_TN
+
+```
+
+## using wlech's
+same as anovas
+```{r}
+# times effect of moose in disturbed areas
+games$result$posthoc[[3,5]]
+
+c_lost_GMw <- abs(games$result$posthoc[[3,3]]*GM_gaps[1,2])
+c_lost_GM_maxw <- abs(games$result$posthoc[[3,5]]*GM_gaps[1,2])
+c_lost_GM_minw <- abs(games$result$posthoc[[3,6]]*GM_gaps[1,2])
+
+c_lost_TNw <- abs(games$result$posthoc[[3,3]]*TN_gaps[1,2])
+c_lost_TN_maxw <- abs(games$result$posthoc[[3,5]]*TN_gaps[1,2])
+c_lost_TN_minw <- abs(games$result$posthoc[[3,6]]*TN_gaps[1,2])
+
+# proportion of total c
+c_lost_GMw/total_c_GM
+c_lost_GMw/(total_c_GM+c_lost_GM)
+c_lost_GM_minw/total_c_GM 
+c_lost_GM_maxw/total_c_GM
+
+
+c_lost_TNw/total_c_TN
+c_lost_TNw/(total_c_TN+c_lost_TN)
+c_lost_TN_minw/total_c_TN
+c_lost_TN_maxw/total_c_TN
+
+```
+

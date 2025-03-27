@@ -1,0 +1,98 @@
+Predicting carbon storage in maritime boreal forests under combines disturbances
+Authors: Emmerson R. Wilson, Shawn J. Leroux, Rachael Moran, Darroch Whitaker, Yolanda Wiersma
+Affiliations: Department of Biology, Memorial University of Newfoundland, 45 Arctic Ave, St. John’s, NL A1C 5S7, Canada
+Gros Morne National Park, P.O. Box 130, Rocky Harbour, NL A0K 4N0, Canada
+
+Data required to run analyses.
+data required:
+  c_22_23.xlsx: Contains carbon and stand condition data from in field
+    Column names: definition; units
+      park_id: park abbreviated name; TN: Terra Nova National Park, GM: Gros Morne National Park	
+      site_id: numerical identification containing site number and year of sampling
+      ex_ctrl: whether the site was in an exclosure, the control area paired with an exclosure, or inependant of ann exclosure; EX, CTRL, NA respectively
+      subplot_id:	numerical identification of subplot location within sample site (Online resource 1: Figure S1); 1-4
+      disturbance: Disturbance history of site; Insect, Fire, Logging, Wind, Mature forest
+      gap: whether the area was mature forest or gap, based on disturbance history; gap: Insect, fire, logging, wind, mature forest: Mature forest
+      year: year sampling occured; 2022 or 2023
+      dw_carbon_9m2: carbon stocks in deadwood in subplot; grams per 9 meters squared
+      te_carbon_9m2: carbon stocks in trees over 3 m tall in subplot; grams per 9 meters squared
+      ll_carbon_9m2: carbon stocks in leaf litter in subplot; grams per 9 meters squared
+      sl_carbon_9m2: carbon stocks in organic soil in subplot; grams per 9 meters squared
+      ss_carbon_9m2: carbon stocks in shribs and saplings over 0.3 m tall but under 3 m tall in subplot; grams per 9 meters squared
+      rt_carbon_9m2: carbon stocks in roots in subplot; grams per 9 meters squared
+      gv_carbon_9m2: carbon stocks in ground vegetation in subplot; grams per 9 meters squared
+      total_c_per_subplot: total carbon carbon stocks in subplot; grams per 9 meters squared
+      unique_id: a unique identifier for each row, includes park_id, site_id, and subplot_id
+  
+  environmental data:
+    sp_codes.csv: tree species codes for Terra Nova and Gros Morne National Parks
+    
+    TN_env_raster.tif: stacked raster of all environmental predictor variables for Terra Nova National Park
+      
+    GM_env_raster.tif: stacked raster of all environmental predictor variables for Gros Morne National Park
+    
+    env_sites_TN_final.xlsx: environmental data from TN_env_raster.tif at centroid of each sample location in Terra Nova National Park
+      Column names: definition; units
+          fid: numerical column id
+          MEAN_X:	
+          MEAN_Y:	
+          site_id_ex:	numerical identification containing site number and year of sampling, as well as if it was in an exclosure (EX)
+          year:	year sampling occured; 2022 or 2023
+          park:	park abbreviated name; TN: Terra Nova National Park, GM: Gros Morne National Park	
+          ex_ctrl:	whether the site was in an exclosure, the control area paired with an exclosure, or inependant of ann exclosure; EX, CTRL, NA respectively
+          unique_id:	a unique identifier for each row, includes park_id and site_id
+          FHT:	forest height; meters
+          EVIamp:	enhanced vegetation index yearly amplitude; Spectral index
+          EVImed:	enhanced vegetation index yearly mean; Spectral index
+          ASP:	aspect; absolute degrees from South
+          ELE:	elevation; meters
+          SLO:	slope; percent
+          SPC:	Dominant tree type; 0: NULL, see sp_codes.csv for classifications
+          FAC:	Forest age class; TN: 1 = 0 – 20 years, 2 = 21 – 40 years, 3 = 41 –60 years, 4 = 61 – 80 years, 5 = 81 + years
+	GM: 1 = 0 – 20 years, 2 = 21 – 40 years, 3 = 41 –60 years, 4 = 61 – 80 years, 5 = 81 – 100, 6 = 101 – 120 years
+          CC10fill:	Canopy cover; percent
+          CEC_LCT:	Land classification; 1 = Temperate or sub-polar needleleaf forest, 6 = Mixed Forest, 8 = Temperate or sub-polar shrubland, 14 = Wetland, 16 = Barren lands, 17 = Urban, 18 = Water
+          Moose:	Original numerical classification of moose densities: 1-4
+          Moose_new:	New moose densities based on "Notes" sheet; 1-4
+          LGS:	Length of green season; days
+          nitro:	soil nitrogen content (not used because dataset poor quality)
+    
+    env_sites_GM_final.xlsx: environmental data from GM_env_raster at centroid of each sample location in Gros Morne National Park
+      same columns as env_sites_TN_final.xlsx
+    
+    TN_predict_binary_bm.tif: rasters delineating area in which we have predictive power fro Terra Nova National Parks
+    
+    GM_predict_binary_bm.tif: rasters delineating area in which we have predictive power fro Gros Morne National Parks
+    
+    parks and roads: folder containing park outlines and roads as rasters required for code 19)
+    
+    
+Code required for analyses:
+1) environmental correlation.Rmd: runs correlation analysis for predictor variables across sample locations for Terra Nova and Gros Morne National Parks seperately and together
+2) glm function.R: specifies family, link and variable structure for generalized linear models for carbon models and mature forest/gap models
+3) c total glm.Rmd: runs and compares generalized linear models for carbon stocks
+4) gap glm.Rmd: runs and compares generalized linear models for mature forest/gap
+5) cross validation function.R: functions required to run cross validations repeatedely
+6) c cross validation.Rmd: cross validation of top models from 3) 
+7) gap cross validation.Rmd: cross validation of top models from 4)
+8) predictable space.Rmd: creates stacked raster of predictor variables that only encompasses areas in which we have predictive power fro Terra Nova and Gros Morne National Parks
+9) c predictions.Rmd: uses the top model from 6) to predict carbon stocks across 8)
+10) gap predictions.Rmd: uses the top model from 7) to predict carbon stocks across 8)
+11) c error propagation.Rmd: calculates 95% confidence intervals and prediction intervals for each cell in 6)
+12) gap error propagation.Rmd: calculates 95% confidence intervals and prediction intervals for each cell in 7)
+13) anova bw site types.Rmd: compares carbon stocks between sample locations in mature forest, previously disturbed forest without moose herbivory, and previously disturbed forest with moose herbivory
+14) graphs.Rmd: creates manuscript figures 3, 5, and 6
+15) c total glm cv both parks.Rmd: runs and compares generalized linear models for carbon stocks when parks are models together
+16) gap glm cv both parks.Rmd: runs and compares generalized linear models for mature forest/gap when parks are models together
+17) soil glm.Rmd: runs and compares generalized linear models for only soil carbon stocks
+18) without GM 35.Rmd: runs and compares generalized linear models for carbon stocks when site GM_35_2023 is not included. The soil carbon for site GM_35_2023 was estimated according to Appendix 3
+19) Exporting maps for figures.Rmd: creates maps used in Figure 4
+
+
+Folder where code output gets saved
+A folder where outputs from code get saved so they can be properly reference in other code
+
+Queries regarding this data package should be directed to:
+Emmerson Wilson
+Email: emmerson.r.wilson@gmail.com
+

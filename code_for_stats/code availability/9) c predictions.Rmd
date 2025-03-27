@@ -1,0 +1,91 @@
+---
+title: "7) Predictions"
+author: "Emmerson Wilson"
+date: "2024-03-07"
+output: html_document
+---
+
+```{r}
+pacman::p_load(
+  dplyr,
+  tidyverse,
+  readxl,
+  openxlsx,
+  cv,
+  lme4,
+  terra)
+
+```
+
+```{r}
+# change this to whichever folder you downloaded the code to
+setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/code availability")
+```
+
+# import training datasets
+```{r}
+GM_c_env <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
+TN_c_env <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
+```
+
+## for space from just predictors in best models
+```{r}
+# made in 8) predictable space
+GM_env_raster_masked_scale_bm <- rast("data created/GM_env_raster_masked_scale.tif")
+TN_env_raster_masked_scale_bm <- rast("data created/TN_env_raster_masked_scale.tif")
+```
+
+# import glm function
+```{r}
+source("2) glm function.R")
+```
+
+# predict
+
+## GM
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+GM_var <- list("FHT", "EVIamp")
+
+# run best model
+GM_model_tot <- lm_glm(GM_var, df = GM_c_env, c = "c_m2_site")
+summary(GM_model_tot)
+
+# predict
+GM_predict_tot <- terra::predict(GM_env_raster_masked_scale, GM_model_tot)
+
+# transform predictions
+GM_predict_tot_transform <- GM_predict_tot
+values(GM_predict_tot_transform) <- exp(values(GM_predict_tot)) 
+
+# export
+writeRaster(GM_predict_tot_transform, filename="data created/GM_predict_tot.tif", overwrite=TRUE)
+writeRaster(GM_predict_tot, filename="data created/GM_predict_tot1.tif", overwrite=TRUE)
+```
+
+## TN
+```{r}
+# list of variables in best model from 5) c lm total.Rmd
+TN_var <- list("FHT", "EVIamp")
+
+# run best model
+TN_model_tot <- lm_glm(TN_var, df = subset(TN_c_env), c = "c_m2_site")
+summary(TN_model_tot)
+
+# predict
+TN_predict_tot <- terra::predict(TN_env_raster_masked_scale, TN_model_tot)
+
+# transform predictions
+TN_predict_tot_transform <- TN_predict_tot
+values(TN_predict_tot_transform) <- exp(values(TN_predict_tot))
+
+# export
+writeRaster(TN_predict_tot_transform, filename="data created/TN_predict_tot.tif", overwrite=TRUE)
+writeRaster(TN_predict_tot, filename="data created/TN_predict_tot1.tif", overwrite=TRUE)
+
+```
+
+
+
+
+
