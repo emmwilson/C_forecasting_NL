@@ -28,7 +28,7 @@ setwd("~/Documents/Master's/C_forecasting_NL/code_for_stats/code availability")
 
 ## carbon and scaled environmental variables
 ```{r}
-# made in 5) c lm total.Rmd
+# made in 3) c lm total.Rmd
 c_env_sites_scale_GM <- read_xlsx("data created/c_env_sites_scale_GM.xlsx")
 c_env_sites_scale_TN <- read_xlsx("data created/c_env_sites_scale_TN.xlsx")
 ```
