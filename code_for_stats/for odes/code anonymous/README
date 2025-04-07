@@ -1,0 +1,8 @@
+Using a mathematical model to determine drivers of regime shifts in eastern boreal forests
+
+Code required for analyses::
+1) Model structure.rmd: code that specifies model structure
+2) Initial condition functions.rmd: functions required to run model over each combination of initial conditions
+3) Number of parameter combinations.rmd: run model over each combination of initial conditions
+5) Parameter functions.Rmd: functions required to run model over parameter values
+6) Rude ode over parameters: run model over parameter values

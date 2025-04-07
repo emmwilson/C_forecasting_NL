@@ -86,7 +86,7 @@ writeRaster(TN_predict_tot_gap, filename="data created/TN_predict_gap1.tif", ove
 
 ```
 
-# TTS
+# TSS
 
 
 ## GM
@@ -106,16 +106,6 @@ GM_gap_env_pred$gap_pred <- factor(GM_gap_env_pred$gap_pred, levels = c(0,1))
 
 # create confusion matrix comparing classifications to predictions
 CM_GM <- confusionMatrix(GM_gap_env_pred$gap_pred, GM_gap_env_pred$gap)
-
-# calculate accuracy measures
-UA_GM <- diag(CM_GM$table) / rowSums(CM_GM$table) * 100
-PA_GM <- diag(CM_GM$table) / colSums(CM_GM$table) * 100
-OA_GM <- sum(diag(CM_GM$table)) / sum(CM_GM$table) * 100
-
-CM_GM
-UA_GM # sensitivity of CM
-PA_GM # POS pred values CM
-OA_GM # accuracy of CM
 ```
 
 ## TN
@@ -136,15 +126,6 @@ TN_gap_env_pred$gap_pred <- factor(TN_gap_env_pred$gap_pred, levels = c(0,1))
 # create confusion matrix comparing classifications to predictions
 CM_TN <- confusionMatrix(TN_gap_env_pred$gap_pred, TN_gap_env_pred$gap)
 
-# calculate accuracy measures
-UA_TN <- diag(CM_TN$table) / rowSums(CM_TN$table) * 100
-PA_TN <- diag(CM_TN$table) / colSums(CM_TN$table) * 100
-OA_TN <- sum(diag(CM_TN$table)) / sum(CM_TN$table) * 100
-
-CM_TN
-UA_TN # sensitivity of CM
-PA_TN # POS pred values CM
-OA_TN # accuracy of CM
 ```
 
 ## together
@@ -152,16 +133,76 @@ OA_TN # accuracy of CM
 gap_env_pred <- rbind(TN_gap_env_pred, GM_gap_env_pred)
 
 CM <- confusionMatrix(gap_env_pred$gap_pred, gap_env_pred$gap)
+```
 
-# calculate accuracy measures
-UA <- diag(CM$table) / rowSums(CM$table) * 100
-PA <- diag(CM$table) / colSums(CM$table) * 100
-OA <- sum(diag(CM$table)) / sum(CM$table) * 100
+# loop through cutoffs
+```{r}
+# function to loop through gap cut off 
+## then use to graph 
 
-CM
-UA # sensitivity of CM
-PA # POS pred values CM
-OA # accuracy of CM
+cutoff_gapsTSS <- function(cutoff) {
+  # extract prediction data from sample sites
+  valid_pts2 <- terra::extract(GM_predict_tot_gap_transform, data.frame(GM_gap_env$MEAN_X, GM_gap_env$MEAN_Y)) |> 
+    cbind(data.frame(MEAN_X = GM_gap_env$MEAN_X, MEAN_Y = GM_gap_env$MEAN_Y))
+  
+  GM_gap_env_pred <- left_join(GM_gap_env, valid_pts2) |> 
+    mutate(gap_pred = ifelse(lyr1 >= cutoff, 1, 0)) |> 
+    na.omit()
+  
+  GM_gap_env_pred$gap <- factor(GM_gap_env_pred$gap, levels = c(0,1))
+  GM_gap_env_pred$gap_pred <- factor(GM_gap_env_pred$gap_pred, levels = c(0,1))
+  
+  
+  # create confusion matrix comparing classifications to predictions
+  CM_GM <- confusionMatrix(GM_gap_env_pred$gap_pred, GM_gap_env_pred$gap)
+  
+  # calculate TSS
+  CM_OA_GM <- (CM_GM$table[1,1]/(CM_GM$table[1,1] + CM_GM$table[2,1])) + (CM_GM$table[2,2]/(CM_GM$table[2,2] + CM_GM$table[1,2])) -1
+  
+  # extract prediction data from sample sites
+  valid_pts2 <- terra::extract(TN_predict_tot_gap_transform, data.frame(TN_gap_env$MEAN_X, TN_gap_env$MEAN_Y)) |> 
+    cbind(data.frame(MEAN_X = TN_gap_env$MEAN_X, MEAN_Y = TN_gap_env$MEAN_Y))
+  
+  TN_gap_env_pred <- left_join(TN_gap_env, valid_pts2) |> 
+    mutate(gap_pred = ifelse(lyr1 >= cutoff, 1, 0)) |> 
+    na.omit()
+  
+  TN_gap_env_pred$gap <- factor(TN_gap_env_pred$gap, levels = c(0,1))
+  TN_gap_env_pred$gap_pred <- factor(TN_gap_env_pred$gap_pred, levels = c(0,1))
+  
+  
+  # create confusion matrix comparing classifications to predictions
+  CM_TN <- confusionMatrix(TN_gap_env_pred$gap_pred, TN_gap_env_pred$gap)
+  
+  # calculate TSS
+  CM_OA_TN = (CM_TN$table[1,1]/(CM_TN$table[1,1] + CM_TN$table[2,1])) + (CM_TN$table[2,2]/(CM_TN$table[2,2] + CM_TN$table[1,2])) -1
+  
+  # both parks together
+  gap_env_pred <- rbind(TN_gap_env_pred, GM_gap_env_pred)
+  
+  CM <- confusionMatrix(gap_env_pred$gap_pred, gap_env_pred$gap)
+  
+  # calculate TSS  
+  CM_OA = (CM$table[1,1]/(CM$table[1,1] + CM$table[2,1])) + (CM$table[2,2]/(CM$table[2,2] + CM$table[1,2])) -1
+  
+  
+  return(list(CM_OA, CM_OA_TN, CM_OA_GM))
+}
+
+
+TSS_CM <- data.frame(t(sapply(cutoff_list, cutoff_gapsTSS))) |> 
+  mutate(
+    both = unlist(X1),
+    TN = unlist(X2),
+    GM = unlist(X3)
+  ) |> 
+  cbind(cutoff_list) 
+
+ggplot(TSS_CM) +
+  geom_point(aes(cutoff_list, both)) +
+  geom_point(aes(cutoff_list, TN), colour = "red") +
+  geom_point(aes(cutoff_list, GM), colour = "blue") +
+  ylab("TSS")
 ```
 
 

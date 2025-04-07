@@ -1,0 +1,70 @@
+---
+title: "Initial condition functions"
+author: "Anonymous"
+date: "2024-08-27"
+output: html_document
+---
+Specify your own file path names on lines with ###PATH NAME###
+
+
+#libraries
+```{r}
+pacman::p_load(
+  tidyverse,
+  deSolve,
+  parallel,
+  pbapply,
+  future.apply,
+  progressr)
+```
+
+# source code
+```{r}
+source(knitr::purl("~/code availability/1) Model structure.Rmd", quiet=TRUE)) ###PATH NAME###
+```
+
+
+# run model over different conditions
+```{r}
+ode_reps <- function(parameters, initial_conditions) {
+  out <- ode(y = initial_conditions, times = time_vec1, func = lv, parms = parameters, events=list(func = eventfun, time = time_vec1), method = "lsode", atol = 1e-21)
+}
+```
+
+# return year simulation recovers
+```{r}
+return_year_recover <- function(odes, yrstable) {
+
+  yr_stable <- as.numeric(yrstable)
+  
+ odes_stable_yrs <-as.data.frame(odes) %>% 
+   filter(time > yr_stable)
+  
+  names(odes_stable_yrs) <- names(odes)
+  
+  odes_avg_mat <- odes_stable_yrs[1,4]
+  
+  names(odes_avg_mat) <- names(odes)
+  
+  # return year simulation initially hit that mature value
+ odes_yr_mat <-as.data.frame(odes) %>% 
+    filter(Pmature >= as.numeric(odes_avg_mat) -   as.numeric(odes_avg_mat)/1000)
+  
+  odes_yr_mat <-as.numeric(odes_yr_mat[1,1])
+}
+```
+
+# return year simulation becomes stable
+```{r}
+return_year_stable_delta <- function(odes) {
+
+  args_recover_delta <- as.data.frame(odes) %>% 
+    mutate(dMoose = odes[,2] - lag(odes[,2]), dPyoung = Pyoung - lag(Pyoung), dPmature = Pmature - lag(Pmature), dUnpal = Unpal - lag(Unpal)) %>% 
+    filter(if_all(c(6:9), ~. <= 1e-8 | is.nan(.)))
+  
+  args_recover_deltayr <- args_recover_delta[1,1]
+  return(args_recover_deltayr)
+}
+```
+
+

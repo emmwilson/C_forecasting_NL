@@ -1,0 +1,288 @@
+---
+title: "4) Run ode over initial conditions"
+author: "Anonymous"
+date: "2024-08-27"
+output: html_document
+---
+
+Specify your own file path names on lines with ###PATH NAME###.
+
+#libraries
+```{r}
+pacman::p_load(
+  tidyverse,
+  deSolve,
+  parallel,
+  pbapply,
+  future.apply,
+  progressr)
+```
+
+# source code
+```{r}
+source(knitr::purl("~/code availability/2) Initial condition functions.Rmd", quiet=TRUE)) ###PATH NAME###
+# will source model structure as well
+```
+
+# create list of parametercombinations based on number of parameter combinations chosen in 3)
+```{r}
+sampled_param <- list()
+
+n_p <- 150 # may change
+
+for(i in rownames(param_dist)){
+  set.seed(123)
+sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]],  sd=(param_dist[[i,2]]-param_dist[[i,1]])/5), 5)
+}
+
+sampled_param_list <-  split(as.matrix(as.data.frame(sampled_param)), row(as.data.frame(sampled_param))) %>% 
+  lapply(setNames, nm = names(parms))
+
+sampled_param_list_final <- list()
+
+# remove combinations that don't meet assumptions (around competative effects, growth rates, carrying capacities, and death rates)
+
+# relative growth rate
+sampled_param_list2 <-  sampled_param_list[sapply(sampled_param_list, `[`, 'rPy') < sapply(sampled_param_list, `[`, 'rU') & sapply(sampled_param_list, `[`, 'rPm') < sapply(sampled_param_list, `[`, 'rPy')]
+
+# competative effects
+sampled_param_list3 <-  sampled_param_list2[sapply(sampled_param_list2, `[`, 'alphaUPm') < sapply(sampled_param_list2, `[`, 'alphaUPy') & sapply(sampled_param_list2, `[`, 'alphaUPy') < sapply(sampled_param_list2, `[`, 'alphaPyU') & sapply(sampled_param_list2, `[`, 'alphaPyU') < sapply(sampled_param_list2, `[`, 'alphaPmU')]
+
+# carrying capacities
+sampled_param_list4 <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'kU') < sapply(sampled_param_list3, `[`, 'kPy') & sapply(sampled_param_list3, `[`, 'kPy') < sapply(sampled_param_list3, `[`, 'kPm')]
+
+
+# loss
+sampled_param_list_final <-  sampled_param_list4[sapply(sampled_param_list4, `[`, 'lPm') < sapply(sampled_param_list4, `[`, 'lU')]
+
+#save to use for all repetitions
+saveRDS(sampled_param_list_final, file = "~/code availability/outputs/sampled_param_list_final.RDS") ###PATH NAME###
+```
+
+# run simulations
+```{r}
+
+# empty lists to fill in future
+out_end <- list()                     
+out <- list()        
+
+# make all combinations of parameter combinations and initial conditions available in environment
+args <- expand.grid(
+  parameters=sampled_param_list_final,
+  initial_conditions=y_0d) 
+args_id <- args %>% mutate(id = seq(1, nrow(args), by = 1))
+list2env(args, envir=.GlobalEnv)
+
+# set up clusters
+plan(multisession, workers = 15)
+set.seed(123)
+
+# run over params and init conditions
+args$output <- future_mapply(ode_reps, parameters, initial_conditions, SIMPLIFY = F,  future.seed = TRUE) 
+```
+
+## get percent recovered from simulations
+```{r}
+# give simulations names based params and init conditions
+names(args$output) <- seq(1, nrow(args_id), by = 1)
+
+# remove any simulations that didnt run properly
+args_less <- purrr::discard(args$output, ~nrow(.) < 3)
+arg_removed <- purrr::keep(args$output, ~nrow(.) < 3)
+
+
+# remove simulations that didn't reach steady state
+args_less_steady_NAs <- future_lapply(args_less, return_year_stable_delta, future.seed = TRUE) # this function returns NAs if the simulation doesn;t reach steady state
+args_less_steady <- args_less[!is.na(args_less_steady_NAs)]
+
+# get final stocks from remaining simulations
+arg_less_last <- future_lapply(args_less_steady,tail, 1, SIMPLIFY = T)
+
+plan(sequential)
+
+
+# if pmature = 0, and/or Unpal ≠ 0 then grassland
+# if pmature ≠ 0 then forest
+names(arg_less_last) <- paste(names(arg_less_last), ifelse(map(arg_less_last, pluck, 4) > 0, "forest", "grassland"))
+
+# add info on initial conditions
+g_vs_f <- data.frame(id = parse_number(names(arg_less_last)), g_or_f = str_remove_all(names(arg_less_last), "[:digit:]")) %>% 
+  left_join(args_id) %>% 
+  mutate(Moose = unlist(map(initial_conditions, pluck, 1)), By = unlist(map(initial_conditions, pluck, 2))) %>% 
+  dplyr::select(!c(1,3,4))
+
+# count number of recoveries
+n_g_vs_f <- g_vs_f %>% 
+  group_by(as.factor(Moose), as.factor(By), as.factor(g_or_f), .drop=FALSE) %>% 
+  count(.drop=FALSE) %>% 
+  ungroup() %>% 
+  mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
+  mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
+  rename(g_or_f = `as.factor(g_or_f)`) %>% 
+  dplyr::select(c(3:6))
+
+# number of simulations
+n_s <- g_vs_f %>% 
+  group_by(as.factor(Moose), as.factor(By), .drop=FALSE) %>% 
+  count(.drop=FALSE) %>% 
+  ungroup() %>% 
+  mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
+  mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
+  rename(ns = n) %>% 
+  dplyr::select(c(3:5))
+
+# into %
+n_fs <- n_g_vs_f %>% 
+  inner_join(n_s) %>% 
+  subset( g_or_f == " forest") %>% 
+  mutate(percent_recover = (n/ns*100) )
+
+
+
+# mark 50/50
+n_f2 <- n_fs %>% 
+  filter(percent_recover >= 50) %>% 
+  group_by(Moose,  .drop=FALSE) %>% 
+  filter(By == min(By)) %>%
+  mutate(Moose = Moose - 0.2068966/2, By = By - 10.34483/2	) %>%
+  arrange(Moose)
+
+n_f2 <- n_f2 %>% bind_rows(n_f2[nrow(n_f2), ] %>% mutate(Moose = Moose +  0.2068966))
+n_f2
+plan(sequential)
+```
+
+### heatmap
+```{r}
+# legend on right
+heatmap_moose_By <- ggplot() +
+  geom_tile(data = n_fs, aes(x = Moose, y = By, fill = percent_recover)) +
+  geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
+  scale_fill_gradient2(high = "#4D8F26", low = "#f29414", mid = "#f3f59e", midpoint = 50) +
+  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Percent\nrecovered") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0), limits = c(- 10.34483/2, 300)) +
+  scale_x_continuous(expand = c(0,0))
+
+heatmap_moose_By
+
+jpeg("~/code availability/outputs/heatmap_moose_By.jpg", height = 10, width = 15, units = "cm", res = 600)  ###PATH NAME###
+heatmap_moose_By
+dev.off()
+
+# legend top
+heatmap_moose_Byt <- ggplot() +
+  geom_tile(data = n_fs, aes(x = Moose, y = By, fill = percent_recover)) +
+  geom_step(data = n_f2, aes(x = Moose, y = By), size = 0.5) +
+  scale_fill_gradient2(high = "#4D8F26", low = "#f29414", mid = "#f3f59e", midpoint = 50) +
+  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Percent\nrecovered") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0), limits = c(- 10.34483/2, 300)) +
+  scale_x_continuous(expand = c(0,0)) + theme(legend.position = "top")
+
+heatmap_moose_Byt
+
+jpeg("~/code availability/outputs/heatmap_moose_Byt.jpg", height = 10, width = 15, units = "cm", res = 600)  ###PATH NAME###
+heatmap_moose_Byt
+dev.off()
+```
+
+## get time for recovered to recover
+```{r}
+args_less_steady2 <- args_less_steady
+names(args_less_steady2) <- names(arg_less_last)
+
+# remove any that go to grassland
+args_recover <- args_less_steady2[! names(args_less_steady2) %>% str_detect("grassland") ]
+
+# set up clusters
+plan(multisession, workers = 15)
+set.seed(123)
+
+library(zoo)
+
+# run function that returns year simulation becomes stable
+year_stable_delta <- future_lapply(args_recover, return_year_stable_delta)
+
+plan(sequential)
+
+# run function that returns year simulation recovers
+year_rec_delta <- mapply(return_year_recover, args_recover, year_stable_delta)
+
+
+# add to simulation data
+f_yr <- data.frame(id = parse_number(names(year_rec_delta)), g_or_f = str_remove_all(names(year_rec_delta), "[:digit:]"), year = unlist(year_rec_delta)) %>% 
+  left_join(args_id) %>% 
+  mutate(Moose = unlist(map(initial_conditions, pluck, 1)), By = unlist(map(initial_conditions, pluck, 2))) %>% 
+  na.omit() 
+
+# get mean year recovered for each combination of initial conditions
+avg_yr_f <- f_yr %>% 
+  group_by(as.factor(Moose), as.factor(By), .drop = F) %>% 
+  summarise(mean_yr = mean(as.numeric(year))) %>% 
+  ungroup() %>% 
+  mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
+  mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
+  dplyr::select(c(3:5))
+
+# take out those that don't ever recover
+avg_yr_50_f <- avg_yr_f %>% 
+  right_join(filter(n_fs, percent_recover >= 0))
+```
+
+### heatmap
+```{r}
+# legend on top
+heatmap_moose_By_yr <- ggplot() +
+  geom_tile(data = avg_yr_50_f, aes(x = Moose, y = By, fill = mean_yr)) +
+  scale_fill_gradient(low = "#421650", high = "white", na.value = "#C4C4C4") +
+  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Years to\nrecover") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0, 0), limits = c(- 10.34483/2, 300)) +
+  scale_x_continuous(expand = c(0,0))
+
+heatmap_moose_By_yr
+
+jpeg("~/code availability/outputs/heatmap_moose_By_yr.jpg", height = 10, width = 15, units = "cm", res = 600)  ###PATH NAME###
+heatmap_moose_By_yr
+dev.off()
+
+# legend on top
+heatmap_moose_By_yrt <- ggplot() +
+  geom_tile(data = avg_yr_50_f, aes(x = Moose, y = By, fill = mean_yr)) +
+  scale_fill_gradient(low = "#421650", high = "white", na.value = "#C4C4C4") +
+  labs(x = "Moose biomass (Metric tons)", y = "Young palatable plant biomass (Metric tons)", fill = "Years to\nrecover") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0, 0), limits = c(- 10.34483/2, 300)) +
+  scale_x_continuous(expand = c(0,0))+ theme(legend.position = "top")
+
+heatmap_moose_By_yrt
+
+jpeg("~/code availability/outputs/heatmap_moose_By_yrt.jpg", height = 10, width = 15, units = "cm", res = 600)  ###PATH NAME###
+heatmap_moose_By_yrt
+dev.off()
+
+```
+
+## save initial conditoins that recover more than 0% but less than 100%
+```{r}
+# get values of Moose and BY combinations that go to forest 100% or 0%
+n_f_rec <- n_fs %>% 
+  filter(percent_recover == 100 | percent_recover == 0) %>% 
+  mutate(MPy = paste0(Moose, "_", By))
+
+# make into list
+MBy_list <- as.list(n_f_rec$MPy)
+
+# get all combinations of initial conditions from list
+y_0d_rec <- lapply(y_0d, function(x) paste0(x[[1]],"_", x[[2]]))
+
+# remove ones that went to 100 or 0
+y_0d_rec2 <- y_0d_rec[ !y_0d_rec %in% MBy_list ]
+
+# remove y_0d_rec from y_0d based on name 
+y_0d_par <- y_0d[names(y_0d) %in% names(y_0d_rec2)]
+
+saveRDS(y_0d_par, file = "~/code availability/outputs/y_0d_par.RDS")  ###PATH NAME###
+```
+

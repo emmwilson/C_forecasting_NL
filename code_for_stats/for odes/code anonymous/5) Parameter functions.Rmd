@@ -1,0 +1,482 @@
+---
+title: "Parameter functions"
+author: "Anonymous"
+date: "2024-08-27"
+output: html_document
+---
+
+Specify your own file path names on lines with ###PATH NAME###. Also mentioned in text above code that requires a path name.
+
+#libraries
+```{r}
+pacman::p_load(
+  tidyverse,
+  deSolve,
+  parallel,
+  pbapply,
+  future.apply,
+  progressr)
+```
+
+# source code
+file path to be specified by user
+```{r}
+source(knitr::purl("~/code availability/2) Initial condition functions.Rmd", quiet=TRUE)) ###PATH NAME###
+# will source model structure as well
+```
+
+# ode functions
+
+## function to repeat over set params
+used in param_init_runode
+```{r}
+# to repeat ode over initial conditions and parameter values with one parameter set
+ode_fvsg <- function(param_list_error, init_cond) {
+
+  out_param2 <- lapply(init_cond, ode_reps, parameters = param_list_error)
+
+  return(out_param2)
+}
+```
+
+## make list of parameters
+sets parameter at regular intervals across its range, then for each value adds all combinations of the randomly generated remaining parameters (uses the same list of paramater combinations for each value of the parameter)
+```{r}
+param_list_combos <- function(parameter){
+
+  value_list <- as.list(signif(seq(from = param_dist[parameter,'min'], to = param_dist[parameter,'max'], by = (param_dist[parameter,'max'] - param_dist[parameter,'min'])/10),4))
+
+  param_list <- rep(list(list()), length(value_list))
+  
+  for(i in 1:length(value_list)){
+   param_list[[i]] <- sampled_param_list_final
+    for(j in 1:length(sampled_param_list_final)){
+     param_list[[i]][[j]][[parameter]] <- value_list[[i]]
+    }
+  }
+  names(param_list) <- value_list
+  return(param_list)
+}
+```
+
+## run ode over parameter combinations and intitial conditions
+runs over list created in param_list_combos and all initial conditions that recover at least once and not 100%
+```{r}
+param_init_runode <- function(parameter_list){
+  
+  out_param2 <- rep(list(list()), length(parameter_list))
+  
+  for(i in 1:length(parameter_list)) {
+  plan(multisession, workers = 20)
+  set.seed(123)
+  
+  #out_param2[[i]] <- future_mapply(ode_reps, parameters = param_list[[i]], initial_conditions = y_0d_par, future.seed = TRUE)
+  out_param2[[i]] <- future_lapply(parameter_list[[i]], FUN = ode_fvsg, init_cond = y_0d_par, future.seed = TRUE)
+  }
+  names(out_param2) <- names(parameter_list)
+  return(out_param2)
+}
+
+```
+
+## extract the end conditions from each simulation
+also puts data into dataframe with simulation information 
+```{r}
+param_init_get_end <- function(out_param2, parameter_list){ 
+  
+  out_param_less2 <- rep(list(list()), length(parameter_list))
+  g_vs_f_param2 <- rep(list(list()), length(parameter_list))
+  
+  for(i in 1:length(parameter_list)) {
+    for(j in 1:length(out_param2[[i]])){
+  names(out_param2[[i]][[j]]) <- seq(1, length(c(y_0d_par)), by = 1)
+  out_param_less2[[i]][[j]] <- lapply(purrr::discard(out_param2[[i]][[j]], ~nrow(.) < 3),tail, 1, SIMPLIFY = T) 
+  
+  names(out_param_less2[[i]][[j]]) <- paste(names(out_param_less2[[i]][[j]]), ifelse(map(out_param_less2[[i]][[j]], pluck, 4) > 0, "forest", "grassland"))
+  
+  
+  g_vs_f_param2[[i]][[j]] <- data.frame(id = parse_number(names(out_param_less2[[i]][[j]])), g_or_f = str_remove_all(names(out_param_less2[[i]][[j]]), "[:digit:]")) %>% 
+    left_join(y_0d_par_id) %>% 
+    mutate(Moose = unlist(map(y_0d_par, pluck, 1)), By = unlist(map(y_0d_par, pluck, 2))) %>% 
+    select(!c(1,3:5))
+}
+}
+  return(g_vs_f_param2)
+}
+```
+
+## calculate percent recovered at each level of the parameter
+grouped by the combinations of randomly generated parameters
+```{r}
+get_percent_param_rec <- function(param_ode_out, parameter_list) {
+  
+  percent_rec <- rep(list(list()), length(parameter_list))
+
+ for(i in 1:length(parameter_list)) {
+  
+  percent_rec[[i]] <- future_lapply(param_ode_out[[i]], FUN = function(x) nrow(filter(x, g_or_f == " forest"))/nrow(x) , future.seed = TRUE)
+  names(percent_rec) <- names(parameter_list)
+  plan(sequential)
+ }
+  names(percent_rec) <- names(parameter_list)
+  
+  recover_df <- as.data.frame(do.call(rbind, percent_rec)) %>% 
+   mutate(parameter = as.numeric(rownames(.))) %>% 
+    mutate(across(contains("V"), ~ unlist(.))) %>% 
+   pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "recover") %>% 
+    mutate(recover = as.numeric(recover))
+   
+  return(recover_df)
+
+}
+```
+
+
+## extract the year each simulation becomes stable
+```{r}
+return_year_stable_delta <- function(odes) {
+
+  args_recover_delta <- rep(list(list(list())), length(odes))
+  args_recover_deltayr <- rep(list(list(list())), length(odes))
+  out_param_less2 <- rep(list(list(list())), length(odes))
+  args_recover <- rep(list(list(list())), length(odes))
+  odes2 <- odes
+  
+  for(i in 1:length(odes)){
+    for(j in 1:length(c(sampled_param_list_final))){
+  
+      #need to filter out those that don't recover
+      
+  out_param_less2[[i]][[j]] <- lapply(purrr::discard(odes[[i]][[j]], ~nrow(.) < 3),tail, 1, SIMPLIFY = T) 
+  
+  names(out_param_less2[[i]][[j]]) <- paste(names(out_param_less2[[i]][[j]]), ifelse(map(out_param_less2[[i]][[j]], pluck, 4) > 0, "forest", "grassland"))
+  
+  args_recover[[i]][[j]] <- out_param_less2[[i]][[j]][ ! names(out_param_less2[[i]][[j]]) %>% str_detect("grassland") ]
+  
+  names(args_recover[[i]][[j]]) <- parse_number(names(args_recover[[i]][[j]]))
+  
+  odes2[[i]][[j]] <- odes[[i]][[j]][names(odes[[i]][[j]]) %in% names(args_recover[[i]][[j]])]
+      
+  args_recover_delta[[i]][[j]] <- lapply(odes2[[i]][[j]], function(x) as.data.frame(x) %>% 
+    mutate(dMoose = Moose - lag(Moose), dPyoung = Pyoung - lag(Pyoung), dPmature = Pmature - lag(Pmature), dUnpal = Unpal - lag(Unpal)) %>% 
+    filter(if_all(c(6:9), ~. <= 1e-8 | is.nan(.))))
+  
+  args_recover_deltayr[[i]][[j]]<- lapply(args_recover_delta[[i]][[j]],  function(x) x[1,1])
+     }
+    }
+  return(args_recover_deltayr)
+}
+```
+
+## extract year the simualtion "recovers"
+considered recovered when mature palatable plant biomass reaches within 0.1% of the amount of mature palatable plant biomass present when the simulation is stable
+```{r}
+return_year_recovered <- function(odes, p_combos_yr, param_combos) {
+  # same prep as above
+  
+  args_recover_delta <- rep(list(list(list())), length(odes))
+  args_recover_deltayr <- rep(list(list(list())), length(odes))
+  out_param_less2 <- rep(list(list(list())), length(odes))
+  args_recover <- rep(list(list(list())), length(odes))
+
+  odes2 <- odes
+  odes_stable_yrs <- rep(list(list(list())), length(odes2))
+  odes_avg_mat <- rep(list(list(list())), length(odes2))
+  odes_yr_mat<- rep(list(list(list())), length(odes2))
+  
+  for(i in 1:length(odes)){
+    for(j in 1:length(sampled_param_list_final)){
+  
+      #need to filter out those that don't recover
+      
+  out_param_less2[[i]][[j]] <- lapply(purrr::discard(odes[[i]][[j]], ~nrow(.) < 3),tail, 1, SIMPLIFY = T) 
+  
+  names(out_param_less2[[i]][[j]]) <- paste(names(out_param_less2[[i]][[j]]), ifelse(map(out_param_less2[[i]][[j]], pluck, 4) > 0, "forest", "grassland"))
+  
+  args_recover[[i]][[j]] <- out_param_less2[[i]][[j]][ ! names(out_param_less2[[i]][[j]]) %>% str_detect("grassland") ]
+  
+  names(args_recover[[i]][[j]]) <- parse_number(names(args_recover[[i]][[j]]))
+  
+  odes2[[i]][[j]] <- odes[[i]][[j]][names(odes[[i]][[j]]) %in% names(args_recover[[i]][[j]])]
+  names(odes2[[i]][[j]]) <- names(args_recover[[i]][[j]])
+  
+  # new filter
+  
+  
+  odes_stable_yrs[[i]][[j]] <- lapply(names(odes2[[i]][[j]]), function(x) as.data.frame(odes2[[i]][[j]][[x]]) %>% 
+    filter(time >= p_combos_yr[[i]][[j]][[x]]))
+  
+  
+  names(odes_stable_yrs[[i]][[j]]) <- names(odes2[[i]][[j]])
+  
+  odes_avg_mat[[i]][[j]] <- lapply(names(odes2[[i]][[j]]), function(x) as.numeric(odes_stable_yrs[[i]][[j]][[x]][1,4]))
+  
+  names(odes_avg_mat[[i]][[j]]) <- names(odes2[[i]][[j]])
+  
+  # return year simulation initially hit that mature value
+  
+  
+  odes_yr_mat[[i]][[j]] <- lapply(names(odes2[[i]][[j]]), function(x) as.data.frame(odes2[[i]][[j]][[x]]) %>% 
+    filter(Pmature >= as.numeric(odes_avg_mat[[i]][[j]][[x]]) - as.numeric(odes_avg_mat[[i]][[j]][[x]])/1000))
+  
+  odes_yr_mat[[i]][[j]] <- lapply(odes_yr_mat[[i]][[j]], function(x) as.numeric(x[1,1]))
+  
+  names(odes_yr_mat[[i]][[j]]) <- names(odes2[[i]][[j]])
+    }
+  }
+  names(odes_yr_mat) <- names(param_combos)
+  return(odes_yr_mat)
+}
+```
+
+
+## run all these in sequence 
+and save outputs
+file path needs to be changed
+```{r}
+param_effect_sequence <- function(i) {
+ source(knitr::purl("~/code availability/5) Parameter functions.Rmd", quiet=TRUE)) ###PATH NAME###
+  p_combos_ode <- param_init_runode(param_combos[[i]])
+  p_combos_rec <- get_percent_param_rec(p_combos_ode, param_combos[[i]])
+  # add recovery time in here - do both time to stable and time to "recovered"
+  p_combos_yr <- return_year_stable_delta(p_combos_ode)
+  p_combos_yr_rec <- return_year_stable_cv(p_combos_ode)
+  nam <- paste(names(param_combos)[i], "combos", sep = "_")
+  saveRDS(p_combos_rec, file = paste('~/code availability/outputs/', nam, '_rec.RDS')) ###PATH NAME###
+  saveRDS(p_combos_yr, file = paste('~/code availability/outputs/', nam, '_stable_yr.RDS')) ###PATH NAME###
+  saveRDS(p_combos_yr_rec, file = paste('~/code availability/outputs/', nam, '_rec_yr.RDS')) ###PATH NAME###
+  rm(list=setdiff(ls(), c(nams, "param_combos")))
+}
+```
+
+
+# plot functions
+need to change path names throughout to reference file paths named in param_effect_sequence
+## for percent recovered
+```{r}
+## plot with y axis
+plot_param_rec <- function(param, units) {
+  p_combos_rec <- readRDS(file = paste0("~/code availability/outputs/ ",param,"_combos _rec.RDS")) ###PATH NAME###
+  
+  p_combos_recdf <- as.data.frame(p_combos_rec) %>%
+    mutate(parameter = round(parameter, 4)) %>% 
+    group_by(parameter)
+  
+  p_combos_recmean <- as.data.frame(p_combos_rec) %>%
+    mutate(parameter = round(parameter, 4)) %>% 
+    group_by(parameter) %>%
+    summarise(mean = mean(recover))
+  
+  
+  p_plot <- ggplot() +
+    geom_violin(data = p_combos_recdf, aes(factor(parameter), recover), size = 0.3) +
+    geom_point(data = p_combos_recmean, aes(factor(parameter), mean, colour = mean)) +
+    theme_classic() +
+    scale_x_discrete(expand = c(0.1,0), breaks = levels(factor(p_combos_recmean$parameter))[c(T, rep(F, 1))])+
+    ylim(c(0,1)) +
+    labs(x = units, y = NULL) +
+    # rectangle with gradient
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8), axis.text.y = element_text(size = 8)) +
+    scale_colour_gradientn(colours = c("#4D8F26", "#f3f59e", "#f29414"), values = c(1, 0.5, 0), limits = c(0, 1)) +
+    coord_cartesian(clip = "off") +
+    annotation_custom(grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"),
+                                     width = unit(1, "mm"), height = unit(25, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#f29414", "#f3f59e", "#4D8F26"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+  
+  jpeg(paste0("~/code availability/outputs/", param, "_plot.jpg"), height = 4.5, width = 5, units = "cm", res = 600) ###PATH NAME###
+  ifelse(p_combos_recmean$mean[[1]] != p_combos_recmean$mean[[11]], print(p_plot), print("NA"))
+  dev.off()
+  
+  ifelse(p_combos_recmean$mean[[1]] != p_combos_recmean$mean[[11]], return(p_plot), return("NA")) # could do change must be certain magnitude or just if theres change at all (sometimes none) - could print all with any amount of change and only show the ones with the most visible
+  
+}
+
+## without y axis
+plot_param_rec_noy <- function(param, units) {
+  p_combos_rec <- readRDS(file = paste0("~/code availability/outputs/ ", param, "_combos _rec.RDS")) ###PATH NAME###
+  
+  p_combos_recdf <- as.data.frame(p_combos_rec) %>%
+    mutate(parameter = signif(parameter, 4)) %>% 
+    group_by(parameter)
+  
+  p_combos_recmean <- as.data.frame(p_combos_rec) %>%
+    mutate(parameter = signif(parameter, 4)) %>% 
+    group_by(parameter) %>%
+    summarise(mean = mean(recover))
+  
+  p_plot <- ggplot() +
+    geom_violin(data = p_combos_recdf, aes(factor(parameter), recover), size = 0.3) +
+    geom_point(data = p_combos_recmean, aes(factor(parameter), mean, colour = mean)) +
+    theme_classic() +
+    scale_x_discrete(expand = c(0.1,0), breaks = levels(factor(p_combos_recmean$parameter))[c(T, rep(F, 1))])+
+    ylim(c(0,1)) +
+    labs(x = units, y = NULL) +
+    # rectangle with gradient
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8), axis.text.y = element_blank()) +
+    scale_colour_gradientn(colours = c("#4D8F26", "#f3f59e", "#f29414"), values = c(1, 0.5, 0), limits = c(0, 1)) 
+  
+  jpeg(paste0("~/code availability/outputs/ ", param, "_combos _rec.jpeg"), height = 4.5, width = 4.25, units = "cm", res = 600) ###PATH NAME###
+  ifelse(p_combos_recmean$mean[[1]] != p_combos_recmean$mean[[11]], print(p_plot), print("NA"))
+  dev.off()
+  
+  ifelse(p_combos_recmean$mean[[1]] != p_combos_recmean$mean[[11]], return(p_plot), return("NA")) # could do change must be certain magnitude or just if theres change at all (sometimes none) - could print all with any amount of change and only show the ones with the most visible
+  
+}
+```
+
+## for time to recover
+
+### function that gets data in correct format to plot
+```{r}
+## turn RDS into dataframe with average across initial conditoins
+return_year_recovered <- function(odes) {
+  year_avg <- rep(list(list(list())), length(odes))
+  for(i in 1:length(odes)){
+    for(j in 1:length(odes[[i]])) {
+      year_avg[[i]][[j]] <- mean(do.call(cbind, odes[[i]][[j]]))
+    }
+    names(year_avg) <- names(odes)
+  }
+  year_avg_df <- as.data.frame(do.call(rbind, year_avg)) %>% 
+    mutate(parameter = as.numeric(rownames(.))) %>% 
+    mutate(across(contains("V"), ~ unlist(.))) %>% 
+    pivot_longer(cols = !c("parameter"), names_to = "rep", values_to = "recover") %>% 
+    mutate(recover = as.numeric(recover))
+  
+  return(year_avg_df)
+}
+
+```
+
+
+### plot functions
+```{r}
+## with y axis
+plot_param_rec_yr <- function(param, units) {
+  p_combos_rec_yrRDS <- readRDS(file = paste0("~/code availability/outputs/ ", param, "_combos _rec_yr.RDS")) ###PATH NAME###
+  
+  p_combos_rec_yr <- return_year_recovered(p_combos_rec_yrRDS) %>% 
+    na.omit()
+  
+  p_combos_rec_yrdf <- as.data.frame(p_combos_rec_yr) %>%
+    mutate(parameter = signif(parameter, 4)) %>% 
+    group_by(parameter)
+  
+  p_combos_rec_yrmean <- as.data.frame(p_combos_rec_yr) %>%
+    mutate(parameter = signif(parameter, 4)) %>% 
+    group_by(parameter) %>%
+    summarise(mean = mean(recover, na.rm = T))
+  
+  p_plot_yr <- ggplot() +
+    geom_violin(data = p_combos_rec_yrdf, aes(factor(parameter), recover), size = 0.3) +
+    geom_point(data = p_combos_rec_yrmean, aes(factor(parameter), mean, colour = mean)) +
+    theme_classic() +
+    scale_x_discrete(expand = c(0.1,0), breaks = levels(factor(p_combos_rec_yrmean$parameter))[c(T, rep(F, 1))])+
+    ylim(c(min(p_combos_rec_yrdf$recover, na.rm = T), max(p_combos_rec_yrdf$recover, na.rm = T))) +
+    labs(x = units, y = NULL) +
+    # rectangle with gradient
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8), axis.text.y = element_text(size = 8)) +
+    #scale_colour_gradient(low = "#290934", high = "#C6B9CA")
+    scale_color_gradientn(colors = c("#C6B9CA", "#84678D", "#290934"), limits = c(min(p_combos_rec_yr$recover, na.rm = T), max(p_combos_rec_yr$recover, na.rm = T))) +
+    coord_cartesian(clip = "off") +
+    annotation_custom(grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"),
+                                     width = unit(1, "mm"), height = unit(25, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#290934", "#84678D", "#C6B9CA"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+  
+  jpeg(paste0("~/code availability/outputs/",param,"_combos_rec_yr.jpeg"), height = 4.5, width = 5, units = "cm", res = 600) ###PATH NAME###
+  ifelse(p_combos_rec_yrmean$mean[[1]] != p_combos_rec_yrmean$mean[[11]], print(p_plot_yr), print("NA"))
+  dev.off()
+  ifelse(p_combos_rec_yrmean$mean[[1]] != p_combos_rec_yrmean$mean[[11]], return(p_plot_yr), return("NA"))
+}
+
+## without y axis
+plot_param_rec_yr_noy <- function(param, units) {
+  p_combos_rec_yrRDS <- readRDS(file = paste0("~/code availability/outputs/ ", param, "_combos _rec_yr.RDS")) ###PATH NAME###
+  
+  p_combos_rec_yr <- return_year_recovered(p_combos_rec_yrRDS) %>% 
+    na.omit()
+  
+  p_combos_rec_yrdf <- as.data.frame(p_combos_rec_yr) %>%
+    mutate(parameter = signif(parameter, 4)) %>% 
+    group_by(parameter)
+  
+  p_combos_rec_yrmean <- as.data.frame(p_combos_rec_yr) %>%
+    mutate(parameter = signif(parameter, 4)) %>% 
+    group_by(parameter) %>%
+    summarise(mean = mean(recover, na.rm = T))
+  
+  p_plot_yr <- ggplot() +
+    geom_violin(data = p_combos_rec_yrdf, aes(factor(parameter), recover), size = 0.3) +
+    geom_point(data = p_combos_rec_yrmean, aes(factor(parameter), mean, colour = mean)) +
+    theme_classic() +
+    scale_x_discrete(expand = c(0.1,0), breaks = levels(factor(p_combos_rec_yrmean$parameter))[c(T, rep(F, 1))])+
+    ylim(c(min(p_combos_rec_yrdf$recover, na.rm = T), max(p_combos_rec_yrdf$recover, na.rm = T))) +
+    labs(x = units, y = NULL) +
+    # rectangle with gradient
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8), axis.text.y = element_blank()) +
+    #scale_colour_gradient(low = "#290934", high = "#C6B9CA")
+    scale_color_gradientn(colors = c("#C6B9CA", "#84678D", "#290934"), limits = c(min(p_combos_rec_yr$recover, na.rm = T), max(p_combos_rec_yr$recover, na.rm = T))) #+
+  # coord_cartesian(clip = "off") +
+  # annotation_custom(grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"),
+  #                                  width = unit(1, "mm"), height = unit(25, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#290934", "#84678D", "#C6B9CA"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+  
+  jpeg(paste0("~/code availability/outputs/",param,"_combos_rec_yr.jpeg"), height = 4.5, width = 4.25, units = "cm", res = 600) ###PATH NAME###
+  ifelse(p_combos_rec_yrmean$mean[[1]] != p_combos_rec_yrmean$mean[[11]], print(p_plot_yr), print("NA"))
+  dev.off()
+  
+  ifelse(p_combos_rec_yrmean$mean[[1]] != p_combos_rec_yrmean$mean[[11]], return(p_plot_yr), return("NA")) # could do change must be certain magnitude or just if theres change at all (sometimes none) - could print all with any amount of change and only show the ones with the most visible
+  
+}
+```
+
+## plotting paramaters together
+
+## create dataframes for important parameters
+### percent recover
+```{r}
+# dataframe of all percent recovery 
+df_param_rec <- function(param) {
+  p_combos_rec <- readRDS(file = paste0("~/code availability/outputs/ ",param,"_combos _rec.RDS")) ###PATH NAME###
+  
+  p_combos_recdf <- as.data.frame(p_combos_rec) %>%
+    mutate(parameter = round(parameter, 4)) %>% 
+    group_by(parameter)
+}
+
+# dataframe of mean percent recover for each value of parameter
+df_param_rec_mean <- function(param) {
+  p_combos_rec <- readRDS(file = paste0("~/code availability/outputs/ ",param,"_combos _rec.RDS")) ###PATH NAME###
+  
+  p_combos_recmean <- as.data.frame(p_combos_rec) %>%
+    mutate(parameter = round(parameter, 4)) %>% 
+    group_by(parameter) %>%
+    summarise(mean = mean(recover))
+}
+```
+
+### year recover
+```{r}
+# dataframe of all year recover 
+df_param_yr <- function(param) {
+  p_combos_rec_yrRDS <- readRDS(file = paste0("~/code availability/outputs/ ", param, "_combos _rec_yr.RDS")) ###PATH NAME###
+  
+  p_combos_rec_yr <- return_year_recovered(p_combos_rec_yrRDS) %>% 
+    na.omit()
+  
+  p_combos_rec_yrdf <- as.data.frame(p_combos_rec_yr) %>%
+    mutate(parameter = signif(parameter, 4)) %>% 
+    group_by(parameter)
+}
+
+# dataframe of mean year recover for each value of parameter
+df_param_yr_mean <- function(param) {
+  p_combos_rec_yrRDS <- readRDS(file = paste0("~/code availability/outputs/ ", param, "_combos _rec_yr.RDS")) ###PATH NAME###
+  
+  p_combos_rec_yr <- return_year_recovered(p_combos_rec_yrRDS) %>% 
+    na.omit()
+  
+  p_combos_rec_yrmean <- as.data.frame(p_combos_rec_yr) %>%
+    mutate(parameter = signif(parameter, 4)) %>% 
+    group_by(parameter) %>%
+    summarise(mean = mean(recover, na.rm = T))
+}
+```
+

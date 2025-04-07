@@ -1,0 +1,212 @@
+---
+title: "4) Run ode over parameters"
+author: "Anonymous"
+date: "2024-08-27"
+output: html_document
+---
+
+#libraries
+```{r}
+pacman::p_load(
+  tidyverse,
+  deSolve,
+  parallel,
+  pbapply,
+  future.apply,
+  progressr)
+```
+
+# source code
+```{r}
+source(knitr::purl("~/code availability/5) Parameter functions.Rmd", quiet=TRUE))  ###PATH NAME###
+# will source model structure and as well
+```
+
+
+```{r}
+y_0d_par <- readRDS(file = "~/code availability/outputs/y_0d_par.RDS")  ###PATH NAME###
+
+y_0d_par_id <- as.data.frame(t(as.data.frame(y_0d_par))) %>% 
+  mutate(id = seq(1, length(y_0d_par), by = 1))
+```
+
+
+# run sequence of functions
+that give all outputs
+takes a long time and uses a lot of memory so can only run a few parameters at a time
+need to restart R or clear unused memory, then rerun chunks above, between each lapply
+
+```{r}
+#lapply(list(1,2, 3), param_effect_sequence)
+
+#lapply(list(4, 5, 6), param_effect_sequence)
+
+#lapply(list(7, 8, 9), param_effect_sequence)
+
+# lapply(list(10, 11, 12), param_effect_sequence)
+
+#lapply(list(13, 14, 15), param_effect_sequence)
+
+#lapply(list(16, 17, 18, 19), param_effect_sequence)
+```
+
+# plot outputs
+
+## individual plots
+to see which have impact
+
+### percent recover
+```{r}
+plot_param_rec('a', expression('l'[M]*' ((t'[M]*' * year )'^-1*')')) # visually little effect
+plot_param_rec('e', expression('e (t'[M]*' * t'[Py]^-1*')'))
+plot_param_rec_noy('h', expression('h (t'[M]*' * year * t'[Py]^-1*')'))
+plot_param_rec_noy('lM', expression('l'[M]*' ((t'[M]*' * year )'^-1*')'))
+plot_param_rec_noy('rPm', 'units') #  visually little effect
+plot_param_rec_noy('rPy', 'units')
+plot_param_rec_noy('s', 'units') # no change
+plot_param_rec_noy('alphaUPm', 'units') # no change
+plot_param_rec_noy('alphaUPy', 'units') # no change
+plot_param_rec_noy('kPy', 'units') #  visually little effect
+plot_param_rec_noy('kPm', 'units') # no change
+plot_param_rec_noy('g', 'units')
+plot_param_rec_noy('lPm', 'units')#  visually little effect
+plot_param_rec_noy('lPy', 'units')
+plot_param_rec_noy('rU', 'units')# no change
+plot_param_rec_noy('alphaPyU', 'units') # no change
+plot_param_rec_noy('alphaPmU', 'units') # no change
+plot_param_rec_noy('kU', 'units') # no change
+plot_param_rec_noy('lU', 'units') # no change
+```
+
+### year recovered
+```{r}
+# will need to change y axis to include min and max yr over all params
+plot_param_rec_yr('a', 'units') # visually little effect
+plot_param_rec_yr('e', expression('e (t'[M]*' * t'[Py]^-1*')'))
+plot_param_rec_yr_noy('h', expression('h (t'[M]*' * year * t'[Py]^-1*')'))
+plot_param_rec_yr_noy('lM', expression('l'[M]*' ((t'[M]*' * year )'^-1*')'))
+plot_param_rec_yr('rPm', 'units') 
+plot_param_rec_yr('rPy', 'units')
+plot_param_rec_yr('s', 'units') 
+plot_param_rec_yr('alphaUPm', 'units') # visually little effect
+plot_param_rec_yr('alphaUPy', 'units') # visually little effect
+plot_param_rec_yr('kPy', 'units') # visually little effect
+plot_param_rec_yr('kPm', 'units')
+plot_param_rec_yr('g', 'units')
+plot_param_rec_yr('lPm', 'units')
+plot_param_rec_yr('lPy', 'units') # small change at low but mostly visually little effect
+plot_param_rec_yr('rU', 'units') # visually little effect
+ plot_param_rec_yr('alphaPyU', 'units') # no change
+plot_param_rec_yr('alphaPmU', 'units') # visually little effect
+ plot_param_rec_yr('kU', 'units')  # visually little effect
+ plot_param_rec_yr('lU', 'units') # visually little effect
+
+```
+
+## plots together
+cleaned up version only run for parameters with visual effect above
+
+## percent recovered
+
+### create labels
+```{r}
+important_param_percent <- list('e', 'h', 'lM', 'rPy', 'g', 'lPy')
+
+param_dfs <- lapply(important_param_percent, df_param_rec)
+names(param_dfs) <- important_param_percent
+
+param_df1 <- rbindlist(param_dfs, idcol = T) %>% 
+  mutate(.id = factor(.id, c('e', 'h', 'lM', 'rPy', 'g', 'lPy'), labels = c(expression('e (t'[M]*' * t'[Py]^-1*')'), expression('h (t'[M]*' * year * t'[Py]^-1*')'), expression('l'[M]*' ((t'[M]*' * year)'^-1*')'), expression('r'[Py]*'(year'^-1*')'), expression('w (year'^-1*')'), expression('l'[Py]*' (year'^-1*')'))))
+
+param_mean_dfs <- lapply(important_param_percent, df_param_rec_mean)
+names(param_mean_dfs) <- important_param_percent
+
+param_mean_df1 <- rbindlist(param_mean_dfs, idcol = T) %>% 
+  mutate(.id = factor(.id, c('e', 'h', 'lM', 'rPy', 'g', 'lPy'), labels = c(expression('e (t'[M]*' * t'[Py]^-1*')'), expression('h (t'[M]*' * year * t'[Py]^-1*')'), expression('l'[M]*' ((t'[M]*' * year)'^-1*')'), expression('r'[Py]*'(year'^-1*')'), expression('w (year'^-1*')'), expression('l'[Py]*' (year'^-1*')'))))
+```
+
+### plot
+```{r}
+p_plot_rec <- ggplot() +
+    geom_violin(data = param_df1, aes(factor(parameter), recover), size = 0.3) +
+  facet_wrap(~.id, labeller = label_parsed, scales = "free_x", strip.position = "bottom") +
+    geom_point(data = param_mean_df1, aes(factor(parameter), mean, colour = mean)) +
+    theme_classic() +
+    scale_x_discrete(expand = c(0.12,0)) +
+    labs(x = NULL, y = "Percent regenerated") +
+    # rectangle with gradient
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8), strip.background = element_blank(), strip.placement = "outside") +
+    #scale_colour_gradient(low = "#290934", high = "#C6B9CA")
+    scale_color_gradientn(colors = c("#4D8F26", "#f3f59e", "#f29414"), values = c(1, 0.5, 0), limits = c(0, 1)) #+
+   # coord_cartesian(clip = "off") +
+   # annotation_custom(grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"),
+   #                                   width = unit(1, "mm"), height = unit(25, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#f29414", "#f3f59e", "#4D8F26"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+
+jpeg("~/code availability/outputs/param_percent_rec.jpg", height = 14, width = 16, units = "cm", res = 600)  ###PATH NAME###
+p_plot_rec %>%  annotate_figure(left = grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"), width = unit(1, "mm"), height = unit(35.45, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#f29414", "#f3f59e", "#4D8F26"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt")), hjust = -18, vjust = 1.035)) %>%  annotate_figure(left = grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"), width = unit(1, "mm"), height = unit(35.45, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#f29414", "#f3f59e", "#4D8F26"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt")), hjust = -21.55, vjust = -0.63))
+
+```
+
+## year recovered
+
+### create labels
+```{r}
+important_param_year <- list('e', 'h', 'lM', 'rPy', 'g', 's', 'rPm', 'kPm', 'lPm')
+
+param_yr_dfs <- lapply(important_param_year, df_param_yr)
+names(param_yr_dfs) <- important_param_year
+
+param_yr_df1 <- rbindlist(param_yr_dfs, idcol = T) %>% 
+  mutate(.id = factor(.id, c('e', 'h', 'lM', 'rPy', 'g', 's', 'rPm', 'kPm', 'lPm'), labels = c(expression('e (t'[M]*' * t'[Py]^-1*')'), expression('h (t'[M]*' * year * t'[Py]^-1*')'), expression('l'[M]*' ((t'[M]*' * year )'^-1*')'), expression('r'[Py]*' (year'^-1*')'), expression('w (year'^-1*')'), expression('s (t'[Py]*' * (t'[Pm]*' * year)'^-1), expression('r'[Pm]*' (year'^-1*')'), expression('k'[Pm]*' (t'[Pm]*')'), expression('l'[Pm]*' (year'^-1*')'))))
+
+param_yr_mean_dfs <- lapply(important_param_year, df_param_yr_mean)
+names(param_yr_mean_dfs) <- important_param_year
+
+param_yr_mean_df1 <- rbindlist(param_yr_mean_dfs, idcol = T) %>% 
+  mutate(.id = factor(.id, c('e', 'h', 'lM', 'rPy', 'g', 's', 'rPm', 'kPm', 'lPm'), labels = c(expression('e (t'[M]*' * t'[Py]^-1*')'), expression('h (t'[M]*' * year * t'[Py]^-1*')'), expression('l'[M]*' ((t'[M]*' * year )'^-1*')'), expression('r'[Py]*' (year'^-1*')'), expression('w (year'^-1*')'), expression('s (t'[Py]*' * (t'[Pm]*' * year)'^-1), expression('r'[Pm]*' (year'^-1*')'), expression('k'[Pm]*' (t'[Pm]*')'), expression('l'[Pm]*' (year'^-1*')'))))
+```
+
+### plot
+```{r}
+p_plot_yr <- ggplot() +
+    geom_violin(data = param_yr_df1, aes(factor(parameter), recover), size = 0.3) +
+  facet_wrap(~.id, labeller = label_parsed, scales = "free_x", strip.position = "bottom") +
+    geom_point(data = param_yr_mean_df1, aes(factor(parameter), mean, colour = mean)) +
+    theme_classic() +
+    scale_x_discrete(expand = c(0.12,0)) +
+    labs(x = NULL, y = "Years to recover") +
+    # rectangle with gradient
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8), strip.background = element_blank(),strip.placement = "outside") +
+    #scale_colour_gradient(low = "#290934", high = "#C6B9CA")
+    scale_color_gradientn(colors = c("#290934", "#84678D", "#C6B9CA"), limits = c(min(param_yr_df1$recover, na.rm = T), max(param_yr_df1$recover, na.rm = T))) #+
+   # coord_cartesian(clip = "off") +
+   # annotation_custom(grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"),
+   #                                   width = unit(1, "mm"), height = unit(25, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#f29414", "#f3f59e", "#4D8F26"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt"))))
+
+jpeg("~/code availability/outputs/param_percent_yr.jpg", height = 17, width = 16, units = "cm", res = 600)  ###PATH NAME###
+p_plot_yr %>%  annotate_figure(left = grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"), width = unit(1, "mm"), height = unit(32, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#290934", "#84678D", "#C6B9CA"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt")), hjust = -17, vjust = 0.18)) %>%  
+  annotate_figure(left = grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"), width = unit(1, "mm"), height = unit(32, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#290934", "#84678D", "#C6B9CA"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt")), hjust = -20.55, vjust = -1.58)) %>% 
+   annotate_figure(left = grid::rectGrob(x = unit(0.008, "npc"), y = unit(0.5, "npc"), width = unit(1, "mm"), height = unit(32, "mm"), gp = gpar(col = NA, fill = grid::linearGradient(colour = c("#290934", "#84678D", "#C6B9CA"), stops = c(0, 0.5, 1)), lwd = unit(0.1, "pt")), hjust = -24, vjust = 1.95))
+
+```
+
+## change across ranges
+```{r}
+rec_diff <- lapply(param_mean_dfs, function(x) x$mean[[11]] - x$mean[[1]])
+
+yr_diff <- lapply(param_yr_mean_dfs, function(x) x$mean[[11]] - x$mean[[1]])
+```
+
+
+## X times initial amount
+```{r}
+p_times_rec <- lapply(param_mean_dfs, funciton(x) {
+  ifelse(x[[11,2]]>x[[1,2]], x[[11,2]]/x[[1,2]], x[[1,2]] /x[[11,2]])# function depends on if parameter causes increase or decrease in response
+})
+
+
+p_times_yr <- lapply(param_yr_mean_dfs, funciton(x) {
+  ifelse(x[[11,2]]>x[[1,2]], x[[11,2]]/x[[1,2]], x[[1,2]] /x[[11,2]]) 
+})
+```
+

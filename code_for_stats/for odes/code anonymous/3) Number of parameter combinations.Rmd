@@ -1,0 +1,153 @@
+---
+title: "Initial condition functions"
+author: "Anonymous"
+date: "2024-08-27"
+output: html_document
+---
+
+compares number of parameter combinations to proportion recovered
+
+Specify your own file path names on lines with ###PATH NAME###.
+
+
+# source code
+```{r}
+source(knitr::purl("~/code availability/2) Initial condition functions.Rmd", quiet=TRUE)) ###PATH NAME###
+# will source model structure as well
+```
+
+# run ode over list of parameter combination lengths
+
+## set up
+```{r}
+set.seed(123)
+
+# make list of number of samples to try
+n_p_list <- as.list(c(rgamma(18, 4, 0.035), 300, 500))
+```
+
+## function
+```{r}
+# function to repeat ode across initial conditions and each combination of parameters, for each number of samples in list 
+rep_over_n_param_samples <- function (n_param) {
+  
+# make n random combinations of parameters
+  n_p <- n_param
+  
+  sampled_param <-  list()
+  
+# sample from distribution of each parameter n times
+  for(i in rownames(param_dist)){
+    set.seed(123)
+    sampled_param[[i]] <- signif(rtruncnorm(n=n_p, a=param_dist[[i,1]], b=param_dist[[i,2]], mean=param_dist[[i,3]],  sd=(param_dist[[i,2]]-param_dist[[i,1]])/5), 5)
+  }
+
+# make list of possible parameter combinations
+  sampled_param_list <-  split(as.matrix(as.data.frame(sampled_param)), row(as.data.frame(sampled_param))) %>% 
+    lapply(setNames, nm = names(parms))
+  
+  sampled_param_list_final <- list()
+  # remove combinations that don't meet assumptions (around competative effects, growth rates, carrying capacities, and death rates)
+  
+  # relative growth rate
+  sampled_param_list2 <-  sampled_param_list[sapply(sampled_param_list, `[`, 'rPy') < sapply(sampled_param_list, `[`, 'rU') & sapply(sampled_param_list, `[`, 'rPm') < sapply(sampled_param_list, `[`, 'rPy')]
+  
+  # competative effects
+  sampled_param_list3 <-  sampled_param_list2[sapply(sampled_param_list2, `[`, 'alphaUPm') < sapply(sampled_param_list2, `[`, 'alphaUPy') & sapply(sampled_param_list2, `[`, 'alphaUPy') < sapply(sampled_param_list2, `[`, 'alphaPyU') & sapply(sampled_param_list2, `[`, 'alphaPyU') < sapply(sampled_param_list2, `[`, 'alphaPmU')]
+  
+  # carrying capacities
+  sampled_param_list4 <-  sampled_param_list3[sapply(sampled_param_list3, `[`, 'kU') < sapply(sampled_param_list3, `[`, 'kPy') & sapply(sampled_param_list3, `[`, 'kPy') < sapply(sampled_param_list3, `[`, 'kPm')]
+  
+  # loss
+  sampled_param_list_final <-  sampled_param_list4[sapply(sampled_param_list4, `[`, 'lPm') < sapply(sampled_param_list4, `[`, 'lU')]
+
+  # combine with initial values (constant) 
+  args <- expand.grid(
+    parameters=sampled_param_list_final,
+    initial_conditions=y_0d) 
+  args_id <- args %>% mutate(id = seq(1, nrow(args), by = 1))
+  list2env(args, envir=.GlobalEnv)
+
+
+# run over params and init conditions
+  plan(multisession, workers = 24)
+  set.seed(123)
+
+  args$output <- future_mapply(ode_reps, parameters, initial_conditions, SIMPLIFY = F, future.seed = TRUE) 
+
+  plan(sequential)
+  
+# give simulations names based params and init conditions
+  names(args$output) <- seq(1, nrow(args_id), by = 1)
+
+# remove any simulations that didnt run properly
+  args_less <- purrr::discard(args$output, ~nrow(.) < 3)
+  arg_removed <- purrr::keep(args$output, ~nrow(.) < 3)
+
+
+# remove simulations that didn't reach steady state
+  plan(multisession, workers = 24)
+  set.seed(123)
+  
+  args_less_steady_NAs <- future_lapply(args_less, return_year_stable_delta, future.seed = TRUE) # this function returns NAs if the simulation doesn;t reach steady state
+
+  args_less_steady <- args_less[!is.na(args_less_steady_NAs)]
+
+  plan(sequential)
+
+
+# # get final stocks from remaining simulations
+  plan(multisession, workers = 24)
+  set.seed(123)
+  
+  arg_less_last <- future_lapply(args_less_steady,tail, 1, SIMPLIFY = T, future.seed = TRUE)
+  
+  plan(sequential)
+
+# if pmature = 0, and/or Unpal ≠ 0 then grassland
+# if pmature ≠ 0 then forest
+  names(arg_less_last) <- paste(names(arg_less_last), ifelse(map(arg_less_last, pluck, 4) > 0, "forest", "grassland"))
+
+# add info on initial conditions
+  g_vs_f <- data.frame(id = parse_number(names(arg_less_last)), g_or_f = str_remove_all(names(arg_less_last), "[:digit:]")) %>% 
+   left_join(args_id) %>% 
+   mutate(Moose = unlist(map(initial_conditions, pluck, 1)), By = unlist(map(initial_conditions, pluck, 2))) %>% 
+   dplyr::select(!c(1,3,4))
+
+# count number of recoveries
+  n_g_vs_f <- g_vs_f %>% 
+    group_by(as.factor(Moose), as.factor(By), as.factor(g_or_f), .drop=FALSE) %>% 
+    count(.drop=FALSE) %>% 
+    ungroup() %>% 
+    mutate(Moose = as.numeric(as.character(`as.factor(Moose)`))) %>% 
+   mutate(By = as.numeric(as.character(`as.factor(By)`))) %>% 
+   rename(g_or_f = `as.factor(g_or_f)`) %>% 
+   dplyr::select(c(3:6))
+
+# count total number recovered for all simulations relative to number of simulations
+  percent_rec <- sum(filter(n_g_vs_f, g_or_f == " forest")$n)/sum(n_g_vs_f$n)
+
+  
+  return(percent_rec)
+}
+```
+
+## run function and plot
+```{r}
+
+# run function
+n_p_recoveries <- lapply(n_p_list, rep_over_n_param_samples)
+
+# into a dataframe
+n_p <- data.frame(list = unlist(n_p_list), recov = unlist(n_p_recoveries))
+
+# plot
+ggplot(n_p, aes(x = list, y = recov))+ 
+   geom_point() + 
+   geom_smooth() +
+  geom_hline(yintercept = mean(n_p$recov))  +
+  xlim(c(0,500))
+
+```
+
+
