@@ -133,6 +133,27 @@ LVhigh <-  c(1.005, #a
             1200, #kU
             1) #lU
 
+## parameters
+
+parms  <- c(a = 0.9985, 
+            h = 0.0223,
+            e = 0.02,
+            lM = 0.3234,
+            rPy = 0.2,
+            rPm = 0.14,
+            s = 0.011,
+            alphaUPy = 0.001,
+            alphaUPm = 0.0001, 
+            kPy = 1000,
+            kPm = 68000, 
+            g = 0.133,
+            lPm = 0.01,
+            lPy = 0.2,
+            rU = 0.9,
+            alphaPyU = 0.002, 
+            alphaPmU = 0.006, 
+            kU = 900,
+            lU = 0.4)
 
 param_dist <- data.frame(min = LVlow, max = LVhigh, mean = parms)
 ```
